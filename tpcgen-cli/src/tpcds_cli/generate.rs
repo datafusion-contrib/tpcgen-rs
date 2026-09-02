@@ -9,11 +9,35 @@
 use super::progress::TableProgress;
 use log::info;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+/// Return the output path for `table`'s file, following `tpchgen-cli`'s
+/// `--parts`/`--part` naming convention: a single `<table>.<ext>` file when
+/// the session isn't split into chunks, otherwise
+/// `<table>/<table>.<chunk>.<ext>` (creating the per-table subdirectory as
+/// needed).
+pub(super) fn part_aware_path(
+    output_dir: &Path,
+    table: Table,
+    ext: &str,
+    session: &Session,
+) -> io::Result<PathBuf> {
+    if session.get_total_chunks() > 1 {
+        let dir = output_dir.join(table.get_name());
+        std::fs::create_dir_all(&dir)?;
+        Ok(dir.join(format!(
+            "{}.{}.{ext}",
+            table.get_name(),
+            session.get_chunk_number()
+        )))
+    } else {
+        Ok(output_dir.join(format!("{}.{ext}", table.get_name())))
+    }
+}
 
 /// The output file for one table.
 pub(super) trait TableWriter {
@@ -180,13 +204,15 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
         unreachable!("simple table must have one progress handle")
     };
     let mut generator = G::create();
-    let row_count = session.get_scaling().get_row_count(table);
+    let row_range = session.get_source_row_range(table);
+    generator.skip_rows_until_starting_row_number(*row_range.start());
 
     let mut writer = output.create_writer(table, session)?;
 
     info!("Generating {}...", table.get_name());
 
-    for row_number in 1..=row_count {
+    let mut generated_rows = 0i64;
+    for row_number in row_range {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
 
         for row in result.get_rows() {
@@ -195,6 +221,7 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
 
         generator.consume_remaining_seeds_for_row();
         progress.increment(1);
+        generated_rows += 1;
     }
 
     let path = writer.finish()?;
@@ -202,7 +229,7 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
     info!(
         "Generated {}: {} rows -> {}",
         table.get_name(),
-        row_count,
+        generated_rows,
         path.display()
     );
 
@@ -228,7 +255,9 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
         unreachable!("sales table must have sales and returns progress handles")
     };
     let mut generator = G::create();
-    let source_row_count = session.get_scaling().get_row_count(sales_table);
+    let source_row_range = session.get_source_row_range(sales_table);
+    generator.skip_rows_until_starting_row_number(*source_row_range.start());
+    let last_row_number = *source_row_range.end();
 
     let mut sales_writer = output.create_writer(sales_table, session)?;
     let mut returns_writer = output.create_writer(returns_table, session)?;
@@ -241,9 +270,9 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
 
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
-    let mut row_number = 1i64;
+    let mut row_number = *source_row_range.start();
 
-    while row_number <= source_row_count {
+    while row_number <= last_row_number {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
         let rows = result.get_rows();
 

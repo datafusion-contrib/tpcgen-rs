@@ -16,7 +16,7 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use super::generate::{generate_table, TableOutput, TableWriter};
+use super::generate::{generate_table, part_aware_path, TableOutput, TableWriter};
 use super::progress::{register_table, TableProgress};
 use crate::progress::ProgressTracker;
 use std::fs::File;
@@ -77,7 +77,7 @@ impl TableOutput for Dat {
     type Writer = DatTableWriter;
 
     fn create_writer(&self, table: Table, session: &Session) -> Result<Self::Writer> {
-        let path = self.output_dir.join(format!("{}.dat", table.get_name()));
+        let path = part_aware_path(&self.output_dir, table, "dat", session)?;
         let writer = DatWriter::new(File::create(&path)?, session.get_compat_mode());
         Ok(DatTableWriter { writer, path })
     }

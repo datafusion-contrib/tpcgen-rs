@@ -17,7 +17,7 @@
 
 use crate::progress::ProgressTracker;
 use crate::temp_path::inprogress_path;
-use crate::tpcds_cli::generate::{generate_table, TableOutput, TableWriter};
+use crate::tpcds_cli::generate::{generate_table, part_aware_path, TableOutput, TableWriter};
 use crate::tpcds_cli::progress::{register_table, TableProgress};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
@@ -69,8 +69,8 @@ impl TableOutput for Csv {
 
     /// Create the CSV file for `table` (written to a temporary `.inprogress`
     /// path until finished) and write the header line.
-    fn create_writer(&self, table: Table, _session: &Session) -> Result<Self::Writer> {
-        let path = self.output_dir.join(format!("{}.csv", table.get_name()));
+    fn create_writer(&self, table: Table, session: &Session) -> Result<Self::Writer> {
+        let path = part_aware_path(&self.output_dir, table, "csv", session)?;
         let header = csv_header(table, self.delimiter)
             .ok_or_else(|| format!("table {} has no CSV output", table.get_name()))?;
         CsvTableFile::create(path, &header, self.delimiter)

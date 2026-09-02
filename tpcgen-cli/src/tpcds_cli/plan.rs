@@ -1,7 +1,7 @@
 //! [`TpcdsGenerationPlan`]: row group layout for TPC-DS Parquet files.
 
 use std::ops::RangeInclusive;
-use tpcdsgen::config::{Scaling, Table};
+use tpcdsgen::config::Table;
 
 /// Parquet files can have at most 32767 row groups
 const MAX_ROW_GROUPS: i64 = 32767;
@@ -26,29 +26,44 @@ pub(super) struct TpcdsGenerationPlan {
 
 impl TpcdsGenerationPlan {
     /// Compute the row group layout for `table` given the target
-    /// `row_group_bytes`.
-    pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: usize) -> Self {
-        let source_rows = scaling.get_row_count(table.source_table());
-        let estimated_bytes = source_rows.saturating_mul(estimated_bytes_per_source_row(table));
+    /// `row_group_bytes`, restricted to `row_range` of the table's source
+    /// rows.
+    ///
+    /// `row_range` is typically a whole table (`1..=source_rows`, see
+    /// [`Self::new`]) or one `--parts`/`--part` chunk (see
+    /// [`tpcdsgen::config::Session::get_source_row_range`]); either way the
+    /// row groups it produces cover exactly `row_range`, so the row group
+    /// count naturally shrinks for a smaller chunk instead of needing a
+    /// separate scaling step.
+    pub(super) fn new_for_range(
+        table: Table,
+        row_group_bytes: usize,
+        row_range: RangeInclusive<i64>,
+    ) -> Self {
+        let range_start = *row_range.start();
+        let range_end = *row_range.end();
+        let range_len = (range_end - range_start + 1).max(0);
+
+        let estimated_bytes = range_len.saturating_mul(estimated_bytes_per_source_row(table));
         let num_row_groups = (estimated_bytes / row_group_bytes.max(1) as i64 + 1)
             .min(MAX_ROW_GROUPS)
-            .min(source_rows)
+            .min(range_len)
             .max(1);
         // ceiling division so the last row group is the one that comes up short
-        let rows_per_group = ((source_rows + num_row_groups - 1) / num_row_groups).max(1);
+        let rows_per_group = ((range_len + num_row_groups - 1) / num_row_groups).max(1);
 
         let mut ranges = Vec::with_capacity(num_row_groups as usize);
-        let mut start = 1;
-        while start <= source_rows {
-            let end = (start + rows_per_group - 1).min(source_rows);
+        let mut start = range_start;
+        while start <= range_end {
+            let end = (start + rows_per_group - 1).min(range_end);
             ranges.push(start..=end);
             start = end + 1;
         }
-        // An empty table still needs one (empty) range so that a valid
+        // An empty range still needs one (empty) row group so that a valid
         // Parquet file containing the table schema is written.
         if ranges.is_empty() {
             #[allow(clippy::reversed_empty_ranges)]
-            ranges.push(1..=0);
+            ranges.push(range_start..=(range_start - 1));
         }
         Self { ranges }
     }
@@ -168,11 +183,13 @@ fn estimated_bytes_per_source_row(table: Table) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tpcdsgen::config::Scaling;
 
     const DEFAULT_ROW_GROUP_BYTES: usize = 7 * 1024 * 1024;
 
     fn plan(table: Table, scale_factor: f64, row_group_bytes: usize) -> TpcdsGenerationPlan {
-        TpcdsGenerationPlan::new(table, &Scaling::new(scale_factor), row_group_bytes)
+        let source_rows = Scaling::new(scale_factor).get_row_count(table.source_table());
+        TpcdsGenerationPlan::new_for_range(table, row_group_bytes, 1..=source_rows)
     }
 
     /// Assert the ranges cover `1..=expected_source_rows` contiguously
@@ -240,5 +257,63 @@ mod tests {
         let plan = plan(Table::Reason, 0.0, DEFAULT_ROW_GROUP_BYTES);
         assert_eq!(plan.row_group_count(), 1);
         assert!(plan.ranges[0].is_empty());
+    }
+
+    mod new_for_range {
+        use super::*;
+
+        #[test]
+        fn covers_exactly_the_given_sub_range() {
+            let source_rows = Scaling::new(1.0).get_row_count(Table::StoreSales);
+            let quarter = source_rows / 4;
+            let sub_range = (quarter + 1)..=(2 * quarter);
+
+            let plan = TpcdsGenerationPlan::new_for_range(
+                Table::StoreSales,
+                DEFAULT_ROW_GROUP_BYTES,
+                sub_range.clone(),
+            );
+
+            let mut next_row = *sub_range.start();
+            for range in &plan.ranges {
+                assert_eq!(*range.start(), next_row);
+                assert!(range.end() >= range.start());
+                next_row = range.end() + 1;
+            }
+            assert_eq!(next_row, sub_range.end() + 1);
+        }
+
+        #[test]
+        fn shrinks_row_group_count_proportionally() {
+            let source_rows = Scaling::new(1.0).get_row_count(Table::StoreSales);
+            let full = TpcdsGenerationPlan::new_for_range(
+                Table::StoreSales,
+                DEFAULT_ROW_GROUP_BYTES,
+                1..=source_rows,
+            );
+            let quarter = TpcdsGenerationPlan::new_for_range(
+                Table::StoreSales,
+                DEFAULT_ROW_GROUP_BYTES,
+                1..=(source_rows / 4),
+            );
+
+            assert!(quarter.row_group_count() < full.row_group_count());
+        }
+
+        #[test]
+        fn empty_input_range_gets_one_empty_row_group_at_its_start() {
+            // Matches a `--parts` chunk that a small table's 1M-row rule
+            // gives zero rows to (`Session::get_source_row_range` returns
+            // `first_row..=(first_row - 1)`).
+            #[allow(clippy::reversed_empty_ranges)]
+            let plan = TpcdsGenerationPlan::new_for_range(
+                Table::StoreSales,
+                DEFAULT_ROW_GROUP_BYTES,
+                1..=0,
+            );
+            assert_eq!(plan.row_group_count(), 1);
+            assert!(plan.ranges[0].is_empty());
+            assert_eq!(*plan.ranges[0].start(), 1);
+        }
     }
 }

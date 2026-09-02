@@ -1,5 +1,55 @@
 use crate::config::{CompatMode, Scaling, Table};
 use crate::error::{InvalidOptionError, Result};
+use std::ops::RangeInclusive;
+
+/// Tables with fewer source rows than this are not split across chunks:
+/// chunk 1 generates the whole table and every other chunk generates none of
+/// it. Matches dsdgen's `tools/parallel.c` (`kRowsetSize` is only computed
+/// when `nTotalRows` is at least this many rows).
+const SMALL_TABLE_ROW_THRESHOLD: i64 = 1_000_000;
+
+/// Split `total_rows` into `total_chunks` pieces and return the 1-based
+/// `(first_row, row_count)` for `chunk_number`.
+///
+/// Ports dsdgen's `split_work` (`tools/parallel.c`) / Trino's
+/// `Parallel.splitWork`: tables under [`SMALL_TABLE_ROW_THRESHOLD`] rows are
+/// generated entirely by chunk 1, with every other chunk getting zero rows.
+/// Otherwise rows are split evenly, with the remainder spread over the first
+/// chunks so every chunk's `first_row` lines up with a contiguous,
+/// non-overlapping partition of `1..=total_rows`.
+fn split_work(total_rows: i64, chunk_number: i32, total_chunks: i32) -> (i64, i64) {
+    if total_rows < SMALL_TABLE_ROW_THRESHOLD {
+        return if chunk_number == 1 {
+            (1, total_rows)
+        } else {
+            (1, 0)
+        };
+    }
+
+    let total_chunks = total_chunks as i64;
+    let chunk_number = chunk_number as i64;
+    let rowset_size = total_rows / total_chunks;
+    let extra_rows = total_rows % total_chunks;
+
+    let first_row = {
+        let offset = 1 + (chunk_number - 1) * rowset_size;
+        if extra_rows > 0 && chunk_number > 1 {
+            offset + (chunk_number - 1).min(extra_rows)
+        } else {
+            offset
+        }
+    };
+
+    let row_count = {
+        if extra_rows > 0 && chunk_number <= extra_rows {
+            rowset_size + 1
+        } else {
+            rowset_size
+        }
+    };
+
+    (first_row, row_count)
+}
 
 /// Configuration for a TPC-DS data generation run.
 ///
@@ -10,6 +60,7 @@ pub struct Session {
     table: Option<Table>,
     no_sexism: bool,
     chunk_number: i32,
+    total_chunks: i32,
     compat_mode: CompatMode,
     command_line_arguments: Option<String>,
 }
@@ -21,6 +72,7 @@ impl Default for Session {
             table: None,
             no_sexism: Self::DEFAULT_NO_SEXISM,
             chunk_number: Self::DEFAULT_CHUNK_NUMBER,
+            total_chunks: Self::DEFAULT_TOTAL_CHUNKS,
             compat_mode: Self::DEFAULT_COMPAT,
             command_line_arguments: None,
         }
@@ -31,6 +83,7 @@ impl Session {
     pub const DEFAULT_SCALE: f64 = 1.0;
     pub const DEFAULT_NO_SEXISM: bool = false;
     pub const DEFAULT_CHUNK_NUMBER: i32 = 1;
+    pub const DEFAULT_TOTAL_CHUNKS: i32 = 1;
     pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
 
     /// Convert this session into a builder initialized with its current values.
@@ -40,6 +93,7 @@ impl Session {
             table: self.table,
             no_sexism: self.no_sexism,
             chunk_number: self.chunk_number,
+            total_chunks: self.total_chunks,
             compat_mode: self.compat_mode,
             command_line_arguments: self.command_line_arguments,
         }
@@ -82,6 +136,25 @@ impl Session {
         self.chunk_number
     }
 
+    /// Return the total number of chunks this session's table generation is
+    /// split across.
+    pub fn get_total_chunks(&self) -> i32 {
+        self.total_chunks
+    }
+
+    /// Return the 1-based, inclusive range of `table`'s source rows this
+    /// session's chunk is responsible for generating.
+    ///
+    /// Uses [`Table::source_table`] so a returns table (e.g.
+    /// [`Table::StoreReturns`]) is split using its sales table's row count,
+    /// matching how it is actually generated (paired with the sales
+    /// generator). An empty range is returned as `first_row..=(first_row - 1)`.
+    pub fn get_source_row_range(&self, table: Table) -> RangeInclusive<i64> {
+        let total_rows = self.scaling.get_row_count(table.source_table());
+        let (first_row, row_count) = split_work(total_rows, self.chunk_number, self.total_chunks);
+        first_row..=(first_row + row_count - 1)
+    }
+
     /// Return the reference implementation compatibility mode.
     pub fn get_compat_mode(&self) -> CompatMode {
         self.compat_mode
@@ -100,6 +173,7 @@ pub struct SessionBuilder {
     table: Option<Table>,
     no_sexism: bool,
     chunk_number: i32,
+    total_chunks: i32,
     compat_mode: CompatMode,
     command_line_arguments: Option<String>,
 }
@@ -111,6 +185,7 @@ impl Default for SessionBuilder {
             table: None,
             no_sexism: Session::DEFAULT_NO_SEXISM,
             chunk_number: Session::DEFAULT_CHUNK_NUMBER,
+            total_chunks: Session::DEFAULT_TOTAL_CHUNKS,
             compat_mode: Session::DEFAULT_COMPAT,
             command_line_arguments: None,
         }
@@ -153,6 +228,12 @@ impl SessionBuilder {
         self
     }
 
+    /// Set the total number of chunks table generation is split across.
+    pub fn with_total_chunks(mut self, total_chunks: i32) -> Self {
+        self.total_chunks = total_chunks;
+        self
+    }
+
     /// Set the reference implementation compatibility mode.
     pub fn with_compat_mode(mut self, compat_mode: CompatMode) -> Self {
         self.compat_mode = compat_mode;
@@ -183,6 +264,7 @@ impl SessionBuilder {
             table: self.table,
             no_sexism: self.no_sexism,
             chunk_number: self.chunk_number,
+            total_chunks: self.total_chunks,
             compat_mode: self.compat_mode,
             command_line_arguments: self.command_line_arguments,
         })
@@ -203,6 +285,27 @@ impl SessionBuilder {
                 "chunk_number",
                 &self.chunk_number.to_string(),
                 "Chunk number must be >= 1",
+            )
+            .into());
+        }
+
+        if self.total_chunks < 1 {
+            return Err(InvalidOptionError::with_message(
+                "total_chunks",
+                &self.total_chunks.to_string(),
+                "Total chunks must be >= 1",
+            )
+            .into());
+        }
+
+        if self.chunk_number > self.total_chunks {
+            return Err(InvalidOptionError::with_message(
+                "chunk_number",
+                &self.chunk_number.to_string(),
+                &format!(
+                    "Chunk number must be <= total_chunks ({})",
+                    self.total_chunks
+                ),
             )
             .into());
         }
@@ -233,6 +336,7 @@ mod tests {
             .with_table(Table::CatalogSales)
             .with_no_sexism(true)
             .with_chunk_number(2)
+            .with_total_chunks(4)
             .with_compat_mode(CompatMode::C)
             .with_command_line_arguments("tpcgen tpcds --scale-factor 2")
             .build()
@@ -242,6 +346,7 @@ mod tests {
         assert_eq!(session.get_table(), Some(Table::CatalogSales));
         assert!(!session.is_sexist());
         assert_eq!(session.get_chunk_number(), 2);
+        assert_eq!(session.get_total_chunks(), 4);
         assert_eq!(session.get_compat_mode(), CompatMode::C);
         assert_eq!(
             session.command_line_arguments(),
@@ -278,6 +383,7 @@ mod tests {
             .with_table(Table::CatalogSales)
             .with_scale_factor(10.0)
             .with_chunk_number(2)
+            .with_total_chunks(4)
             .with_no_sexism(true)
             .with_command_line_arguments("initial")
             .without_command_line_arguments()
@@ -314,5 +420,118 @@ mod tests {
     fn test_get_only_table_when_none() {
         let session = Session::default();
         session.get_only_table_to_generate();
+    }
+
+    #[test]
+    fn test_default_total_chunks() {
+        let session = Session::default();
+        assert_eq!(session.get_total_chunks(), 1);
+    }
+
+    #[test]
+    fn test_total_chunks_validation() {
+        assert!(SessionBuilder::new().with_total_chunks(0).build().is_err());
+        assert!(SessionBuilder::new()
+            .with_chunk_number(3)
+            .with_total_chunks(2)
+            .build()
+            .is_err());
+        assert!(SessionBuilder::new()
+            .with_chunk_number(2)
+            .with_total_chunks(2)
+            .build()
+            .is_ok());
+    }
+
+    #[test]
+    fn test_split_work_small_table_stays_in_chunk_one() {
+        // Well under the 1M-row threshold: only chunk 1 gets any rows.
+        assert_eq!(split_work(35, 1, 4), (1, 35));
+        assert_eq!(split_work(35, 2, 4), (1, 0));
+        assert_eq!(split_work(35, 4, 4), (1, 0));
+    }
+
+    #[test]
+    fn test_split_work_even_split() {
+        // 1,000,000 rows split evenly across 4 chunks.
+        assert_eq!(split_work(1_000_000, 1, 4), (1, 250_000));
+        assert_eq!(split_work(1_000_000, 2, 4), (250_001, 250_000));
+        assert_eq!(split_work(1_000_000, 3, 4), (500_001, 250_000));
+        assert_eq!(split_work(1_000_000, 4, 4), (750_001, 250_000));
+    }
+
+    #[test]
+    fn test_split_work_remainder_spread_over_first_chunks() {
+        // 1,000,001 rows over 4 chunks: the first chunk absorbs the remainder.
+        let total = 1_000_001;
+        let chunks: Vec<(i64, i64)> = (1..=4).map(|c| split_work(total, c, 4)).collect();
+        assert_eq!(
+            chunks,
+            vec![
+                (1, 250_001),
+                (250_002, 250_000),
+                (500_002, 250_000),
+                (750_002, 250_000)
+            ]
+        );
+        // The chunks partition 1..=total contiguously with no gaps or overlap.
+        let mut next_row = 1;
+        for (first_row, row_count) in &chunks {
+            assert_eq!(*first_row, next_row);
+            next_row += row_count;
+        }
+        assert_eq!(next_row, total + 1);
+    }
+
+    #[test]
+    fn test_split_work_total_chunks_one_is_identity() {
+        assert_eq!(split_work(35, 1, 1), (1, 35));
+        assert_eq!(split_work(5_000_000, 1, 1), (1, 5_000_000));
+    }
+
+    #[test]
+    fn test_get_source_row_range_default_covers_whole_table() {
+        let session = Session::default();
+        let row_count = session.get_scaling().get_row_count(Table::Reason);
+        assert_eq!(session.get_source_row_range(Table::Reason), 1..=row_count);
+    }
+
+    #[test]
+    fn test_get_source_row_range_small_table_across_chunks() {
+        let session = SessionBuilder::new()
+            .with_chunk_number(2)
+            .with_total_chunks(4)
+            .build()
+            .unwrap();
+        // reason is far under the 1M-row threshold, so chunk 2 gets nothing.
+        #[allow(clippy::reversed_empty_ranges)]
+        let expected_empty_range = 1..=0;
+        assert_eq!(
+            session.get_source_row_range(Table::Reason),
+            expected_empty_range
+        );
+
+        let chunk_one = SessionBuilder::new()
+            .with_chunk_number(1)
+            .with_total_chunks(4)
+            .build()
+            .unwrap();
+        let row_count = chunk_one.get_scaling().get_row_count(Table::Reason);
+        assert_eq!(chunk_one.get_source_row_range(Table::Reason), 1..=row_count);
+    }
+
+    #[test]
+    fn test_get_source_row_range_returns_table_uses_sales_row_count() {
+        let session = SessionBuilder::new()
+            .with_scale_factor(10.0)
+            .with_chunk_number(2)
+            .with_total_chunks(3)
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            session.get_source_row_range(Table::StoreReturns),
+            session.get_source_row_range(Table::StoreSales)
+        );
     }
 }
