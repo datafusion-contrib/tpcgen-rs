@@ -297,9 +297,7 @@ macro_rules! table_test {
                 gen.skip_rows_until_starting_row_number(starting_row_number);
 
                 let mut arrow_gen = $arrow_gen(SESSION.clone());
-                arrow_gen.skip_rows_until_starting_row_number(
-                    i64::try_from(starting_row_number).expect("starting row number fits in i64"),
-                );
+                arrow_gen.skip_rows_until_starting_row_number(starting_row_number);
 
                 let schema = arrow_gen.schema();
                 let reparsed = reparsed_batches(

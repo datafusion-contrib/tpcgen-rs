@@ -58,9 +58,7 @@ impl<G: RowGenerator> RowIter<G> {
         }
     }
 
-    pub(crate) fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
-        let starting_row_number = u64::try_from(starting_row_number)
-            .expect("starting row number must be non-negative");
+    pub(crate) fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.generator
             .skip_rows_until_starting_row_number(starting_row_number);
         self.current_row = starting_row_number;
@@ -73,13 +71,11 @@ impl<G: RowGenerator> RowIter<G> {
     /// The ending row number is clamped to the table's row count.
     pub(crate) fn set_source_row_range(
         &mut self,
-        starting_row_number: i64,
-        ending_row_number: i64,
+        starting_row_number: u64,
+        ending_row_number: u64,
     ) {
         self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(
-            u64::try_from(ending_row_number).expect("ending row number must be non-negative"),
-        );
+        self.row_count = self.row_count.min(ending_row_number);
     }
 }
 
