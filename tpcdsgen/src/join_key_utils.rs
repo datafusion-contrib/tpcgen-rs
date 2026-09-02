@@ -80,7 +80,7 @@ pub fn generate_join_key(
             } else {
                 Ok(RandomValueGenerator::generate_uniform_random_key(
                     1,
-                    scaling.get_row_count(to_table),
+                    i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64"),
                     random_number_stream,
                 ))
             }
@@ -99,8 +99,8 @@ fn generate_catalog_page_join_key(
     julian_date: i64,
     scaling: &Scaling,
 ) -> Result<i64> {
-    let pages_per_catalog = ((scaling.get_row_count(Table::CatalogPage) / CATALOGS_PER_YEAR as i64)
-        / (Date::DATE_MAXIMUM.year() - Date::DATE_MINIMUM.year() + 2) as i64)
+    let pages_per_catalog = ((scaling.get_row_count(Table::CatalogPage) / CATALOGS_PER_YEAR as u64)
+        / (Date::DATE_MAXIMUM.year() - Date::DATE_MINIMUM.year() + 2) as u64)
         as i32;
 
     let catalog_type =
@@ -269,7 +269,7 @@ fn generate_scd_join_key(
         return Ok(-1);
     }
 
-    let id_count = scaling.get_id_count(to_table);
+    let id_count = i64::try_from(scaling.get_id_count(to_table)).expect("ID count fits in i64");
     let unique_key =
         RandomValueGenerator::generate_uniform_random_key(1, id_count, random_number_stream);
 
@@ -281,11 +281,13 @@ fn generate_scd_join_key(
         scaling,
     );
 
-    Ok(if key > scaling.get_row_count(to_table) {
-        -1
-    } else {
-        key
-    })
+    Ok(
+        if key > i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64") {
+            -1
+        } else {
+            key
+        },
+    )
 }
 
 /// Generates a join key for web-related tables (web_site, web_page).

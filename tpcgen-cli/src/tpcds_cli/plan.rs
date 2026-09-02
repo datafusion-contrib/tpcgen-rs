@@ -28,7 +28,8 @@ impl TpcdsGenerationPlan {
     /// Compute the row group layout for `table` given the target
     /// `row_group_bytes`.
     pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: i64) -> Self {
-        let source_rows = scaling.get_row_count(table.source_table());
+        let source_rows = i64::try_from(scaling.get_row_count(table.source_table()))
+            .expect("source row count fits in i64");
         let estimated_bytes = source_rows.saturating_mul(estimated_bytes_per_source_row(table));
         let num_row_groups = (estimated_bytes / row_group_bytes.max(1) + 1)
             .min(MAX_ROW_GROUPS)
@@ -223,7 +224,8 @@ mod tests {
         // ceiling division can leave the count just under the cap
         assert!(plan.row_group_count() <= MAX_ROW_GROUPS as usize);
         assert!(plan.row_group_count() > (MAX_ROW_GROUPS - 2) as usize);
-        let source_rows = Scaling::new(3000.0).get_row_count(Table::StoreSales);
+        let source_rows = i64::try_from(Scaling::new(3000.0).get_row_count(Table::StoreSales))
+            .expect("source row count fits in i64");
         assert_covers(&plan, source_rows);
     }
 

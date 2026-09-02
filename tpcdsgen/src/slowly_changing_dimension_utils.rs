@@ -48,7 +48,8 @@ impl SlowlyChangingDimensionKey {
     }
 }
 
-pub fn compute_scd_key(table: Table, row_number: i64) -> SlowlyChangingDimensionKey {
+pub fn compute_scd_key(table: Table, row_number: u64) -> SlowlyChangingDimensionKey {
+    assert!(row_number > 0, "row number must be 1-based");
     let modulo = (row_number % 6) as i32;
     let table_number = table.get_ordinal(); // Use Java ordinal, not Rust enum discriminant
 
@@ -170,7 +171,7 @@ pub fn match_surrogate_key(
         _ => panic!("unique % 3 did not equal 0, 1, or 2"),
     }
 
-    let row_count = scaling.get_row_count(table);
+    let row_count = i64::try_from(scaling.get_row_count(table)).expect("row count fits in i64");
     if surrogate_key > row_count {
         surrogate_key = row_count;
     }
@@ -189,6 +190,12 @@ mod tests {
         assert!(!should_change_dimension(1, false)); // odd flag
         assert!(should_change_dimension(1, true)); // new key overrides odd flag
         assert!(should_change_dimension(0, true)); // new key + even flag
+    }
+
+    #[test]
+    #[should_panic(expected = "row number must be 1-based")]
+    fn test_compute_scd_key_rejects_zero_row_number() {
+        compute_scd_key(Table::Item, 0);
     }
 
     #[test]
@@ -251,7 +258,8 @@ mod tests {
     fn test_match_surrogate_key_capped_at_row_count() {
         let scaling = Scaling::new(1.0);
         // For a very large unique ID, surrogate should be capped at row count
-        let row_count = scaling.get_row_count(crate::config::Table::Item);
+        let row_count = i64::try_from(scaling.get_row_count(crate::config::Table::Item))
+            .expect("row count fits in i64");
         let large_unique = 100000;
         let surrogate = match_surrogate_key(
             large_unique,
