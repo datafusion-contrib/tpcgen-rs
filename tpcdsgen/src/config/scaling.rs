@@ -11,7 +11,7 @@ use crate::types::Date;
 /// `CompatMode::C` is active, see [1].
 ///
 /// [1]: https://github.com/trinodb/tpcds/blob/8a02abbba864feedc2afd078c8153d66a95bb2d4/src/main/java/io/trino/tpcds/Table.java#L201
-const REASON_ROW_COUNT_C: i64 = 75;
+const REASON_ROW_COUNT_C: u64 = 75;
 
 /// Number of tables with precomputed row counts: the main output tables,
 /// which are the first `CACHED_TABLE_COUNT` variants of [`Table`]
@@ -26,7 +26,7 @@ pub struct Scaling {
     /// discriminant. `get_row_count` is called for every foreign key
     /// generated, so it must be a plain lookup rather than a repeated
     /// ScalingInfo model computation.
-    row_counts: [i64; CACHED_TABLE_COUNT],
+    row_counts: [u64; CACHED_TABLE_COUNT],
 }
 
 impl Scaling {
@@ -64,7 +64,7 @@ impl Scaling {
     /// Main output tables are answered from the cache built at construction;
     /// only source tables fall through to the model computation (where they
     /// panic, as before).
-    pub fn get_row_count(&self, table: Table) -> i64 {
+    pub fn get_row_count(&self, table: Table) -> u64 {
         let index = table as usize;
         if index < CACHED_TABLE_COUNT {
             return self.row_counts[index];
@@ -77,7 +77,7 @@ impl Scaling {
     ///
     /// Note: Inventory is a special case - its row count is computed dynamically
     /// as item_id_count × warehouse_count × weeks (matching Java's scaleInventory()).
-    fn compute_row_count(&self, table: Table) -> i64 {
+    fn compute_row_count(&self, table: Table) -> u64 {
         // Special case for Inventory - computed dynamically like Java's scaleInventory()
         // See: Java Scaling.java getRowCount() and scaleInventory()
         if table == Table::Inventory {
@@ -96,13 +96,15 @@ impl Scaling {
 
         // Get base row count from ScalingInfo
         let scaling_info = meta_table.get_scaling_info();
-        let base_row_count = scaling_info
+        let base_row_count: u64 = scaling_info
             .get_row_count_for_scale(self.scale)
-            .unwrap_or(0);
+            .unwrap_or(0)
+            .try_into()
+            .expect("row count cannot be negative");
 
         // Apply multiplier based on keepsHistory and scalingInfo.multiplier
         // multiplier = (keepsHistory ? 2 : 1) * 10^scalingInfo.multiplier
-        let mut multiplier: i64 = if meta_table.keeps_history() { 2 } else { 1 };
+        let mut multiplier: u64 = if meta_table.keeps_history() { 2 } else { 1 };
         for _ in 0..scaling_info.get_multiplier() {
             multiplier *= 10;
         }
@@ -124,10 +126,10 @@ impl Scaling {
     ///     return getIdCount(ITEM) * getRowCount(WAREHOUSE) * nDays;
     /// }
     /// ```
-    fn scale_inventory(&self) -> i64 {
+    fn scale_inventory(&self) -> u64 {
         let n_days = Date::JULIAN_DATE_MAXIMUM - Date::JULIAN_DATE_MINIMUM;
         let n_weeks = (n_days + 7) / 7; // Round up to weeks
-        self.get_id_count(Table::Item) * self.get_row_count(Table::Warehouse) * n_weeks as i64
+        self.get_id_count(Table::Item) * self.get_row_count(Table::Warehouse) * n_weeks as u64
     }
 
     /// Convert config::Table to table::Table for accessing metadata
@@ -167,7 +169,7 @@ impl Scaling {
     }
 
     /// Get unique ID count for tables that keep history
-    pub fn get_id_count(&self, table: Table) -> i64 {
+    pub fn get_id_count(&self, table: Table) -> u64 {
         let row_count = self.get_row_count(table);
         if table.keeps_history() {
             let unique_count = (row_count / 6) * 3;
@@ -189,7 +191,7 @@ impl Scaling {
     /// distribution weights.
     ///
     /// Based on Scaling.getRowCountForDate in Java.
-    pub fn get_row_count_for_date(&self, table: Table, julian_date: i64) -> i64 {
+    pub fn get_row_count_for_date(&self, table: Table, julian_date: i64) -> u64 {
         let row_count = match table {
             Table::StoreSales | Table::CatalogSales | Table::WebSales => self.get_row_count(table),
             Table::Inventory => {
@@ -211,9 +213,9 @@ impl Scaling {
         // Calculate row count for this date using calendar distribution
         // The formula: rowCount = (rowCount * dayWeight + calendarTotal/2) / calendarTotal
         // This distributes the total row count across dates based on weights
-        let calendar_total = CalendarDistribution::get_max_weight(weights) as i64 * 5; // 5 years of data
+        let calendar_total = CalendarDistribution::get_max_weight(weights) as u64 * 5; // 5 years of data
         let day_index = CalendarDistribution::get_index_for_date(&date);
-        let day_weight = CalendarDistribution::get_weight_for_day_number(day_index, weights) as i64;
+        let day_weight = CalendarDistribution::get_weight_for_day_number(day_index, weights) as u64;
 
         let mut result = row_count * day_weight;
         result += calendar_total / 2; // rounding

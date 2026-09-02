@@ -447,7 +447,7 @@ impl Parquet {
     ) -> io::Result<()>
     where
         R: RecordBatchReader + Send + 'static,
-        F: Fn(Session, i64, i64) -> R + Send + 'static,
+        F: Fn(Session, u64, u64) -> R + Send + 'static,
     {
         let table_name = table.get_name();
         let path = self.output_dir.join(format!("{table_name}.parquet"));

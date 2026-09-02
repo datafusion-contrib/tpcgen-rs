@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use tpcdsgen::config::{Scaling, Table};
 
 /// Parquet files can have at most 32767 row groups
-const MAX_ROW_GROUPS: i64 = 32767;
+const MAX_ROW_GROUPS: u64 = 32767;
 
 /// How to generate a TPC-DS table as a Parquet file: a list of contiguous
 /// source row ranges, each of which is generated as one row group.
@@ -21,7 +21,7 @@ const MAX_ROW_GROUPS: i64 = 32767;
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct TpcdsGenerationPlan {
     /// Inclusive 1-based source row ranges, one per row group
-    ranges: Vec<RangeInclusive<i64>>,
+    ranges: Vec<RangeInclusive<u64>>,
 }
 
 impl TpcdsGenerationPlan {
@@ -30,12 +30,12 @@ impl TpcdsGenerationPlan {
     pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: usize) -> Self {
         let source_rows = scaling.get_row_count(table.source_table());
         let estimated_bytes = source_rows.saturating_mul(estimated_bytes_per_source_row(table));
-        let num_row_groups = (estimated_bytes / row_group_bytes.max(1) as i64 + 1)
+        let num_row_groups = (estimated_bytes / row_group_bytes.max(1) as u64 + 1)
             .min(MAX_ROW_GROUPS)
             .min(source_rows)
             .max(1);
         // ceiling division so the last row group is the one that comes up short
-        let rows_per_group = ((source_rows + num_row_groups - 1) / num_row_groups).max(1);
+        let rows_per_group = source_rows.div_ceil(num_row_groups).max(1);
 
         let mut ranges = Vec::with_capacity(num_row_groups as usize);
         let mut start = 1;
@@ -61,7 +61,7 @@ impl TpcdsGenerationPlan {
 
 /// Converts the plan into an iterator of inclusive source row ranges
 impl IntoIterator for TpcdsGenerationPlan {
-    type Item = RangeInclusive<i64>;
+    type Item = RangeInclusive<u64>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -131,7 +131,7 @@ impl IntoIterator for TpcdsGenerationPlan {
 ///
 /// Remember you have to divide by the **source** row count (which is different
 /// for sales vs returns tables) to get the bytes per source row.
-fn estimated_bytes_per_source_row(table: Table) -> i64 {
+fn estimated_bytes_per_source_row(table: Table) -> u64 {
     match table {
         Table::CallCenter => 423,
         Table::CatalogPage => 113,
@@ -176,7 +176,7 @@ mod tests {
     }
 
     /// Assert the ranges cover `1..=expected_source_rows` contiguously
-    fn assert_covers(plan: &TpcdsGenerationPlan, expected_source_rows: i64) {
+    fn assert_covers(plan: &TpcdsGenerationPlan, expected_source_rows: u64) {
         let mut next_row = 1;
         for range in &plan.ranges {
             assert_eq!(*range.start(), next_row);

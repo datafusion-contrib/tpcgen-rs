@@ -36,7 +36,9 @@ impl WebPageRowGenerator {
     }
 
     /// Generate a WebPageRow with SCD logic following Java implementation
-    fn generate_web_page_row(&mut self, row_number: i64, session: &Session) -> Result<WebPageRow> {
+    fn generate_web_page_row(&mut self, row_number: u64, session: &Session) -> Result<WebPageRow> {
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
         // Create null bit map
         let nulls_stream = self
             .abstract_generator
@@ -50,7 +52,7 @@ impl WebPageRowGenerator {
             0
         };
 
-        let wp_page_sk = row_number;
+        let wp_page_sk = row_number_i64;
 
         // Compute SCD key information
         let scd_key = compute_scd_key(Table::WebPage, row_number);
@@ -71,7 +73,7 @@ impl WebPageRowGenerator {
             self.abstract_generator
                 .get_random_number_stream(&WebPageGeneratorColumn::WpCreationDateSk),
             ConfigTable::DateDim,
-            row_number,
+            row_number_i64,
             session.get_scaling(),
         )?;
         if let Some(prev) = &self.previous_row {
@@ -263,7 +265,7 @@ impl WebPageRowGenerator {
 impl RowGenerator for WebPageRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -276,7 +278,7 @@ impl RowGenerator for WebPageRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

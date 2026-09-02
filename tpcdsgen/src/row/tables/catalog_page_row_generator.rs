@@ -40,12 +40,14 @@ impl CatalogPageRowGenerator {
 
     fn generate_catalog_page_row(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
     ) -> Result<CatalogPageRow> {
         use CatalogPageGeneratorColumn::*;
 
-        let cp_catalog_page_sk = row_number;
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
+        let cp_catalog_page_sk = row_number_i64;
         let cp_department = "DEPARTMENT".to_string();
 
         // Generate null bit map
@@ -59,10 +61,10 @@ impl CatalogPageRowGenerator {
         let row_count = session
             .get_scaling()
             .get_row_count(crate::config::table::Table::CatalogPage);
-        let catalog_page_max = ((row_count / CATALOGS_PER_YEAR as i64) as i32)
+        let catalog_page_max = ((row_count / CATALOGS_PER_YEAR as u64) as i32)
             / (Date::DATE_MAXIMUM.year() - Date::DATE_MINIMUM.year() + 2);
-        let cp_catalog_number = ((row_number - 1) / catalog_page_max as i64 + 1) as i32;
-        let cp_catalog_page_number = ((row_number - 1) % catalog_page_max as i64 + 1) as i32;
+        let cp_catalog_number = ((row_number_i64 - 1) / catalog_page_max as i64 + 1) as i32;
+        let cp_catalog_page_number = ((row_number_i64 - 1) % catalog_page_max as i64 + 1) as i32;
 
         // Calculate catalog interval and type
         let catalog_interval = (cp_catalog_number - 1) % CATALOGS_PER_YEAR;
@@ -129,7 +131,7 @@ impl Default for CatalogPageRowGenerator {
 impl RowGenerator for CatalogPageRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -142,7 +144,7 @@ impl RowGenerator for CatalogPageRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

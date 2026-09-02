@@ -49,9 +49,11 @@ impl CallCenterRowGenerator {
     /// Generate a CallCenterRow with realistic data following Java implementation
     fn generate_call_center_row(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
     ) -> Result<CallCenterRow> {
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
         // Create null bit map (createNullBitMap call)
         let nulls_stream = self
             .abstract_generator
@@ -78,9 +80,9 @@ impl CallCenterRowGenerator {
 
             let number_of_call_centers =
                 CallCenterDistributions::get_number_of_call_centers().unwrap_or(12);
-            let suffix = (row_number / number_of_call_centers as i64) as i32;
+            let suffix = (row_number_i64 / number_of_call_centers as i64) as i32;
             let cc_name = CallCenterDistributions::get_call_center_at_index(
-                (row_number % number_of_call_centers as i64) as usize,
+                (row_number_i64 % number_of_call_centers as i64) as usize,
             )
             .unwrap_or("Unknown");
 
@@ -367,7 +369,7 @@ impl CallCenterRowGenerator {
         // Build the row in one go
         let new_row = CallCenterRow::builder()
             .set_null_bit_map(0)
-            .set_cc_call_center_sk(row_number)
+            .set_cc_call_center_sk(row_number_i64)
             .set_cc_call_center_id(scd_key.get_business_key().to_string())
             .set_cc_rec_start_date_id(scd_key.get_start_date())
             .set_cc_rec_end_date_id(scd_key.get_end_date())
@@ -400,7 +402,7 @@ impl CallCenterRowGenerator {
 impl RowGenerator for CallCenterRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -413,7 +415,7 @@ impl RowGenerator for CallCenterRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

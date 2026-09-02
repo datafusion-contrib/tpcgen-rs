@@ -41,10 +41,12 @@ impl CustomerRowGenerator {
         }
     }
 
-    fn generate_customer_row(&mut self, row_number: i64, session: &Session) -> Result<CustomerRow> {
+    fn generate_customer_row(&mut self, row_number: u64, session: &Session) -> Result<CustomerRow> {
         use CustomerGeneratorColumn::*;
 
-        let c_customer_sk = row_number;
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
+        let c_customer_sk = row_number_i64;
         let c_customer_id = make_business_key(row_number);
 
         // Preferred customer flag - MUST BE FIRST (matches Java order line 72)
@@ -198,7 +200,7 @@ impl Default for CustomerRowGenerator {
 impl RowGenerator for CustomerRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -211,7 +213,7 @@ impl RowGenerator for CustomerRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

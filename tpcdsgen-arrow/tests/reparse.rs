@@ -44,10 +44,10 @@ const DAT_SEPARATOR: char = '|';
 const CSV_SEPARATOR: char = ',';
 
 /// Number of rows to test for `table`.
-fn test_row_count(table: Table) -> i64 {
+fn test_row_count(table: Table) -> u64 {
     // Test up to 10k rows, rather than the entire table, to keep testing time
     // reasonable for large fact tables.
-    const MAX_REPARSE_SOURCE_ROWS: i64 = 10_000;
+    const MAX_REPARSE_SOURCE_ROWS: u64 = 10_000;
 
     SESSION
         .get_scaling()
@@ -135,8 +135,8 @@ fn reparsed_batches<G, F>(
     table: Table,
     schema: &SchemaRef,
     select: F,
-    starting_row_number: i64,
-    source_row_count: i64,
+    starting_row_number: u64,
+    source_row_count: u64,
 ) -> impl Iterator<Item = RecordBatch>
 where
     G: RowGenerator,
@@ -211,7 +211,7 @@ where
 ///
 /// Defaults to source row 100 and has special handling for slowly changing
 /// dimension (SCD) tables.
-fn skip_starting_row(table: Table, source_row_count: i64) -> i64 {
+fn skip_starting_row(table: Table, source_row_count: u64) -> u64 {
     let max_skip_row = source_row_count.min(100);
     if !matches!(
         table,

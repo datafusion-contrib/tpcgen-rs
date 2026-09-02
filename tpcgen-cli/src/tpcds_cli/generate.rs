@@ -239,9 +239,9 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
         returns_table.get_name()
     );
 
-    let mut sales_count = 0i64;
-    let mut returns_count = 0i64;
-    let mut row_number = 1i64;
+    let mut sales_count = 0u64;
+    let mut returns_count = 0u64;
+    let mut row_number = 1u64;
 
     while row_number <= source_row_count {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;

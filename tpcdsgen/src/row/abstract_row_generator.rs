@@ -87,7 +87,7 @@ impl AbstractRowGenerator {
     }
 
     /// Skip rows for all streams until reaching the starting row number
-    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         let rows_to_skip = starting_row_number.saturating_sub(1);
         for stream in self.random_number_streams.iter_mut() {
             stream.skip_rows(rows_to_skip);
