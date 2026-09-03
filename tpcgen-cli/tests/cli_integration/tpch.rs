@@ -697,68 +697,6 @@ fn test_tpchgen_cli_rejects_zero_num_threads() {
         ));
 }
 
-/// Test specifying parquet options even when writing tbl output
-#[tokio::test]
-async fn test_incompatible_options_warnings() {
-    let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("csv")
-        .arg("--tables")
-        .arg("orders")
-        .arg("--scale-factor")
-        .arg("0.0001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        // pass in parquet options that are incompatible with csv
-        .arg("--parquet-compression")
-        .arg("zstd(1)")
-        .arg("--parquet-row-group-bytes")
-        .arg("8192")
-        .assert()
-        // still success, but should see warnings in stderr
-        .success()
-        .stderr(predicates::str::contains(
-            "--parquet-compression ignored: output format is not parquet",
-        ))
-        .stderr(predicates::str::contains(
-            "--parquet-row-group-bytes ignored: output format is not parquet",
-        ));
-}
-
-/// Test that --quiet flag suppresses warning messages
-#[tokio::test]
-async fn test_quiet_flag_suppresses_warnings() {
-    let output_dir = tempdir().unwrap();
-    let output = cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .env("RUST_LOG", "warn")
-        .arg("--format")
-        .arg("csv")
-        .arg("--tables")
-        .arg("orders")
-        .arg("--scale-factor")
-        .arg("0.0001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        // pass in parquet options that are incompatible with csv
-        .arg("--parquet-compression")
-        .arg("zstd(1)")
-        .arg("--parquet-row-group-bytes")
-        .arg("8192")
-        .arg("--quiet")
-        .assert()
-        .success();
-
-    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert!(
-        !stderr.contains("Parquet"),
-        "Expected no warning messages in stderr with --quiet flag, but found: {}",
-        stderr
-    );
-}
-
 /// Test that --no-progress is accepted and produces no progress bar output.
 /// Note: in `assert_cmd`-driven tests stderr is not a TTY so progress is also
 /// auto-disabled; this test mainly locks in the flag's existence and verifies
@@ -837,120 +775,22 @@ fn read_reference_file(table_name: &str, scale_factor: &str) -> String {
     }
 }
 
-/// Test that --format=parquet emits a warning about v4.0.0 migration
-#[tokio::test]
-async fn test_format_parquet_warns_about_subcommand() {
-    let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("parquet")
-        .arg("--tables")
-        .arg("part")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains("will be removed in v4.0.0"));
-}
-
-/// Test that using --format together with a subcommand errors
+/// Retired compatibility flags are rejected.
 #[test]
-fn test_format_with_subcommand_conflict() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("parquet")
-        .arg("parquet")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("part")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("cannot be used with"));
-}
-
-/// Test that using --parquet-compression together with a subcommand errors
-#[test]
-fn test_parquet_compression_with_subcommand_conflict() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    // With parquet subcommand
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--parquet-compression")
-        .arg("SNAPPY")
-        .arg("parquet")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("part")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("cannot be used with"));
-
-    // With tbl subcommand
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--parquet-compression")
-        .arg("SNAPPY")
-        .arg("tbl")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("part")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("cannot be used with"));
-}
-
-/// Test that using --parquet-row-group-bytes together with a subcommand errors
-#[test]
-fn test_parquet_row_group_bytes_with_subcommand_conflict() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    // With parquet subcommand
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--parquet-row-group-bytes")
-        .arg("1000000")
-        .arg("parquet")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("part")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("cannot be used with"));
-
-    // With csv subcommand
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--parquet-row-group-bytes")
-        .arg("1000000")
-        .arg("csv")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("part")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("cannot be used with"));
+fn test_deprecated_flags_are_rejected() {
+    for (flag, value) in [
+        ("--format", "parquet"),
+        ("--parquet-compression", "SNAPPY"),
+        ("--parquet-row-group-bytes", "1000000"),
+    ] {
+        cargo_bin_cmd!("tpcgen-cli")
+            .arg("tpch")
+            .arg(flag)
+            .arg(value)
+            .assert()
+            .failure()
+            .stderr(predicates::str::contains("unexpected argument"));
+    }
 }
 
 /// Test that common args before a subcommand are rejected
@@ -986,7 +826,7 @@ fn test_common_args_with_subcommand_conflict() {
         .success();
 }
 
-/// Test that running with no --format and no subcommand defaults to TBL
+/// Test that running with no subcommand defaults to TBL
 #[test]
 fn test_default_format_is_tbl() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -1005,7 +845,7 @@ fn test_default_format_is_tbl() {
     let expected_file = temp_dir.path().join("part.tbl");
     assert!(
         expected_file.exists(),
-        "Expected TBL file {:?} to exist when no --format or subcommand is specified",
+        "Expected TBL file {:?} to exist when no subcommand is specified",
         expected_file
     );
 }
@@ -1058,51 +898,6 @@ fn test_csv_subcommand() {
         "Expected CSV file {:?} to exist with `csv` subcommand",
         expected_file
     );
-}
-
-/// Test that --format=csv emits a deprecation warning
-#[tokio::test]
-async fn test_format_csv_warns_about_subcommand() {
-    let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("csv")
-        .arg("--tables")
-        .arg("part")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains("will be removed in v4.0.0"));
-
-    let expected_file = output_dir.path().join("part.csv");
-    assert!(
-        expected_file.exists(),
-        "Expected CSV file {:?} to exist with deprecated --format=csv path",
-        expected_file
-    );
-}
-
-/// Test that --format=tbl emits a deprecation warning
-#[tokio::test]
-async fn test_format_tbl_warns_about_subcommand() {
-    let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("tbl")
-        .arg("--tables")
-        .arg("part")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains("will be removed in v4.0.0"));
 }
 
 /// Test that the `csv` subcommand with a custom delimiter produces tab-delimited output
@@ -1189,66 +984,4 @@ fn test_tbl_subcommand_rejects_delimiter() {
         .assert()
         .failure()
         .stderr(predicates::str::contains("unexpected argument"));
-}
-
-/// Test that deprecated --format=parquet with --parquet-compression still works
-#[tokio::test]
-async fn test_deprecated_parquet_compression_flag_works() {
-    let output_dir = tempdir().unwrap();
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("parquet")
-        .arg("--parquet-compression")
-        .arg("ZSTD(1)")
-        .arg("--tables")
-        .arg("region")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains(
-            "--parquet-compression flag is deprecated",
-        ));
-
-    let parquet_file = output_dir.path().join("region.parquet");
-    assert!(
-        parquet_file.exists(),
-        "Expected Parquet file {:?} to exist",
-        parquet_file
-    );
-}
-
-/// Test that deprecated --format=parquet with --parquet-row-group-bytes still works
-#[tokio::test]
-async fn test_deprecated_parquet_row_group_bytes_flag_works() {
-    let output_dir = tempdir().unwrap();
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("--format")
-        .arg("parquet")
-        .arg("--parquet-row-group-bytes")
-        .arg("1000000")
-        .arg("--tables")
-        .arg("region")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--output-dir")
-        .arg(output_dir.path())
-        .assert()
-        .success()
-        .stderr(predicates::str::contains(
-            "--parquet-row-group-bytes flag is deprecated",
-        ));
-
-    let parquet_file = output_dir.path().join("region.parquet");
-    assert!(
-        parquet_file.exists(),
-        "Expected Parquet file {:?} to exist",
-        parquet_file
-    );
 }

@@ -60,11 +60,8 @@ pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    // Top-level args are only used when no subcommand is given (legacy path).
-    // args_conflicts_with_subcommands prevents these from being silently ignored
-    // when a subcommand is present (e.g. `tpchgen-cli -s 10 parquet` is an error).
     #[command(flatten)]
-    args: TopLevelArgs,
+    args: CommonArgs,
 }
 
 #[derive(clap::Subcommand)]
@@ -196,26 +193,6 @@ impl CommonArgs {
         // interleaved with bar redraws on shared shells.
         self.progress_bars_enabled && !self.quiet && !self.stdout && io::stderr().is_terminal()
     }
-}
-
-#[derive(clap::Args)]
-struct TopLevelArgs {
-    #[command(flatten)]
-    common: CommonArgs,
-
-    /// Output format (deprecated: use subcommands `tbl`, `csv`, or `parquet` instead)
-    ///
-    /// The --format flag will be removed in v4.0.0.
-    #[arg(short, long, hide = true)]
-    format: Option<OutputFormat>,
-
-    /// Parquet block compression format (deprecated: use 'parquet' subcommand instead)
-    #[arg(short = 'c', long, hide = true)]
-    parquet_compression: Option<Compression>,
-
-    /// Target row group size in bytes (deprecated: use 'parquet' subcommand instead)
-    #[arg(long, hide = true)]
-    parquet_row_group_bytes: Option<i64>,
 }
 
 #[derive(clap::Args)]
@@ -359,45 +336,13 @@ impl Cli {
         }
     }
 
+    /// Generate TBL output when no output-format subcommand is specified.
     async fn run_default(self) -> io::Result<()> {
-        // Warn about --format migration to subcommands (only when explicitly provided)
-        let (format, subcommand) = if let Some(format) = self.args.format {
-            let subcommand = match format {
-                OutputFormat::Parquet => "parquet",
-                OutputFormat::Csv => "csv",
-                OutputFormat::Tbl => "tbl",
-            };
-            (format, Some(subcommand))
-        } else {
-            (OutputFormat::Tbl, None)
-        };
-
-        let mut builder = self.args.common.builder(format);
-        if let Some(subcommand) = subcommand {
-            log::warn!(
-                "The --format flag will be removed in v4.0.0. Use `tpchgen-cli {subcommand}` instead."
-            );
-        }
-
-        if let Some(parquet_compression) = self.args.parquet_compression {
-            if format == OutputFormat::Parquet {
-                log::warn!("The --parquet-compression flag is deprecated. Use 'tpchgen-cli parquet --compression=...' instead");
-                builder = builder.with_parquet_compression(parquet_compression);
-            } else {
-                log::warn!("--parquet-compression ignored: output format is not parquet");
-            }
-        }
-
-        if let Some(parquet_row_group_bytes) = self.args.parquet_row_group_bytes {
-            if format == OutputFormat::Parquet {
-                log::warn!("The --parquet-row-group-bytes flag is deprecated. Use 'tpchgen-cli parquet --row-group-bytes=...' instead");
-                builder = builder.with_parquet_row_group_bytes(parquet_row_group_bytes);
-            } else {
-                log::warn!("--parquet-row-group-bytes ignored: output format is not parquet");
-            }
-        }
-
-        builder.build().generate().await
+        self.args
+            .builder(OutputFormat::Tbl)
+            .build()
+            .generate()
+            .await
     }
 }
 
