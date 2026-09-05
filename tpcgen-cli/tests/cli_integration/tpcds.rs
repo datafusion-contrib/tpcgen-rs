@@ -1,11 +1,11 @@
-use super::test_helpers::{expect_row_group_sizes, RowGroups};
+use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::basic::Compression;
+use parquet::basic::{Compression, Encoding};
 use parquet::file::metadata::ParquetMetaDataReader;
 use std::collections::BTreeSet;
 use std::fs;
@@ -238,6 +238,158 @@ fn test_tpcgen_cli_tpcds_parquet_compression() {
             assert_eq!(column.compression(), Compression::UNCOMPRESSED);
         }
     }
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let path = temp_dir.path().join("reason.parquet");
+    expect_column_encoding(
+        &path,
+        "r_reason_description",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    );
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=NOT_AN_ENCODING")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("invalid value") && stderr.contains("--column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+}
+
+/// A `--column-encoding` column that exists on only some selected tables
+/// applies there and is skipped elsewhere. Selecting tables that do not
+/// share every named column is not an error.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_exists() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // r_reason_description only exists on reason, not item.
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let reason_path = temp_dir.path().join("reason.parquet");
+    expect_column_encoding(
+        &reason_path,
+        "r_reason_description",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    );
+    assert!(
+        temp_dir.path().join("item.parquet").exists(),
+        "expected item.parquet to still be generated, just without r_reason_description applied to it"
+    );
+}
+
+/// A `--column-encoding` column that matches no selected table (a typo)
+/// must fail before any table is written.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("column 'r_reason_description_typo'"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
+/// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are always rejected.
+/// This must fail before any table is written, same as a typo, even when
+/// the column exists on only one of the selected tables.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // r_reason_description only exists on reason. This must still fail up
+    // front, before either table is scheduled.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=PLAIN_DICTIONARY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("cannot be set with --column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
 }
 
 #[test]

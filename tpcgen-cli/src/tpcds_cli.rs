@@ -1,9 +1,10 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
 use crate::logging::configure_logging;
+use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
-use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+use crate::tpch_cli::{Compression, Encoding, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
 use std::collections::HashSet;
@@ -122,6 +123,23 @@ struct ParquetArgs {
         value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
     )]
     num_threads: usize,
+
+    /// Per-column Parquet encodings (overrides writer defaults).
+    ///
+    /// Format: `COLUMN=ENCODING[,COLUMN=ENCODING...]`
+    ///
+    /// Example: `r_reason_description=DELTA_LENGTH_BYTE_ARRAY`
+    ///
+    /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
+    /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each
+    /// encoding must also be valid for the target column's Parquet physical
+    /// type (e.g. RLE only applies to boolean columns).
+    ///
+    /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
+    /// dictionary encoding is the writer default and cannot be requested
+    /// through this flag, and BIT_PACKED is not supported for writing.
+    #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
+    column_encoding: Option<Vec<(String, Encoding)>>,
 }
 
 #[derive(Args)]
@@ -186,7 +204,12 @@ impl CsvArgs {
 impl ParquetArgs {
     async fn run(self) -> Result<()> {
         self.common
-            .run_parquet(self.compression, self.row_group_bytes, self.num_threads)
+            .run_parquet(
+                self.compression,
+                self.row_group_bytes,
+                self.num_threads,
+                self.column_encoding,
+            )
             .await
     }
 }
@@ -204,12 +227,14 @@ impl CommonArgs {
         compression: Compression,
         row_group_bytes: usize,
         num_threads: usize,
+        column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
             self.output_dir.clone(),
             compression,
             row_group_bytes,
             num_threads,
+            column_encoding,
         );
         self.run_output(OutputFormat::Parquet(output)).await
     }

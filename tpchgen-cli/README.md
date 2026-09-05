@@ -57,6 +57,9 @@ tpchgen-cli -s 10 --output-dir sf10
 # (220GB, 20 files, 6B lineitem rows, 3.5 minutes on a modern laptop)
 tpchgen-cli parquet -s 1000 --tables lineitem --parts 20 --row-group-bytes=100000000 --output-dir sf1000
 
+# Per-column encodings (overrides Parquet writer defaults for named columns)
+tpchgen-cli parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY
+
 # Scale Factor 10, partition 2 and 3 of 10 in sf10 directory
 #
 # partitioned/

@@ -14,7 +14,7 @@ pub mod tbl;
 pub use crate::progress;
 pub use cli::Cli;
 pub use generator::{
-    Compression, GeneratorConfig, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
-    WriterSink,
+    Compression, Encoding, GeneratorConfig, OutputFormat, Table, TpchGenerator,
+    TpchGeneratorBuilder, WriterSink,
 };
 pub use plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};

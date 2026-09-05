@@ -1,8 +1,9 @@
 use super::{
-    Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
+    Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
 use crate::logging::configure_logging;
+use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use clap::builder::TypedValueParser;
@@ -274,6 +275,23 @@ struct ParquetArgs {
     /// Typical values range from 10MB to 100MB.
     #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
     row_group_bytes: i64,
+
+    /// Per-column Parquet encodings (overrides writer defaults).
+    ///
+    /// Format: `COLUMN=ENCODING[,COLUMN=ENCODING...]`
+    ///
+    /// Example: `l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY`
+    ///
+    /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
+    /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each
+    /// encoding must also be valid for the target column's Parquet physical
+    /// type (e.g. RLE only applies to boolean columns).
+    ///
+    /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
+    /// dictionary encoding is the writer default and cannot be requested
+    /// through this flag, and BIT_PACKED is not supported for writing.
+    #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
+    column_encoding: Option<Vec<(String, Encoding)>>,
 }
 
 /// Parse a delimiter string, handling escape sequences.
@@ -428,6 +446,7 @@ impl ParquetArgs {
             .builder(OutputFormat::Parquet)
             .with_parquet_compression(self.compression)
             .with_parquet_row_group_bytes(self.row_group_bytes)
+            .with_parquet_column_encodings(self.column_encoding)
             .build()
             .generate()
             .await

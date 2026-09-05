@@ -1,7 +1,8 @@
-use super::test_helpers::{expect_row_group_sizes, RowGroups};
+use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
+use parquet::basic::Encoding;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -48,6 +49,186 @@ fn test_tpcgen_cli_tpch_command_forms() {
             form.join(" ")
         );
     }
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_parquet_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("lineitem")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY, l_shipinstruct = delta_length_byte_array ")
+        .assert()
+        .success();
+
+    let path = temp_dir.path().join("lineitem.parquet");
+    expect_column_encoding(&path, "l_comment", Encoding::DELTA_LENGTH_BYTE_ARRAY);
+    expect_column_encoding(&path, "l_shipinstruct", Encoding::DELTA_LENGTH_BYTE_ARRAY);
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_parquet_rejects_invalid_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("l_comment=NOT_AN_ENCODING")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("invalid value") && stderr.contains("--column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("nocolonequal")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("expected COLUMN=ENCODING"),
+        "unexpected stderr: {stderr}"
+    );
+
+    for invalid in ["=PLAIN", "l_comment="] {
+        let assert = cargo_bin_cmd!("tpcgen-cli")
+            .args(["tpch", "parquet"])
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .arg("--column-encoding")
+            .arg(invalid)
+            .assert()
+            .failure();
+
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(
+            stderr.contains("expected COLUMN=ENCODING"),
+            "unexpected stderr for {invalid}: {stderr}"
+        );
+    }
+}
+
+/// A `--column-encoding` column that exists on only some selected tables
+/// applies there and is skipped elsewhere. Selecting tables that do not
+/// share every named column is not an error.
+#[test]
+fn test_tpcgen_cli_tpch_parquet_column_encoding_applies_only_where_the_column_exists() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // l_comment only exists on lineitem, not orders.
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("lineitem,orders")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let lineitem_path = temp_dir.path().join("lineitem.parquet");
+    expect_column_encoding(
+        &lineitem_path,
+        "l_comment",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    );
+    assert!(
+        temp_dir.path().join("orders.parquet").exists(),
+        "expected orders.parquet to still be generated, just without l_comment applied to it"
+    );
+}
+
+/// A `--column-encoding` column that matches no selected table (a typo)
+/// must fail before any table is written.
+#[test]
+fn test_tpcgen_cli_tpch_parquet_column_encoding_typo_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("lineitem,orders")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("column 'l_comment_typo'"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
+/// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are always rejected.
+/// This must fail before any table is written, same as a typo, even when
+/// the column exists on only one of the selected tables.
+#[test]
+fn test_tpcgen_cli_tpch_parquet_dictionary_encoding_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // l_comment only exists on lineitem. This must still fail up front,
+    // before either table is scheduled.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("lineitem,orders")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment=PLAIN_DICTIONARY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("cannot be set with --column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
 }
 
 /// Repeated TPC-H table selections should schedule each table once.

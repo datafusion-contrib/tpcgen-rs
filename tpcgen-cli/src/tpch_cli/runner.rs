@@ -7,6 +7,7 @@ use crate::temp_path::inprogress_path;
 use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generate::generate_in_chunks;
 use crate::tpch_cli::generate::Source;
+use crate::tpch_cli::generator::column_encodings_for_table;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
@@ -192,6 +193,12 @@ where
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
 {
+    // Keep only the encodings for columns on this table.
+    let column_encodings = plan
+        .parquet_column_encodings()
+        .map(|encodings| column_encodings_for_table(plan.table(), plan.scale_factor(), encodings));
+    let column_encodings = column_encodings.as_deref();
+
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
@@ -200,6 +207,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
+                column_encodings,
                 progress,
             )
             .await
@@ -219,6 +227,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
+                column_encodings,
                 progress,
             )
             .await?;
@@ -382,7 +391,8 @@ define_run!(
 mod tests {
     use super::*;
     use crate::progress::ProgressTracker;
-    use crate::tpch_cli::{Compression, GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+    use crate::tpch_cli::output_plan::ParquetWriterOptions;
+    use crate::tpch_cli::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -420,7 +430,7 @@ mod tests {
             Table::Lineitem,
             1.0,
             OutputFormat::Tbl,
-            Compression::SNAPPY,
+            ParquetWriterOptions::default(),
             OutputLocation::File(output_path.clone()),
             generation_plan,
             ',',
