@@ -41,6 +41,12 @@ Options:
     --quiet             Quiet mode (minimal output).
     --help              Show this help message.
 
+Environment:
+    TPCGEN_BIN          Use this prebuilt executable instead of locating it
+                        with Cargo. Relative paths are resolved from the
+                        caller's working directory. An invalid or empty path
+                        is an error; there is no fallback.
+
 Examples:
     compare-table.sh call_center                  # MD5-only, vs. Trino, scale 1
     compare-table.sh reason --compat c            # MD5-only, vs. C dsdgen
@@ -106,6 +112,19 @@ get_generator_for_table() {
 
 # Find the unified tpcgen-cli binary
 find_rust_binary() {
+    if [[ ${TPCGEN_BIN+x} ]]; then
+        if [[ ! -f "$TPCGEN_BIN" || ! -x "$TPCGEN_BIN" ]]; then
+            log_error "TPCGEN_BIN must name an executable file: $TPCGEN_BIN"
+            return 1
+        fi
+        if [[ "$TPCGEN_BIN" = /* ]]; then
+            echo "$TPCGEN_BIN"
+        else
+            echo "$PWD/$TPCGEN_BIN"
+        fi
+        return 0
+    fi
+
     local target_dir
 
     # Detect if we're in a workspace using cargo
@@ -146,16 +165,10 @@ find_rust_binary() {
 generate_rust_table() {
     local table=$1
     local output_file=$2
-    local binary
+    local binary=$3
     local generator
 
     generator=$(get_generator_for_table "$table")
-
-    if ! binary=$(find_rust_binary); then
-        log_error "Rust binary not found"
-        log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
-        return 1
-    fi
 
     log_info "Generating $table with Rust..."
     log_info "Using binary: $binary tpcds dat --compat $COMPAT --tables $generator --scale-factor $SCALE_FACTOR"
@@ -385,11 +398,18 @@ main() {
         log_info "$ref_label MD5SUMS: $md5sums_file"
     fi
 
+    local binary
+    if ! binary=$(find_rust_binary); then
+        log_error "Rust binary not found"
+        log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
+        exit 1
+    fi
+
     # Generate Rust output
     local rust_output
     rust_output=$(mktemp)
 
-    if ! generate_rust_table "$table" "$rust_output"; then
+    if ! generate_rust_table "$table" "$rust_output" "$binary"; then
         rm -f "$rust_output"
         exit 1
     fi

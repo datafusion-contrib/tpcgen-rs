@@ -1,0 +1,148 @@
+name: Conformance
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'tpchgen/**'
+      - 'tpcdsgen/**'
+      - 'tpcgen-cli/**'
+      - '.github/**'
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  TPCGEN_BIN: ${{ github.workspace }}/conformance-bin/tpcgen-cli
+
+jobs:
+  build:
+    name: Build conformance generator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install repository Rust toolchain
+        run: rustup show
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: conformance-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build Rust table generators
+        run: cargo build --locked --release -p tpcgen-cli
+
+      - name: Upload conformance generator
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: conformance-generator
+          path: target/release/tpcgen-cli
+          if-no-files-found: error
+          retention-days: 1
+
+  # These three display names are required checks in the main branch ruleset.
+  # Run even if the build fails so a skipped dependency cannot satisfy them.
+  tpch:
+    name: TPC-H Conformance Tests
+    needs: build
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Require successful generator build
+        if: ${{ needs.build.result != 'success' }}
+        run: |
+          echo "::error::Conformance generator build did not succeed."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download conformance generator
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: conformance-generator
+          path: conformance-bin
+
+      - name: Restore executable permission
+        run: chmod +x "$TPCGEN_BIN"
+
+      - name: Run conformance tests (Rust vs C dbgen MD5SUMS)
+        run: |
+          cd tpcgen-cli
+          for sf in 0.001 0.01 0.1 1; do
+            ./scripts/tpch/compare-all-tables.sh --scale "$sf"
+          done
+
+  tpcds-java:
+    name: Conformance Tests (Java)
+    needs: build
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Require successful generator build
+        if: ${{ needs.build.result != 'success' }}
+        run: |
+          echo "::error::Conformance generator build did not succeed."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download conformance generator
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: conformance-generator
+          path: conformance-bin
+
+      - name: Restore executable permission
+        run: chmod +x "$TPCGEN_BIN"
+
+      - name: Run conformance tests (Rust vs Java)
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/compare-all-tables.sh
+
+  tpcds-c:
+    name: Conformance Tests (C dsdgen)
+    needs: build
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Require successful generator build
+        if: ${{ needs.build.result != 'success' }}
+        run: |
+          echo "::error::Conformance generator build did not succeed."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download conformance generator
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: conformance-generator
+          path: conformance-bin
+
+      - name: Restore executable permission
+        run: chmod +x "$TPCGEN_BIN"
+
+      - name: Run conformance tests (Rust --compat c vs C dsdgen)
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/compare-all-tables.sh --compat c
