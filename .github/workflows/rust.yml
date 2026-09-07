@@ -91,7 +91,7 @@ jobs:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      full-matrix: ${{ github.event_name != 'pull_request' }}
+      target: ${{ github.event_name == 'pull_request' && 'linux-x86_64' || 'all' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:

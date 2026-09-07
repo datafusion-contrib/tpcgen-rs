@@ -30,6 +30,10 @@ Pull request packaging smoke coverage builds Linux x86_64 wheels and source
 distributions for both CLIs. The merge queue, pushes to `main`, manual Rust
 workflow runs, and releases build the complete 13-target wheel matrix.
 
+The reusable packaging workflow accepts `target: linux-x86_64` for manylinux
+wheels or `target: all` (the default) for the full matrix, independently of
+the `package` and `upload-artifacts` inputs.
+
 The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
 TPC-DS compatibility modes also remain required conformance checks.
 
