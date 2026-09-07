@@ -71,8 +71,8 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # PRs and merge groups cover Linux glibc/musl, Windows, and macOS.
-  # Main pushes and manual runs build all 13 wheel targets. Both CLIs always build sdists.
+  # Build both CLIs' sdists and wheels without uploading artifacts:
+  # four-platform smoke coverage for PRs/merge groups, all 13 targets for main/manual runs.
   build-packages:
     needs: lint
     uses: ./.github/workflows/build-py-packages.yml
