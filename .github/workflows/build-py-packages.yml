@@ -21,8 +21,6 @@ jobs:
   wheels:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
-    env:
-      SCCACHE_GHA_RW_MODE: ${{ github.ref == 'refs/heads/main' && 'READ_WRITE' || 'READ_ONLY' }}
     strategy:
       matrix:
         include:
@@ -84,10 +82,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      # GitHub cache read-only mode requires a newer sccache than Maturin's minimum.
-      - name: Install sccache with read-only cache support
-        if: runner.os != 'Linux'
-        run: python3 -m pip install 'sccache>=0.16.0'
       - name: Build tpchgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
@@ -96,8 +90,6 @@ jobs:
           args: --locked --release --out dist
           working-directory: tpchgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
-          sccache: true
-          before-script-linux: uv tool install 'sccache>=0.16.0'
       - name: Build tpcgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpcgen-cli' }}
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
@@ -106,8 +98,6 @@ jobs:
           args: --locked --release --out dist
           working-directory: tpcgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
-          sccache: true
-          before-script-linux: uv tool install 'sccache>=0.16.0'
       - name: Upload tpchgen-cli wheels
         if: ${{ inputs.upload-artifacts && (inputs.package == 'all' || inputs.package == 'tpchgen-cli') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
