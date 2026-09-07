@@ -43,7 +43,6 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Build Rust table generators
