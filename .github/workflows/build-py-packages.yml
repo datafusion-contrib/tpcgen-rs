@@ -13,32 +13,24 @@ on:
         required: false
         default: all
         type: string
-      coverage:
-        description: "Packaging coverage: smoke or all"
+      smoke:
+        description: "Build representative wheels instead of the full matrix"
         required: false
-        default: all
-        type: string
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
-  validate-inputs:
+  validate-package:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Validate inputs
+      - name: Validate package
         env:
-          COVERAGE: ${{ inputs.coverage }}
           PACKAGE: ${{ inputs.package }}
         run: |
-          case "$COVERAGE" in
-            smoke|all) ;;
-            *)
-              echo "::error::Unsupported coverage. Use 'smoke' or 'all'."
-              exit 1
-              ;;
-          esac
           case "$PACKAGE" in
             all|tpchgen-cli|tpcgen-cli) ;;
             *)
@@ -48,8 +40,8 @@ jobs:
           esac
 
   wheels:
-    needs: validate-inputs
-    if: ${{ inputs.coverage == 'all' }}
+    needs: validate-package
+    if: ${{ !inputs.smoke }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -149,8 +141,8 @@ jobs:
 
   # One representative target per packaging environment.
   wheels-smoke:
-    needs: validate-inputs
-    if: ${{ inputs.coverage == 'smoke' }}
+    needs: validate-package
+    if: ${{ inputs.smoke }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -163,7 +155,7 @@ jobs:
     steps: *build-wheel-steps
 
   sdist:
-    needs: validate-inputs
+    needs: validate-package
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
