@@ -91,9 +91,9 @@ jobs:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      targets: >-
-        ${{ github.event_name == 'pull_request' && 'linux-x86_64' ||
-            github.event_name == 'merge_group' && 'linux-x86_64,musllinux-x86_64,windows-x64,macos-aarch64' ||
+      wheel-targets: >-
+        ${{ github.event_name == 'pull_request' && 'manylinux-x86_64' ||
+            github.event_name == 'merge_group' && 'manylinux-x86_64,musllinux-x86_64,windows-x64,macos-aarch64' ||
             'all' }}
 
   # Provide one stable status check for branch rules and the merge queue.

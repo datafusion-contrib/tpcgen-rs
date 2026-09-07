@@ -13,8 +13,8 @@ on:
         required: false
         default: all
         type: string
-      targets:
-        description: "Wheel targets: all or comma-separated <os>-<target> names (e.g. linux-x86_64)"
+      wheel-targets:
+        description: "Wheel targets: all or comma-separated names from .github/ci/wheel-targets.yml"
         required: false
         default: all
         type: string
@@ -29,82 +29,12 @@ jobs:
     outputs:
       matrix: ${{ steps.select.outputs.matrix }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Select wheel targets
         id: select
         env:
-          TARGETS: ${{ inputs.targets }}
-          # Keep the target catalog in YAML; only the Actions output needs JSON.
-          WHEEL_MATRIX: |
-            # Linux manylinux
-            - runner: ubuntu-22.04
-              target: x86_64
-              manylinux: auto
-              os: linux
-            - runner: ubuntu-22.04
-              target: x86
-              manylinux: auto
-              os: linux
-            - runner: ubuntu-22.04
-              target: aarch64
-              manylinux: auto
-              os: linux
-            - runner: ubuntu-22.04
-              target: armv7
-              manylinux: auto
-              os: linux
-            - runner: ubuntu-22.04
-              target: ppc64le
-              manylinux: auto
-              os: linux
-
-            # Linux musllinux
-            - runner: ubuntu-22.04
-              target: x86_64
-              manylinux: musllinux_1_2
-              os: musllinux
-            - runner: ubuntu-22.04
-              target: x86
-              manylinux: musllinux_1_2
-              os: musllinux
-            - runner: ubuntu-22.04
-              target: aarch64
-              manylinux: musllinux_1_2
-              os: musllinux
-            - runner: ubuntu-22.04
-              target: armv7
-              manylinux: musllinux_1_2
-              os: musllinux
-
-            # Windows
-            - runner: windows-latest
-              target: x64
-              os: windows
-            - runner: windows-latest
-              target: x86
-              os: windows
-
-            # macOS
-            - runner: macos-14
-              target: aarch64
-              os: macos
-            - runner: macos-15-intel
-              target: x86_64
-              os: macos
-        run: |
-          ruby -rjson -ryaml <<'RUBY'
-          matrix = YAML.safe_load(ENV.fetch("WHEEL_MATRIX"))
-          targets = ENV.fetch("TARGETS").split(",", -1).map(&:strip)
-          unless targets == ["all"]
-            by_name = matrix.to_h { |entry| ["#{entry.fetch('os')}-#{entry.fetch('target')}", entry] }
-            if targets.empty? || (targets - by_name.keys).any?
-              abort "::error::Invalid wheel targets #{targets.inspect}. Valid targets: all, #{by_name.keys.join(', ')}"
-            end
-            matrix = targets.uniq.map { |name| by_name.fetch(name) }
-          end
-          File.open(ENV.fetch("GITHUB_OUTPUT"), "a") do |output|
-            output.puts("matrix=#{JSON.generate({include: matrix})}")
-          end
-          RUBY
+          WHEEL_TARGETS: ${{ inputs.wheel-targets }}
+        run: ruby .github/ci/select-wheel-targets.rb >> "$GITHUB_OUTPUT"
 
   wheels:
     needs: wheel-matrix
