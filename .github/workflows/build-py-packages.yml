@@ -23,6 +23,7 @@ permissions:
   contents: read
 
 jobs:
+  # Full 13-target wheel matrix for merge queue, main, manual runs, and releases.
   wheels:
     if: ${{ inputs.full-matrix }}
     runs-on: ${{ matrix.runner }}
@@ -118,7 +119,8 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
-  # Reuse the release target definition and build steps for PR smoke coverage.
+  # Linux x86_64 wheels only for PRs, whose caller sets full-matrix to false.
+  # Reuse the same Linux target definition and build steps as the full matrix.
   wheels-smoke:
     if: ${{ !inputs.full-matrix }}
     runs-on: ${{ matrix.runner }}

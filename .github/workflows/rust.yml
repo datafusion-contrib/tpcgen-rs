@@ -71,7 +71,7 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # Keep native platform compilation in PR CI without release wheel builds.
+  # Keep Windows/macOS compilation required even though PR wheel builds are Linux-only.
   check-platforms:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -84,7 +84,8 @@ jobs:
       - name: Check workspace on native platform
         run: cargo check --locked --workspace --all-targets --all-features
 
-  # PRs smoke-test packaging; merge groups, main, and manual runs build all targets.
+  # Pull requests: Linux x86_64 wheels only, plus source distributions for both CLIs.
+  # Merge queue (merge_group), main pushes, and manual runs: all 13 wheel targets.
   build-packages:
     needs: lint
     uses: ./.github/workflows/build-py-packages.yml
