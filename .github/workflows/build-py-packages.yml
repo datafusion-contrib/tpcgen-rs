@@ -13,8 +13,8 @@ on:
         required: false
         default: all
         type: string
-      wheel-targets:
-        description: "Wheel targets: all or comma-separated names from .github/ci/wheel-targets.yml"
+      wheel-coverage:
+        description: "Wheel coverage: smoke, major-platforms, or all"
         required: false
         default: all
         type: string
@@ -23,26 +23,75 @@ permissions:
   contents: read
 
 jobs:
-  wheel-matrix:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      matrix: ${{ steps.select.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Select wheel targets
-        id: select
-        env:
-          WHEEL_TARGETS: ${{ inputs.wheel-targets }}
-        run: ruby .github/ci/select-wheel-targets.rb >> "$GITHUB_OUTPUT"
-
+  # Complete release matrix.
   wheels:
-    needs: wheel-matrix
+    if: ${{ inputs.wheel-coverage == 'all' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
-      matrix: ${{ fromJSON(needs.wheel-matrix.outputs.matrix) }}
-    steps:
+      matrix:
+        include:
+          # Linux manylinux
+          - &manylinux-x86_64-wheel
+            runner: ubuntu-22.04
+            target: x86_64
+            manylinux: auto
+            os: linux
+          - runner: ubuntu-22.04
+            target: x86
+            manylinux: auto
+            os: linux
+          - runner: ubuntu-22.04
+            target: aarch64
+            manylinux: auto
+            os: linux
+          - runner: ubuntu-22.04
+            target: armv7
+            manylinux: auto
+            os: linux
+          - runner: ubuntu-22.04
+            target: ppc64le
+            manylinux: auto
+            os: linux
+
+          # Linux musllinux
+          - &musllinux-x86_64-wheel
+            runner: ubuntu-22.04
+            target: x86_64
+            manylinux: musllinux_1_2
+            os: musllinux
+          - runner: ubuntu-22.04
+            target: x86
+            manylinux: musllinux_1_2
+            os: musllinux
+          - runner: ubuntu-22.04
+            target: aarch64
+            manylinux: musllinux_1_2
+            os: musllinux
+          - runner: ubuntu-22.04
+            target: armv7
+            manylinux: musllinux_1_2
+            os: musllinux
+
+          # Windows
+          - &windows-x64-wheel
+            runner: windows-latest
+            target: x64
+            os: windows
+          - runner: windows-latest
+            target: x86
+            os: windows
+
+          # macOS
+          - &macos-aarch64-wheel
+            runner: macos-14
+            target: aarch64
+            os: macos
+          - runner: macos-15-intel
+            target: x86_64
+            os: macos
+
+    steps: &build-wheel-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
@@ -73,10 +122,45 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
+  # One target for each major packaging environment.
+  wheels-major-platforms:
+    if: ${{ inputs.wheel-coverage == 'major-platforms' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        include:
+          - *manylinux-x86_64-wheel
+          - *musllinux-x86_64-wheel
+          - *windows-x64-wheel
+          - *macos-aarch64-wheel
+    steps: *build-wheel-steps
+
+  # Fast packaging signal for pull requests.
+  wheels-smoke:
+    if: ${{ inputs.wheel-coverage == 'smoke' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        include:
+          - *manylinux-x86_64-wheel
+    steps: *build-wheel-steps
+
   sdist:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Validate wheel coverage
+        if: >-
+          ${{
+            inputs.wheel-coverage != 'smoke' &&
+            inputs.wheel-coverage != 'major-platforms' &&
+            inputs.wheel-coverage != 'all'
+          }}
+        run: |
+          echo "::error::Unsupported wheel coverage. Use 'smoke', 'major-platforms', or 'all'."
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli sdist
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}

@@ -37,10 +37,9 @@ Packaging coverage grows as changes move toward release:
 Both CLIs build source distributions in every case. Packaging failures specific
 to architectures outside the merge-queue subset may be detected after merging.
 
-The reusable packaging workflow accepts `wheel-targets: all` (the default) or
-a comma-separated list of names from `.github/ci/wheel-targets.yml`, such as
-`manylinux-x86_64,windows-x64`. Wheel selection is independent of `package` and
-`upload-artifacts`; one wheel job builds the selected matrix.
+The reusable packaging workflow accepts `wheel-coverage: smoke`,
+`wheel-coverage: major-platforms`, or `wheel-coverage: all` (the default).
+Wheel coverage is independent of `package` and `upload-artifacts`.
 
 The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
 TPC-DS compatibility modes also remain required conformance checks.
