@@ -13,8 +13,8 @@ on:
         required: false
         default: all
         type: string
-      wheel-coverage:
-        description: "Wheel coverage: smoke or all (sdists always build)"
+      coverage:
+        description: "Packaging coverage: smoke or all (sdists always build)"
         required: false
         default: all
         type: string
@@ -23,26 +23,26 @@ permissions:
   contents: read
 
 jobs:
-  validate-wheel-coverage:
+  validate-coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Validate wheel coverage
+      - name: Validate coverage
         env:
-          WHEEL_COVERAGE: ${{ inputs.wheel-coverage }}
+          COVERAGE: ${{ inputs.coverage }}
         run: |
-          case "$WHEEL_COVERAGE" in
+          case "$COVERAGE" in
             smoke | all) ;;
             *)
-              echo "::error::Unsupported wheel coverage. Use 'smoke' or 'all'."
+              echo "::error::Unsupported coverage. Use 'smoke' or 'all'."
               exit 1
               ;;
           esac
 
   # Complete release matrix.
   wheels:
-    needs: validate-wheel-coverage
-    if: ${{ inputs.wheel-coverage == 'all' }}
+    needs: validate-coverage
+    if: ${{ inputs.coverage == 'all' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -141,8 +141,8 @@ jobs:
 
   # One representative target for each major packaging environment.
   wheels-smoke:
-    needs: validate-wheel-coverage
-    if: ${{ inputs.wheel-coverage == 'smoke' }}
+    needs: validate-coverage
+    if: ${{ inputs.coverage == 'smoke' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -156,7 +156,7 @@ jobs:
 
   # Sdists are platform-independent, so every coverage mode builds them once.
   sdist:
-    needs: validate-wheel-coverage
+    needs: validate-coverage
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
