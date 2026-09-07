@@ -14,7 +14,7 @@ on:
         default: all
         type: string
       coverage:
-        description: "Packaging coverage: smoke or all (sdists always build)"
+        description: "Packaging coverage: smoke or all"
         required: false
         default: all
         type: string
@@ -23,7 +23,6 @@ permissions:
   contents: read
 
 jobs:
-  # workflow_call has no enum input type, so reject typos before starting builds.
   validate-inputs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -48,7 +47,7 @@ jobs:
               ;;
           esac
 
-  # Full 13-target release matrix. Anchored entries are reused by smoke coverage.
+  # Full 13-target release matrix.
   wheels:
     needs: validate-inputs
     if: ${{ inputs.coverage == 'all' }}
@@ -57,7 +56,7 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux manylinux (glibc)
+          # Linux manylinux
           - &manylinux-x86_64-wheel
             runner: ubuntu-22.04
             target: x86_64
@@ -80,7 +79,7 @@ jobs:
             manylinux: auto
             os: linux
 
-          # Linux musllinux (musl)
+          # Linux musllinux
           - &musllinux-x86_64-wheel
             runner: ubuntu-22.04
             target: x86_64
@@ -164,7 +163,6 @@ jobs:
           - *macos-aarch64-wheel
     steps: *build-wheel-steps
 
-  # Sdists are platform-independent; build one per selected package in every mode.
   sdist:
     needs: validate-inputs
     runs-on: ubuntu-latest
