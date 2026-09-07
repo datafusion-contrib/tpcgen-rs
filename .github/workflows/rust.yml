@@ -71,8 +71,10 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # Build both CLIs' sdists and wheels without uploading artifacts:
-  # four-platform smoke coverage for PRs/merge groups, all 13 targets for main/manual runs.
+  # `smoke` (PRs/merge groups): one representative wheel each for manylinux,
+  # musllinux, Windows, and macOS.
+  # `all` (main/manual): all 13 wheels.
+  # Both modes build both CLIs' sdists and do not upload artifacts.
   build-packages:
     needs: lint
     uses: ./.github/workflows/build-py-packages.yml
