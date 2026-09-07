@@ -23,25 +23,33 @@ permissions:
   contents: read
 
 jobs:
-  validate-coverage:
+  validate-inputs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Validate coverage
+      - name: Validate inputs
         env:
           COVERAGE: ${{ inputs.coverage }}
+          PACKAGE: ${{ inputs.package }}
         run: |
           case "$COVERAGE" in
-            smoke | all) ;;
+            smoke|all) ;;
             *)
               echo "::error::Unsupported coverage. Use 'smoke' or 'all'."
+              exit 1
+              ;;
+          esac
+          case "$PACKAGE" in
+            all|tpchgen-cli|tpcgen-cli) ;;
+            *)
+              echo "::error::Unsupported package. Use 'all', 'tpchgen-cli', or 'tpcgen-cli'."
               exit 1
               ;;
           esac
 
   # Complete release matrix.
   wheels:
-    needs: validate-coverage
+    needs: validate-inputs
     if: ${{ inputs.coverage == 'all' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -141,7 +149,7 @@ jobs:
 
   # One representative target for each major packaging environment.
   wheels-smoke:
-    needs: validate-coverage
+    needs: validate-inputs
     if: ${{ inputs.coverage == 'smoke' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -156,7 +164,7 @@ jobs:
 
   # Sdists are platform-independent, so every coverage mode builds them once.
   sdist:
-    needs: validate-coverage
+    needs: validate-inputs
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
