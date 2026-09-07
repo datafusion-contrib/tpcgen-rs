@@ -25,6 +25,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Run cargo-fmt
         run: cargo fmt --all -- --check
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Run cargo-clippy
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Check
@@ -38,9 +41,11 @@ jobs:
   test-doc-examples:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Doc Examples (cargo test --workspace --doc)
         run: cargo test --locked --workspace --doc
 
@@ -48,9 +53,11 @@ jobs:
   test-workspace:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@5bf6ce016fd2e72eefc647cbca1e4213f65955b8 # v2.87.5
         with:
           tool: nextest@0.9.140
@@ -63,9 +70,11 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name : Build docs
         env:
           RUSTDOCFLAGS: "-D warnings"
@@ -73,7 +82,6 @@ jobs:
 
   # Build wheels + sdist (but don’t upload artifacts)
   build-packages:
-    needs: lint
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false

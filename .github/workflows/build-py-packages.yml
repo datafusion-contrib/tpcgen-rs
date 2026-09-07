@@ -90,6 +90,7 @@ jobs:
           args: --locked --release --out dist
           working-directory: tpchgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
+          sccache: true
       - name: Build tpcgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpcgen-cli' }}
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
@@ -98,6 +99,7 @@ jobs:
           args: --locked --release --out dist
           working-directory: tpcgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
+          sccache: true
       - name: Upload tpchgen-cli wheels
         if: ${{ inputs.upload-artifacts && (inputs.package == 'all' || inputs.package == 'tpchgen-cli') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
