@@ -22,27 +22,6 @@ We actively welcome your pull requests.
 6. Run [typos](https://github.com/crate-ci/typos) locally to catch any spelling mistakes in your changes. For intentional exceptions in rust source files, use `// typos:off` and `// typos:on` comments.
 7. Open your pull request and wait for a review and approval.
 
-### Continuous integration
-
-Pull requests and merge-queue commits run Rust linting, workspace tests, doc tests,
-and documentation builds.
-Packaging coverage grows as changes move toward release:
-
-| Run | Wheel targets |
-| --- | --- |
-| Pull request, merge queue | Linux x86_64 manylinux and musllinux, Windows x64, macOS ARM64 |
-| Main, manual, release | All 13 targets |
-
-Both CLIs build source distributions in every case. Packaging failures specific
-to architectures outside the merge-queue subset may be detected after merging.
-
-The reusable packaging workflow accepts `smoke: true` to build representative
-wheels instead of the full matrix. Wheel selection is independent of `package`
-and `upload-artifacts`; source distributions always build.
-
-The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
-TPC-DS compatibility modes also remain required conformance checks.
-
 ## Issues
 
 When opening a new issue try and follow the issue template, there are no specific
