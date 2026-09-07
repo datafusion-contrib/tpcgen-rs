@@ -71,30 +71,14 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # Keep Windows/macOS compilation required even though PR wheel builds are Linux-only.
-  check-platforms:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    needs: lint
-    strategy:
-      matrix:
-        os: [windows-latest, macos-14]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Check workspace on native platform
-        run: cargo check --locked --workspace --all-targets --all-features
-
-  # PRs: Linux smoke coverage. Merge queue: Linux glibc/musl, Windows, and macOS.
-  # Main pushes and manual runs: all 13 wheel targets. Both CLIs always build sdists.
+  # PRs and merge groups cover Linux glibc/musl, Windows, and macOS.
+  # Main pushes and manual runs build all 13 wheel targets. Both CLIs always build sdists.
   build-packages:
     needs: lint
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      wheel-coverage: >-
-        ${{ github.event_name == 'pull_request' && 'smoke' ||
-            github.event_name == 'merge_group' && 'major-platforms' ||
-            'all' }}
+      wheel-coverage: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'smoke' || 'all' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:
@@ -105,7 +89,6 @@ jobs:
       - test-doc-examples
       - test-workspace
       - docs
-      - check-platforms
       - build-packages
     runs-on: ubuntu-latest
     steps:
@@ -115,7 +98,6 @@ jobs:
           DOC_TEST_RESULT: ${{ needs.test-doc-examples.result }}
           WORKSPACE_TEST_RESULT: ${{ needs.test-workspace.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
-          PLATFORMS_RESULT: ${{ needs.check-platforms.result }}
           PACKAGES_RESULT: ${{ needs.build-packages.result }}
         run: |
           set -e
@@ -123,5 +105,4 @@ jobs:
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
           test "$DOCS_RESULT" = success
-          test "$PLATFORMS_RESULT" = success
           test "$PACKAGES_RESULT" = success

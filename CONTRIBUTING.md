@@ -25,21 +25,20 @@ We actively welcome your pull requests.
 ### Continuous integration
 
 Pull requests and merge-queue commits run Rust linting, workspace tests, doc tests,
-documentation builds, and native Windows/macOS compilation checks.
+and documentation builds.
 Packaging coverage grows as changes move toward release:
 
 | Run | Wheel targets |
 | --- | --- |
-| Pull request | Linux x86_64 manylinux |
-| Merge queue | Linux x86_64 manylinux and musllinux, Windows x64, macOS ARM64 |
+| Pull request, merge queue | Linux x86_64 manylinux and musllinux, Windows x64, macOS ARM64 |
 | Main, manual, release | All 13 targets |
 
 Both CLIs build source distributions in every case. Packaging failures specific
 to architectures outside the merge-queue subset may be detected after merging.
 
-The reusable packaging workflow accepts `wheel-coverage: smoke`,
-`wheel-coverage: major-platforms`, or `wheel-coverage: all` (the default).
-Wheel coverage is independent of `package` and `upload-artifacts`.
+The reusable packaging workflow accepts `wheel-coverage: smoke` or
+`wheel-coverage: all` (the default). Wheel coverage is independent of `package`
+and `upload-artifacts`.
 
 The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
 TPC-DS compatibility modes also remain required conformance checks.

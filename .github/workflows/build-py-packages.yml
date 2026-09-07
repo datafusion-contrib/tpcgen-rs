@@ -14,7 +14,7 @@ on:
         default: all
         type: string
       wheel-coverage:
-        description: "Wheel coverage: smoke, major-platforms, or all"
+        description: "Wheel coverage: smoke or all"
         required: false
         default: all
         type: string
@@ -23,8 +23,25 @@ permissions:
   contents: read
 
 jobs:
+  validate-wheel-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate wheel coverage
+        env:
+          WHEEL_COVERAGE: ${{ inputs.wheel-coverage }}
+        run: |
+          case "$WHEEL_COVERAGE" in
+            smoke | all) ;;
+            *)
+              echo "::error::Unsupported wheel coverage. Use 'smoke' or 'all'."
+              exit 1
+              ;;
+          esac
+
   # Complete release matrix.
   wheels:
+    needs: validate-wheel-coverage
     if: ${{ inputs.wheel-coverage == 'all' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -122,9 +139,10 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
-  # One target for each major packaging environment.
-  wheels-major-platforms:
-    if: ${{ inputs.wheel-coverage == 'major-platforms' }}
+  # One representative target for each major packaging environment.
+  wheels-smoke:
+    needs: validate-wheel-coverage
+    if: ${{ inputs.wheel-coverage == 'smoke' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -136,31 +154,11 @@ jobs:
           - *macos-aarch64-wheel
     steps: *build-wheel-steps
 
-  # Fast packaging signal for pull requests.
-  wheels-smoke:
-    if: ${{ inputs.wheel-coverage == 'smoke' }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    strategy:
-      matrix:
-        include:
-          - *manylinux-x86_64-wheel
-    steps: *build-wheel-steps
-
   sdist:
+    needs: validate-wheel-coverage
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Validate wheel coverage
-        if: >-
-          ${{
-            inputs.wheel-coverage != 'smoke' &&
-            inputs.wheel-coverage != 'major-platforms' &&
-            inputs.wheel-coverage != 'all'
-          }}
-        run: |
-          echo "::error::Unsupported wheel coverage. Use 'smoke', 'major-platforms', or 'all'."
-          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli sdist
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
