@@ -95,12 +95,12 @@ jobs:
       - name: Check workspace on native platform
         run: cargo check --locked --workspace --all-targets --all-features
 
-  # PRs and merge groups smoke-test packaging; main and manual runs build all targets.
+  # PRs smoke-test packaging; merge groups, main, and manual runs build all targets.
   build-packages:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      full-matrix: ${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
+      full-matrix: ${{ github.event_name != 'pull_request' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:

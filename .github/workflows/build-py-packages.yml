@@ -120,7 +120,7 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
-  # Reuse the release target definition and build steps for PR/queue smoke coverage.
+  # Reuse the release target definition and build steps for PR smoke coverage.
   wheels-smoke:
     if: ${{ !inputs.full-matrix }}
     runs-on: ${{ matrix.runner }}

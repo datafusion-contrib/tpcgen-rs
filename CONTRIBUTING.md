@@ -26,10 +26,9 @@ We actively welcome your pull requests.
 
 Pull requests and merge-queue commits run Rust linting, workspace tests, doc tests,
 documentation builds, and native Windows/macOS compilation checks in parallel.
-Packaging smoke coverage builds Linux x86_64 wheels and source distributions for
-both CLIs. The complete 13-target wheel matrix runs on pushes to `main`, manual
-Rust workflow runs, and releases; platform-specific packaging failures outside
-the smoke target may therefore be detected after merging.
+Pull request packaging smoke coverage builds Linux x86_64 wheels and source
+distributions for both CLIs. The merge queue, pushes to `main`, manual Rust
+workflow runs, and releases build the complete 13-target wheel matrix.
 
 The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
 TPC-DS compatibility modes also remain required conformance checks. CI builds the
