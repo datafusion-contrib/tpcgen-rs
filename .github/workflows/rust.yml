@@ -78,7 +78,7 @@ jobs:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      wheel-coverage: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'smoke' || 'all' }}
+      coverage: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'smoke' || 'all' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:
