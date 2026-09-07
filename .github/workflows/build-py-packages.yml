@@ -13,19 +13,30 @@ on:
         required: false
         default: all
         type: string
-      full-matrix:
-        description: "Build all release targets instead of Linux x86_64 packaging smoke coverage"
+      target:
+        description: "Wheel target to build: all or linux-x86_64 (manylinux)"
         required: false
-        default: true
-        type: boolean
+        default: all
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  # Full 13-target wheel matrix for merge queue, main, manual runs, and releases.
+  # Reject unsupported values rather than succeeding with no wheel builds.
+  validate-target:
+    if: ${{ inputs.target != 'all' && inputs.target != 'linux-x86_64' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reject unsupported wheel target
+        run: |
+          echo "::error::Unsupported target. Use 'all' or 'linux-x86_64'."
+          exit 1
+
+  # Build all 13 wheel targets by default.
   wheels:
-    if: ${{ inputs.full-matrix }}
+    if: ${{ inputs.target == 'all' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -119,10 +130,9 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
-  # Linux x86_64 wheels only for PRs, whose caller sets full-matrix to false.
-  # Reuse the same Linux target definition and build steps as the full matrix.
-  wheels-smoke:
-    if: ${{ !inputs.full-matrix }}
+  # Build only the selected target, reusing its definition and the full matrix's steps.
+  wheels-linux-x86_64:
+    if: ${{ inputs.target == 'linux-x86_64' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
