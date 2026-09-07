@@ -84,14 +84,17 @@ jobs:
       - name: Check workspace on native platform
         run: cargo check --locked --workspace --all-targets --all-features
 
-  # Pull requests: Linux x86_64 wheels only, plus source distributions for both CLIs.
-  # Merge queue (merge_group), main pushes, and manual runs: all 13 wheel targets.
+  # PRs: Linux smoke coverage. Merge queue: Linux glibc/musl, Windows, and macOS.
+  # Main pushes and manual runs: all 13 wheel targets. Both CLIs always build sdists.
   build-packages:
     needs: lint
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      target: ${{ github.event_name == 'pull_request' && 'linux-x86_64' || 'all' }}
+      targets: >-
+        ${{ github.event_name == 'pull_request' && 'linux-x86_64' ||
+            github.event_name == 'merge_group' && 'linux-x86_64,musllinux-x86_64,windows-x64,macos-aarch64' ||
+            'all' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:
