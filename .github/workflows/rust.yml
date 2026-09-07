@@ -71,21 +71,15 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # `smoke` (PRs/merge groups): one representative wheel each for manylinux,
-  # musllinux, Windows, and macOS.
-  # `all` (main/manual): all 13 wheels.
-  # Both modes build both CLIs' sdists and do not upload artifacts.
+  # PRs/merge groups set `smoke: true`: one wheel each for manylinux,
+  # musllinux, Windows, and macOS. Main/manual runs build all 13 wheels.
+  # Every run also builds both CLIs' sdists without uploading artifacts.
   build-packages:
     needs: lint
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      coverage: >-
-        ${{
-          (github.event_name == 'pull_request' || github.event_name == 'merge_group')
-          && 'smoke'
-          || 'all'
-        }}
+      smoke: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:

@@ -36,9 +36,9 @@ Packaging coverage grows as changes move toward release:
 Both CLIs build source distributions in every case. Packaging failures specific
 to architectures outside the merge-queue subset may be detected after merging.
 
-The reusable packaging workflow accepts `coverage: smoke` or `coverage: all`
-(the default). Coverage is independent of `package` and `upload-artifacts`;
-source distributions always build.
+The reusable packaging workflow accepts `smoke: true` to build representative
+wheels instead of the full matrix. Wheel selection is independent of `package`
+and `upload-artifacts`; source distributions always build.
 
 The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
 TPC-DS compatibility modes also remain required conformance checks.
