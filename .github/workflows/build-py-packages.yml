@@ -23,6 +23,7 @@ permissions:
   contents: read
 
 jobs:
+  # workflow_call has no enum input type, so reject typos before starting builds.
   validate-inputs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -47,7 +48,7 @@ jobs:
               ;;
           esac
 
-  # Complete release matrix.
+  # Full 13-target release matrix. Anchored entries are reused by smoke coverage.
   wheels:
     needs: validate-inputs
     if: ${{ inputs.coverage == 'all' }}
@@ -56,7 +57,7 @@ jobs:
     strategy:
       matrix:
         include:
-          # Linux manylinux
+          # Linux manylinux (glibc)
           - &manylinux-x86_64-wheel
             runner: ubuntu-22.04
             target: x86_64
@@ -79,7 +80,7 @@ jobs:
             manylinux: auto
             os: linux
 
-          # Linux musllinux
+          # Linux musllinux (musl)
           - &musllinux-x86_64-wheel
             runner: ubuntu-22.04
             target: x86_64
@@ -116,6 +117,7 @@ jobs:
             target: x86_64
             os: macos
 
+    # Reuse these steps so smoke and full builds behave identically.
     steps: &build-wheel-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli wheel
@@ -147,7 +149,7 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
-  # One representative target for each major packaging environment.
+  # One representative target per packaging environment.
   wheels-smoke:
     needs: validate-inputs
     if: ${{ inputs.coverage == 'smoke' }}
@@ -162,7 +164,7 @@ jobs:
           - *macos-aarch64-wheel
     steps: *build-wheel-steps
 
-  # Sdists are platform-independent, so every coverage mode builds them once.
+  # Sdists are platform-independent; build one per selected package in every mode.
   sdist:
     needs: validate-inputs
     runs-on: ubuntu-latest
