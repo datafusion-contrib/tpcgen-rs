@@ -26,13 +26,21 @@ We actively welcome your pull requests.
 
 Pull requests and merge-queue commits run Rust linting, workspace tests, doc tests,
 documentation builds, and native Windows/macOS compilation checks.
-Pull request packaging smoke coverage builds Linux x86_64 wheels and source
-distributions for both CLIs. The merge queue, pushes to `main`, manual Rust
-workflow runs, and releases build the complete 13-target wheel matrix.
+Packaging coverage grows as changes move toward release:
 
-The reusable packaging workflow accepts `target: linux-x86_64` for manylinux
-wheels or `target: all` (the default) for the full matrix, independently of
-the `package` and `upload-artifacts` inputs.
+| Run | Wheel targets |
+| --- | --- |
+| Pull request | Linux x86_64 manylinux |
+| Merge queue | Linux x86_64 manylinux and musllinux, Windows x64, macOS ARM64 |
+| Main, manual, release | All 13 targets |
+
+Both CLIs build source distributions in every case. Packaging failures specific
+to architectures outside the merge-queue subset may be detected after merging.
+
+The reusable packaging workflow accepts `targets: all` (the default) or a
+comma-separated list of `<os>-<target>` names from its YAML matrix, such as
+`linux-x86_64,windows-x64`. Target selection is independent of `package` and
+`upload-artifacts`; one wheel job builds the selected matrix.
 
 The `Rust checks` status requires all of these jobs to succeed. TPC-H and both
 TPC-DS compatibility modes also remain required conformance checks.
