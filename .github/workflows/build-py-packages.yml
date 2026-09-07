@@ -47,7 +47,6 @@ jobs:
               ;;
           esac
 
-  # Full 13-target release matrix.
   wheels:
     needs: validate-inputs
     if: ${{ inputs.coverage == 'all' }}
