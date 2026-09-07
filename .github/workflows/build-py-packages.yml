@@ -23,18 +23,6 @@ permissions:
   contents: read
 
 jobs:
-  # Reject unsupported values rather than succeeding with no wheel builds.
-  validate-target:
-    if: ${{ inputs.target != 'all' && inputs.target != 'linux-x86_64' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Reject unsupported wheel target
-        run: |
-          echo "::error::Unsupported target. Use 'all' or 'linux-x86_64'."
-          exit 1
-
-  # Build all 13 wheel targets by default.
   wheels:
     if: ${{ inputs.target == 'all' }}
     runs-on: ${{ matrix.runner }}
@@ -130,7 +118,7 @@ jobs:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
 
-  # Build only the selected target, reusing its definition and the full matrix's steps.
+  # Share the Linux target and build steps with the full matrix.
   wheels-linux-x86_64:
     if: ${{ inputs.target == 'linux-x86_64' }}
     runs-on: ${{ matrix.runner }}
@@ -145,6 +133,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Reject unsupported wheel target
+        if: ${{ inputs.target != 'all' && inputs.target != 'linux-x86_64' }}
+        run: |
+          echo "::error::Unsupported target. Use 'all' or 'linux-x86_64'."
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli sdist
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
