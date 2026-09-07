@@ -14,7 +14,7 @@ on:
         default: all
         type: string
       wheel-coverage:
-        description: "Wheel coverage: smoke or all"
+        description: "Wheel coverage: smoke or all (sdists always build)"
         required: false
         default: all
         type: string
@@ -154,6 +154,7 @@ jobs:
           - *macos-aarch64-wheel
     steps: *build-wheel-steps
 
+  # Sdists are platform-independent, so every coverage mode builds them once.
   sdist:
     needs: validate-wheel-coverage
     runs-on: ubuntu-latest
