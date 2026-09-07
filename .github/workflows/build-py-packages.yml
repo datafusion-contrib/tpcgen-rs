@@ -23,24 +23,7 @@ permissions:
   contents: read
 
 jobs:
-  validate-package:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Validate package
-        env:
-          PACKAGE: ${{ inputs.package }}
-        run: |
-          case "$PACKAGE" in
-            all|tpchgen-cli|tpcgen-cli) ;;
-            *)
-              echo "::error::Unsupported package. Use 'all', 'tpchgen-cli', or 'tpcgen-cli'."
-              exit 1
-              ;;
-          esac
-
   wheels:
-    needs: validate-package
     if: ${{ !inputs.smoke }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -141,7 +124,6 @@ jobs:
 
   # One representative target per packaging environment.
   wheels-smoke:
-    needs: validate-package
     if: ${{ inputs.smoke }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
@@ -155,7 +137,6 @@ jobs:
     steps: *build-wheel-steps
 
   sdist:
-    needs: validate-package
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
