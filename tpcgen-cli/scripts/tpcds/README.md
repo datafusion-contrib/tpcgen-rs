@@ -110,6 +110,23 @@ Run any script with `--help` to print its usage block.
 No reference data download needed — the comparison reads
 `MD5SUMS` straight from the repo.
 
+### Reusing a prebuilt generator
+
+`compare-all-tables.sh` builds the release generator by default. Set
+`TPCGEN_BIN` to reuse an executable without building or locating it with
+Cargo; every per-table comparison uses that same binary. The option also
+works with `compare-table.sh` and the TPC-H `compare-all-tables.sh`.
+
+```bash
+TPCGEN_BIN="$PWD/../target/release/tpcgen-cli" ./scripts/tpcds/compare-all-tables.sh
+TPCGEN_BIN="$PWD/../target/release/tpcgen-cli" ./scripts/tpcds/compare-table.sh reason --compat c
+```
+
+Paths may be absolute or relative to the caller's working directory.
+An empty, missing, or non-executable path fails without falling back to
+Cargo or another binary. CI builds once and passes a same-run artifact to
+each comparison job; downloaded executables need `chmod +x` before use.
+
 ### Byte-for-byte (`--full`)
 Use when an MD5 mismatch needs a row-level diff.
 
@@ -132,7 +149,8 @@ Use when an MD5 mismatch needs a row-level diff.
 
 ## Requirements
 
-- **MD5-only (default):** just a Cargo-built `tpcgen-cli` binary at
+- **MD5-only (default):** a prebuilt executable selected by `TPCGEN_BIN`,
+  or a Cargo-built `tpcgen-cli` binary at
   `target/debug/tpcgen-cli` or `target/release/tpcgen-cli`. No Java, no C
   reference data, no fixture download.
 - **`--full`, Java:** Maven-built TPC-DS JAR at

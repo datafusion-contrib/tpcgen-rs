@@ -25,6 +25,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Run cargo-fmt
         run: cargo fmt --all -- --check
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Run cargo-clippy
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Check
@@ -38,9 +41,11 @@ jobs:
   test-doc-examples:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Doc Examples (cargo test --workspace --doc)
         run: cargo test --locked --workspace --doc
 
@@ -48,9 +53,11 @@ jobs:
   test-workspace:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
         with:
           tool: nextest@0.9.140
@@ -63,20 +70,37 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name : Build docs
         env:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # Build wheels + sdist (but don’t upload artifacts)
+  # Keep native platform compilation in PR CI without release wheel builds.
+  check-platforms:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        os: [windows-latest, macos-14]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Check workspace on native platform
+        run: cargo check --locked --workspace --all-targets --all-features
+
+  # PRs and merge groups smoke-test packaging; main and manual runs build all targets.
   build-packages:
-    needs: lint
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
+      full-matrix: ${{ github.event_name != 'pull_request' && github.event_name != 'merge_group' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:
@@ -87,6 +111,7 @@ jobs:
       - test-doc-examples
       - test-workspace
       - docs
+      - check-platforms
       - build-packages
     runs-on: ubuntu-latest
     steps:
@@ -96,6 +121,7 @@ jobs:
           DOC_TEST_RESULT: ${{ needs.test-doc-examples.result }}
           WORKSPACE_TEST_RESULT: ${{ needs.test-workspace.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
+          PLATFORMS_RESULT: ${{ needs.check-platforms.result }}
           PACKAGES_RESULT: ${{ needs.build-packages.result }}
         run: |
           set -e
@@ -103,4 +129,5 @@ jobs:
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
           test "$DOCS_RESULT" = success
+          test "$PLATFORMS_RESULT" = success
           test "$PACKAGES_RESULT" = success

@@ -82,10 +82,11 @@ types with no exact Parquet equivalent such as `Time32(Second)`.
 
 ## Conformance in CI
 
-All the conformance tests described above run on every CI run.
-[`tpch-conformance.yml`](.github/workflows/tpch-conformance.yml) and
-[`tpcds-conformance.yml`](.github/workflows/tpcds-conformance.yml) run the
-MD5-only check on every pull request.
+[`conformance.yml`](.github/workflows/conformance.yml) runs the MD5-only checks
+on every pull request and merge-queue commit, and on relevant pushes to `main`.
+It builds the release generator once and shares that executable with the TPC-H
+and both TPC-DS comparison jobs using `TPCGEN_BIN`. All three conformance status
+checks remain required for merging.
 [`full-conformance.yml`](.github/workflows/full-conformance.yml) rebuilds the
 reference data from the reference implementations themselves and re-checks it
 byte for byte on every merge to main.

@@ -13,19 +13,26 @@ on:
         required: false
         default: all
         type: string
+      full-matrix:
+        description: "Build all release targets instead of Linux x86_64 packaging smoke coverage"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   wheels:
+    if: ${{ inputs.full-matrix }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       matrix:
         include:
           # Linux manylinux
-          - runner: ubuntu-22.04
+          - &linux-x86_64-wheel
+            runner: ubuntu-22.04
             target: x86_64
             manylinux: auto
             os: linux
@@ -80,7 +87,7 @@ jobs:
             target: x86_64
             os: macos
 
-    steps:
+    steps: &build-wheel-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
@@ -90,6 +97,7 @@ jobs:
           args: --locked --release --out dist
           working-directory: tpchgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
+          sccache: true
       - name: Build tpcgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpcgen-cli' }}
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1
@@ -98,6 +106,7 @@ jobs:
           args: --locked --release --out dist
           working-directory: tpcgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
+          sccache: true
       - name: Upload tpchgen-cli wheels
         if: ${{ inputs.upload-artifacts && (inputs.package == 'all' || inputs.package == 'tpchgen-cli') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -110,6 +119,17 @@ jobs:
         with:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
+
+  # Reuse the release target definition and build steps for PR/queue smoke coverage.
+  wheels-smoke:
+    if: ${{ !inputs.full-matrix }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        include:
+          - *linux-x86_64-wheel
+    steps: *build-wheel-steps
 
   sdist:
     runs-on: ubuntu-latest

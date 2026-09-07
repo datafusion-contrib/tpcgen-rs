@@ -49,6 +49,12 @@ Options:
     --quiet             Quiet mode (show only summary).
     --help              Show this help message.
 
+Environment:
+    TPCGEN_BIN          Use this prebuilt executable for every table instead
+                        of building or locating it with Cargo. Relative paths
+                        are resolved from the caller's working directory.
+                        An invalid or empty path is an error.
+
 Examples:
     compare-all-tables.sh                  # MD5-only, all tables, scale 1, Trino.
     compare-all-tables.sh --scale 10       # MD5-only, scale 10, Trino.
@@ -218,11 +224,24 @@ main() {
     done
     log_info "========================================="
 
-    # Build generator
-    cd "$PROJECT_ROOT"
-    if ! build_generator; then
+    # Select once and pass the same binary to every per-table comparison.
+    if [[ ! ${TPCGEN_BIN+x} ]]; then
+        cd "$PROJECT_ROOT"
+        if ! build_generator; then
+            exit 1
+        fi
+        local workspace_root
+        if ! workspace_root=$(cargo locate-project --workspace --message-format=plain 2>/dev/null | xargs dirname); then
+            workspace_root="$PROJECT_ROOT"
+        fi
+        TPCGEN_BIN="$workspace_root/target/release/tpcgen-cli"
+    fi
+    if [[ ! -f "$TPCGEN_BIN" || ! -x "$TPCGEN_BIN" ]]; then
+        log_error "TPCGEN_BIN must name an executable file: $TPCGEN_BIN"
         exit 1
     fi
+    [[ "$TPCGEN_BIN" = /* ]] || TPCGEN_BIN="$PWD/$TPCGEN_BIN"
+    export TPCGEN_BIN
     log_info "========================================="
 
     # Test each table
