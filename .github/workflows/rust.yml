@@ -71,8 +71,8 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # PRs/merge groups set `smoke: true`: one wheel each for manylinux,
-  # musllinux, Windows, and macOS. Main/manual runs build all 13 wheels.
+  # PR CI and merge queue runs smoke-test one representative wheel per OS type.
+  # Main and manual runs build wheels for all supported OS targets.
   # Every run also builds both CLIs' sdists without uploading artifacts.
   build-packages:
     needs: lint
