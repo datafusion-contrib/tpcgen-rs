@@ -1,6 +1,6 @@
-use crate::conversions::{decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, opt, sk_opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -93,7 +93,7 @@ impl Iterator for WebReturnsArrow {
         let mut wr_return_ship_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut wr_refunded_cash: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut wr_reversed_charge: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut wr_store_credit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut wr_account_credit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut wr_net_loss: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
@@ -125,15 +125,11 @@ impl Iterator for WebReturnsArrow {
             wr_return_ship_cost.push(opt(nbm, 19, decimal_to_i128(p.get_ext_ship_cost())));
             wr_refunded_cash.push(opt(nbm, 20, decimal_to_i128(p.get_refunded_cash())));
             wr_reversed_charge.push(opt(nbm, 21, decimal_to_i128(p.get_reversed_charge())));
-            wr_store_credit.push(opt(nbm, 22, decimal_to_i128(p.get_store_credit())));
+            wr_account_credit.push(opt(nbm, 22, decimal_to_i128(p.get_store_credit())));
             wr_net_loss.push(opt(nbm, 23, decimal_to_i128(p.get_net_loss())));
         }
 
-        let dec = |v: Vec<Option<i128>>| {
-            Decimal128Array::from(v)
-                .with_precision_and_scale(38, 2)
-                .unwrap()
-        };
+        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
@@ -159,7 +155,7 @@ impl Iterator for WebReturnsArrow {
                 Arc::new(dec(wr_return_ship_cost)),
                 Arc::new(dec(wr_refunded_cash)),
                 Arc::new(dec(wr_reversed_charge)),
-                Arc::new(dec(wr_store_credit)),
+                Arc::new(dec(wr_account_credit)),
                 Arc::new(dec(wr_net_loss)),
             ],
         );
@@ -173,7 +169,7 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("wr_returned_date_sk", DataType::Int64, true),
         Field::new("wr_returned_time_sk", DataType::Int64, true),
-        Field::new("wr_item_sk", DataType::Int64, true),
+        Field::new("wr_item_sk", DataType::Int64, false),
         Field::new("wr_refunded_customer_sk", DataType::Int64, true),
         Field::new("wr_refunded_cdemo_sk", DataType::Int64, true),
         Field::new("wr_refunded_hdemo_sk", DataType::Int64, true),
@@ -184,16 +180,16 @@ fn make_schema() -> SchemaRef {
         Field::new("wr_returning_addr_sk", DataType::Int64, true),
         Field::new("wr_web_page_sk", DataType::Int64, true),
         Field::new("wr_reason_sk", DataType::Int64, true),
-        Field::new("wr_order_number", DataType::Int64, true),
+        Field::new("wr_order_number", DataType::Int64, false),
         Field::new("wr_return_quantity", DataType::Int32, true),
-        Field::new("wr_return_amt", DataType::Decimal128(38, 2), true),
-        Field::new("wr_return_tax", DataType::Decimal128(38, 2), true),
-        Field::new("wr_return_amt_inc_tax", DataType::Decimal128(38, 2), true),
-        Field::new("wr_fee", DataType::Decimal128(38, 2), true),
-        Field::new("wr_return_ship_cost", DataType::Decimal128(38, 2), true),
-        Field::new("wr_refunded_cash", DataType::Decimal128(38, 2), true),
-        Field::new("wr_reversed_charge", DataType::Decimal128(38, 2), true),
-        Field::new("wr_store_credit", DataType::Decimal128(38, 2), true),
-        Field::new("wr_net_loss", DataType::Decimal128(38, 2), true),
+        Field::new("wr_return_amt", DataType::Decimal128(7, 2), true),
+        Field::new("wr_return_tax", DataType::Decimal128(7, 2), true),
+        Field::new("wr_return_amt_inc_tax", DataType::Decimal128(7, 2), true),
+        Field::new("wr_fee", DataType::Decimal128(7, 2), true),
+        Field::new("wr_return_ship_cost", DataType::Decimal128(7, 2), true),
+        Field::new("wr_refunded_cash", DataType::Decimal128(7, 2), true),
+        Field::new("wr_reversed_charge", DataType::Decimal128(7, 2), true),
+        Field::new("wr_account_credit", DataType::Decimal128(7, 2), true),
+        Field::new("wr_net_loss", DataType::Decimal128(7, 2), true),
     ]))
 }

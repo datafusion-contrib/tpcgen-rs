@@ -135,13 +135,13 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("t_time_sk", DataType::Int64, false),
         Field::new("t_time_id", DataType::Utf8View, false),
-        Field::new("t_time", DataType::Int32, false),
-        Field::new("t_hour", DataType::Int32, false),
-        Field::new("t_minute", DataType::Int32, false),
-        Field::new("t_second", DataType::Int32, false),
-        Field::new("t_am_pm", DataType::Utf8View, false),
-        Field::new("t_shift", DataType::Utf8View, false),
-        Field::new("t_sub_shift", DataType::Utf8View, false),
+        Field::new("t_time", DataType::Int32, true),
+        Field::new("t_hour", DataType::Int32, true),
+        Field::new("t_minute", DataType::Int32, true),
+        Field::new("t_second", DataType::Int32, true),
+        Field::new("t_am_pm", DataType::Utf8View, true),
+        Field::new("t_shift", DataType::Utf8View, true),
+        Field::new("t_sub_shift", DataType::Utf8View, true),
         Field::new("t_meal_time", DataType::Utf8View, true),
     ]))
 }

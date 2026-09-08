@@ -136,8 +136,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("wp_web_page_sk", DataType::Int64, true),
-        Field::new("wp_web_page_id", DataType::Utf8View, true),
+        Field::new("wp_web_page_sk", DataType::Int64, false),
+        Field::new("wp_web_page_id", DataType::Utf8View, false),
         Field::new("wp_rec_start_date", DataType::Date32, true),
         Field::new("wp_rec_end_date", DataType::Date32, true),
         Field::new("wp_creation_date_sk", DataType::Int64, true),

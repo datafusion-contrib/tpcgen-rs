@@ -1,8 +1,9 @@
 use crate::conversions::{
-    decimal_to_i128, is_null, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
+    decimal128_7_2_array, decimal_to_i128, is_null, julian_to_date32, opt, sk_opt,
+    string_view_array_from_opt_iter,
 };
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Date32Array, Decimal128Array, Int64Array, RecordBatch};
+use arrow::array::{Date32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -125,12 +126,8 @@ impl Iterator for ItemArrow {
             i_product_name.push(opt(nbm, 21, r.get_i_product_name().to_owned()));
         }
 
-        let price_arr = Decimal128Array::from(i_current_price)
-            .with_precision_and_scale(38, 2)
-            .unwrap();
-        let wholesale_arr = Decimal128Array::from(i_wholesale_cost)
-            .with_precision_and_scale(38, 2)
-            .unwrap();
+        let price_arr = decimal128_7_2_array(i_current_price);
+        let wholesale_arr = decimal128_7_2_array(i_wholesale_cost);
 
         let batch = RecordBatch::try_new(
             self.schema(),
@@ -191,13 +188,13 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("i_item_sk", DataType::Int64, true),
-        Field::new("i_item_id", DataType::Utf8View, true),
+        Field::new("i_item_sk", DataType::Int64, false),
+        Field::new("i_item_id", DataType::Utf8View, false),
         Field::new("i_rec_start_date", DataType::Date32, true),
         Field::new("i_rec_end_date", DataType::Date32, true),
         Field::new("i_item_desc", DataType::Utf8View, true),
-        Field::new("i_current_price", DataType::Decimal128(38, 2), true),
-        Field::new("i_wholesale_cost", DataType::Decimal128(38, 2), true),
+        Field::new("i_current_price", DataType::Decimal128(7, 2), true),
+        Field::new("i_wholesale_cost", DataType::Decimal128(7, 2), true),
         Field::new("i_brand_id", DataType::Int64, true),
         Field::new("i_brand", DataType::Utf8View, true),
         Field::new("i_class_id", DataType::Int64, true),

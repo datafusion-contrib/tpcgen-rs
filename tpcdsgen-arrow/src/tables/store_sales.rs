@@ -1,6 +1,6 @@
-use crate::conversions::{decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, opt, sk_opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -129,11 +129,7 @@ impl Iterator for StoreSalesArrow {
             ss_net_profit.push(opt(nbm, 21, decimal_to_i128(p.get_net_profit())));
         }
 
-        let dec = |v: Vec<Option<i128>>| {
-            Decimal128Array::from(v)
-                .with_precision_and_scale(38, 2)
-                .unwrap()
-        };
+        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
@@ -172,26 +168,26 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("ss_sold_date_sk", DataType::Int64, true),
         Field::new("ss_sold_time_sk", DataType::Int64, true),
-        Field::new("ss_item_sk", DataType::Int64, true),
+        Field::new("ss_item_sk", DataType::Int64, false),
         Field::new("ss_customer_sk", DataType::Int64, true),
         Field::new("ss_cdemo_sk", DataType::Int64, true),
         Field::new("ss_hdemo_sk", DataType::Int64, true),
         Field::new("ss_addr_sk", DataType::Int64, true),
         Field::new("ss_store_sk", DataType::Int64, true),
         Field::new("ss_promo_sk", DataType::Int64, true),
-        Field::new("ss_ticket_number", DataType::Int64, true),
+        Field::new("ss_ticket_number", DataType::Int64, false),
         Field::new("ss_quantity", DataType::Int32, true),
-        Field::new("ss_wholesale_cost", DataType::Decimal128(38, 2), true),
-        Field::new("ss_list_price", DataType::Decimal128(38, 2), true),
-        Field::new("ss_sales_price", DataType::Decimal128(38, 2), true),
-        Field::new("ss_ext_discount_amt", DataType::Decimal128(38, 2), true),
-        Field::new("ss_ext_sales_price", DataType::Decimal128(38, 2), true),
-        Field::new("ss_ext_wholesale_cost", DataType::Decimal128(38, 2), true),
-        Field::new("ss_ext_list_price", DataType::Decimal128(38, 2), true),
-        Field::new("ss_ext_tax", DataType::Decimal128(38, 2), true),
-        Field::new("ss_coupon_amt", DataType::Decimal128(38, 2), true),
-        Field::new("ss_net_paid", DataType::Decimal128(38, 2), true),
-        Field::new("ss_net_paid_inc_tax", DataType::Decimal128(38, 2), true),
-        Field::new("ss_net_profit", DataType::Decimal128(38, 2), true),
+        Field::new("ss_wholesale_cost", DataType::Decimal128(7, 2), true),
+        Field::new("ss_list_price", DataType::Decimal128(7, 2), true),
+        Field::new("ss_sales_price", DataType::Decimal128(7, 2), true),
+        Field::new("ss_ext_discount_amt", DataType::Decimal128(7, 2), true),
+        Field::new("ss_ext_sales_price", DataType::Decimal128(7, 2), true),
+        Field::new("ss_ext_wholesale_cost", DataType::Decimal128(7, 2), true),
+        Field::new("ss_ext_list_price", DataType::Decimal128(7, 2), true),
+        Field::new("ss_ext_tax", DataType::Decimal128(7, 2), true),
+        Field::new("ss_coupon_amt", DataType::Decimal128(7, 2), true),
+        Field::new("ss_net_paid", DataType::Decimal128(7, 2), true),
+        Field::new("ss_net_paid_inc_tax", DataType::Decimal128(7, 2), true),
+        Field::new("ss_net_profit", DataType::Decimal128(7, 2), true),
     ]))
 }

@@ -1,6 +1,6 @@
-use crate::conversions::{decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, opt, sk_opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -121,11 +121,7 @@ impl Iterator for StoreReturnsArrow {
             sr_net_loss.push(opt(nbm, 19, decimal_to_i128(p.get_net_loss())));
         }
 
-        let dec = |v: Vec<Option<i128>>| {
-            Decimal128Array::from(v)
-                .with_precision_and_scale(38, 2)
-                .unwrap()
-        };
+        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
@@ -161,23 +157,23 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("sr_returned_date_sk", DataType::Int64, true),
         Field::new("sr_return_time_sk", DataType::Int64, true),
-        Field::new("sr_item_sk", DataType::Int64, true),
+        Field::new("sr_item_sk", DataType::Int64, false),
         Field::new("sr_customer_sk", DataType::Int64, true),
         Field::new("sr_cdemo_sk", DataType::Int64, true),
         Field::new("sr_hdemo_sk", DataType::Int64, true),
         Field::new("sr_addr_sk", DataType::Int64, true),
         Field::new("sr_store_sk", DataType::Int64, true),
         Field::new("sr_reason_sk", DataType::Int64, true),
-        Field::new("sr_ticket_number", DataType::Int64, true),
+        Field::new("sr_ticket_number", DataType::Int64, false),
         Field::new("sr_return_quantity", DataType::Int32, true),
-        Field::new("sr_return_amt", DataType::Decimal128(38, 2), true),
-        Field::new("sr_return_tax", DataType::Decimal128(38, 2), true),
-        Field::new("sr_return_amt_inc_tax", DataType::Decimal128(38, 2), true),
-        Field::new("sr_fee", DataType::Decimal128(38, 2), true),
-        Field::new("sr_return_ship_cost", DataType::Decimal128(38, 2), true),
-        Field::new("sr_refunded_cash", DataType::Decimal128(38, 2), true),
-        Field::new("sr_reversed_charge", DataType::Decimal128(38, 2), true),
-        Field::new("sr_store_credit", DataType::Decimal128(38, 2), true),
-        Field::new("sr_net_loss", DataType::Decimal128(38, 2), true),
+        Field::new("sr_return_amt", DataType::Decimal128(7, 2), true),
+        Field::new("sr_return_tax", DataType::Decimal128(7, 2), true),
+        Field::new("sr_return_amt_inc_tax", DataType::Decimal128(7, 2), true),
+        Field::new("sr_fee", DataType::Decimal128(7, 2), true),
+        Field::new("sr_return_ship_cost", DataType::Decimal128(7, 2), true),
+        Field::new("sr_refunded_cash", DataType::Decimal128(7, 2), true),
+        Field::new("sr_reversed_charge", DataType::Decimal128(7, 2), true),
+        Field::new("sr_store_credit", DataType::Decimal128(7, 2), true),
+        Field::new("sr_net_loss", DataType::Decimal128(7, 2), true),
     ]))
 }

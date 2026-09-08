@@ -1,6 +1,6 @@
-use crate::conversions::{decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, opt, sk_opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -91,7 +91,7 @@ impl Iterator for CatalogReturnsArrow {
         let mut cr_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cr_return_amount: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut cr_return_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_return_amount_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut cr_return_amt_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut cr_fee: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut cr_return_ship_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut cr_refunded_cash: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -122,7 +122,7 @@ impl Iterator for CatalogReturnsArrow {
             cr_quantity.push(opt(nbm, 17, p.get_quantity()));
             cr_return_amount.push(opt(nbm, 18, decimal_to_i128(p.get_net_paid())));
             cr_return_tax.push(opt(nbm, 19, decimal_to_i128(p.get_ext_tax())));
-            cr_return_amount_inc_tax.push(opt(
+            cr_return_amt_inc_tax.push(opt(
                 nbm,
                 20,
                 decimal_to_i128(p.get_net_paid_including_tax()),
@@ -135,11 +135,7 @@ impl Iterator for CatalogReturnsArrow {
             cr_net_loss.push(opt(nbm, 26, decimal_to_i128(p.get_net_loss())));
         }
 
-        let dec = |v: Vec<Option<i128>>| {
-            Decimal128Array::from(v)
-                .with_precision_and_scale(38, 2)
-                .unwrap()
-        };
+        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
@@ -163,7 +159,7 @@ impl Iterator for CatalogReturnsArrow {
                 Arc::new(Int32Array::from(cr_quantity)),
                 Arc::new(dec(cr_return_amount)),
                 Arc::new(dec(cr_return_tax)),
-                Arc::new(dec(cr_return_amount_inc_tax)),
+                Arc::new(dec(cr_return_amt_inc_tax)),
                 Arc::new(dec(cr_fee)),
                 Arc::new(dec(cr_return_ship_cost)),
                 Arc::new(dec(cr_refunded_cash)),
@@ -182,7 +178,7 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("cr_returned_date_sk", DataType::Int64, true),
         Field::new("cr_returned_time_sk", DataType::Int64, true),
-        Field::new("cr_item_sk", DataType::Int64, true),
+        Field::new("cr_item_sk", DataType::Int64, false),
         Field::new("cr_refunded_customer_sk", DataType::Int64, true),
         Field::new("cr_refunded_cdemo_sk", DataType::Int64, true),
         Field::new("cr_refunded_hdemo_sk", DataType::Int64, true),
@@ -196,20 +192,16 @@ fn make_schema() -> SchemaRef {
         Field::new("cr_ship_mode_sk", DataType::Int64, true),
         Field::new("cr_warehouse_sk", DataType::Int64, true),
         Field::new("cr_reason_sk", DataType::Int64, true),
-        Field::new("cr_order_number", DataType::Int64, true),
+        Field::new("cr_order_number", DataType::Int64, false),
         Field::new("cr_return_quantity", DataType::Int32, true),
-        Field::new("cr_return_amount", DataType::Decimal128(38, 2), true),
-        Field::new("cr_return_tax", DataType::Decimal128(38, 2), true),
-        Field::new(
-            "cr_return_amount_inc_tax",
-            DataType::Decimal128(38, 2),
-            true,
-        ),
-        Field::new("cr_fee", DataType::Decimal128(38, 2), true),
-        Field::new("cr_return_ship_cost", DataType::Decimal128(38, 2), true),
-        Field::new("cr_refunded_cash", DataType::Decimal128(38, 2), true),
-        Field::new("cr_reversed_charge", DataType::Decimal128(38, 2), true),
-        Field::new("cr_store_credit", DataType::Decimal128(38, 2), true),
-        Field::new("cr_net_loss", DataType::Decimal128(38, 2), true),
+        Field::new("cr_return_amount", DataType::Decimal128(7, 2), true),
+        Field::new("cr_return_tax", DataType::Decimal128(7, 2), true),
+        Field::new("cr_return_amt_inc_tax", DataType::Decimal128(7, 2), true),
+        Field::new("cr_fee", DataType::Decimal128(7, 2), true),
+        Field::new("cr_return_ship_cost", DataType::Decimal128(7, 2), true),
+        Field::new("cr_refunded_cash", DataType::Decimal128(7, 2), true),
+        Field::new("cr_reversed_charge", DataType::Decimal128(7, 2), true),
+        Field::new("cr_store_credit", DataType::Decimal128(7, 2), true),
+        Field::new("cr_net_loss", DataType::Decimal128(7, 2), true),
     ]))
 }

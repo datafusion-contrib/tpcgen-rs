@@ -254,16 +254,12 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("r_reason_desc=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
         .success();
 
     let path = temp_dir.path().join("reason.parquet");
-    expect_column_encoding(
-        &path,
-        "r_reason_description",
-        Encoding::DELTA_LENGTH_BYTE_ARRAY,
-    );
+    expect_column_encoding(&path, "r_reason_desc", Encoding::DELTA_LENGTH_BYTE_ARRAY);
 }
 
 #[test]
@@ -276,7 +272,7 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=NOT_AN_ENCODING")
+        .arg("r_reason_desc=NOT_AN_ENCODING")
         .assert()
         .failure();
 
@@ -294,7 +290,7 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
 fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_exists() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    // r_reason_description only exists on reason, not item.
+    // r_reason_desc only exists on reason, not item.
     cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("parquet")
@@ -305,19 +301,19 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_e
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("r_reason_desc=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
         .success();
 
     let reason_path = temp_dir.path().join("reason.parquet");
     expect_column_encoding(
         &reason_path,
-        "r_reason_description",
+        "r_reason_desc",
         Encoding::DELTA_LENGTH_BYTE_ARRAY,
     );
     assert!(
         temp_dir.path().join("item.parquet").exists(),
-        "expected item.parquet to still be generated, just without r_reason_description applied to it"
+        "expected item.parquet to still be generated, just without r_reason_desc applied to it"
     );
 }
 
@@ -337,13 +333,13 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("r_reason_desc_typo=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
         .failure();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("column 'r_reason_description_typo'"),
+        stderr.contains("column 'r_reason_desc_typo'"),
         "unexpected stderr: {stderr}"
     );
     assert_eq!(
@@ -362,7 +358,7 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
 fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    // r_reason_description only exists on reason. This must still fail up
+    // r_reason_desc only exists on reason. This must still fail up
     // front, before either table is scheduled.
     let assert = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
@@ -374,7 +370,7 @@ fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=PLAIN_DICTIONARY")
+        .arg("r_reason_desc=PLAIN_DICTIONARY")
         .assert()
         .failure();
 
@@ -415,8 +411,8 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                1074775, 1073988, 1073405, 1071992, 1073785, 1072613, 1072227, 1073264, 1073338,
-                1072748,
+                1074759, 1073972, 1073389, 1071976, 1073769, 1072597, 1072211, 1073248, 1073322,
+                1072732,
             ],
         }],
     );
@@ -819,7 +815,7 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     let lines: Vec<_> = contents.lines().collect();
     assert_eq!(
         lines.first(),
-        Some(&"r_reason_sk,r_reason_id,r_reason_description")
+        Some(&"r_reason_sk,r_reason_id,r_reason_desc")
     );
     assert_eq!(
         lines.len(),
@@ -830,6 +826,29 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
         lines.iter().all(|line| !line.ends_with(',')),
         "Expected CSV rows not to end with a trailing delimiter, got:\n{contents}"
     );
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_uses_canonical_web_returns_header() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("0")
+        .arg("--tables")
+        .arg("web_returns")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents = fs::read_to_string(temp_dir.path().join("web_returns.csv"))
+        .expect("Failed to read CSV file");
+    let header = contents.lines().next().expect("CSV output is empty");
+    assert!(header.contains(",wr_account_credit,"));
+    assert!(!header.contains("wr_store_credit"));
 }
 
 /// Test that TPC-DS CSV generation supports a custom delimiter.
@@ -854,7 +873,7 @@ fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
     let contents =
         fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
     let first_line = contents.lines().next().expect("CSV output is empty");
-    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_description");
+    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_desc");
     assert!(
         !first_line.contains(','),
         "Expected custom-delimited CSV header not to use commas: {first_line}"
@@ -891,7 +910,7 @@ fn test_tpcgen_cli_tpcds_csv_delimiter_in_header_is_escaped() {
     let second_line = contents.lines().nth(1).expect("CSV data row is missing");
     assert_eq!(
         first_line,
-        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_description\""
+        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_desc\""
     );
     assert_eq!(
         second_line.split('_').count(),
@@ -1133,6 +1152,48 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
         .field_with_name("dv_create_time")
         .expect("dv_create_time field");
     assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_uses_canonical_decimal_schemas() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("customer_address,item,promotion,web_returns")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for (table, column, expected) in [
+        (
+            "customer_address",
+            "ca_gmt_offset",
+            DataType::Decimal128(5, 2),
+        ),
+        ("item", "i_current_price", DataType::Decimal128(7, 2)),
+        ("promotion", "p_cost", DataType::Decimal128(15, 2)),
+        (
+            "web_returns",
+            "wr_account_credit",
+            DataType::Decimal128(7, 2),
+        ),
+    ] {
+        let file = File::open(temp_dir.path().join(format!("{table}.parquet")))
+            .expect("Failed to open Parquet file");
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to read Parquet metadata");
+        let field = builder
+            .schema()
+            .field_with_name(column)
+            .expect("Expected decimal field");
+        assert_eq!(field.data_type(), &expected);
+    }
 }
 
 /// Test that `--help` lists each selectable TPC-DS table.

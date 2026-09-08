@@ -76,7 +76,7 @@ impl Iterator for ReasonArrow {
             let nbm = r.null_bit_map();
             sk.push(sk_opt(nbm, 0, r.get_r_reason_sk()));
             id.push(opt(nbm, 1, r.get_r_reason_id().to_owned()));
-            desc.push(opt(nbm, 2, r.get_r_reason_description().to_owned()));
+            desc.push(opt(nbm, 2, r.get_r_reason_desc().to_owned()));
         }
 
         let batch = RecordBatch::try_new(
@@ -99,8 +99,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("r_reason_sk", DataType::Int64, true),
-        Field::new("r_reason_id", DataType::Utf8View, true),
-        Field::new("r_reason_description", DataType::Utf8View, true),
+        Field::new("r_reason_sk", DataType::Int64, false),
+        Field::new("r_reason_id", DataType::Utf8View, false),
+        Field::new("r_reason_desc", DataType::Utf8View, true),
     ]))
 }
