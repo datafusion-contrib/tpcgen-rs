@@ -30,7 +30,7 @@ impl TpcdsGenerationPlan {
     pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: usize) -> Self {
         let source_rows = scaling.get_row_count(table.source_table());
         let estimated_bytes =
-            source_rows.saturating_mul(estimated_bytes_per_source_row(table, row_group_bytes));
+            (source_rows as f64 * estimated_bytes_per_source_row(table)).ceil() as i64;
         let num_row_groups = (estimated_bytes / row_group_bytes.max(1) as i64 + 1)
             .min(MAX_ROW_GROUPS)
             .min(source_rows)
@@ -76,76 +76,48 @@ impl IntoIterator for TpcdsGenerationPlan {
 /// Row group sizes are conventionally measured in uncompressed bytes, which
 /// is also what the previous `ArrowWriter` based implementation limited.
 ///
-/// The baseline estimates were measured from scale-factor-1 files and are
-/// accurate for the CLI's default and smaller row groups. For large row-group
-/// targets, selected tables blend toward measurements from approximately 128
-/// MiB groups at scale factor 1000. Dictionary and page overhead per source
-/// row is substantially lower at that size, so applying the small-group
-/// estimate would create too many undersized groups.
+/// Measured offline at scale factor 100 using the default column encodings.
+/// Large tables were sampled in single row groups near 128 MiB uncompressed
+/// (119-165 MiB); smaller tables were measured in full. Sizes are approximate:
+/// cardinality, row-group size, and column encodings affect encoding efficiency.
 ///
 /// The estimates are the sum of Parquet metadata's
 /// `total_uncompressed_size` divided by the exact source-row range used to
 /// generate the group. Sales and returns must both use their paired sales
-/// table's source-row count, not their output-row count.
-fn estimated_bytes_per_source_row(table: Table, row_group_bytes: usize) -> i64 {
-    const SMALL_ROW_GROUP_BYTES: usize = 8 * 1024 * 1024;
-    const LARGE_ROW_GROUP_BYTES: usize = 128 * 1024 * 1024;
-
-    let small_group_estimate = match table {
-        Table::CallCenter => 406,
-        Table::CatalogPage => 108,
-        Table::CatalogReturns => 79,
-        Table::CatalogSales => 786,
-        Table::Customer => 86,
-        Table::CustomerAddress => 42,
-        Table::CustomerDemographics => 5,
-        Table::DateDim => 53,
+/// table's source-row count, not their output-row count. Fractional bytes avoid
+/// large rounding errors for narrow tables such as inventory.
+fn estimated_bytes_per_source_row(table: Table) -> f64 {
+    match table {
+        Table::CallCenter => 229.80,
+        Table::CatalogPage => 108.21,
+        Table::CatalogReturns => 65.97,
+        Table::CatalogSales => 668.72,
+        Table::Customer => 76.65,
+        Table::CustomerAddress => 35.63,
+        Table::CustomerDemographics => 5.06,
+        Table::DateDim => 52.56,
         // Note: this value is not performance critical as this is a 1 row table
         // and the size depends on the command line args.
-        Table::DbgenVersion => 407,
-        Table::HouseholdDemographics => 6,
-        Table::IncomeBand => 20,
-        Table::Inventory => 3,
-        Table::Item => 165,
-        Table::Promotion => 90,
-        Table::Reason => 50,
-        Table::ShipMode => 72,
-        Table::Store => 248,
-        Table::StoreReturns => 78,
-        Table::StoreSales => 631,
-        Table::TimeDim => 34,
-        Table::Warehouse => 202,
-        Table::WebPage => 42,
-        Table::WebReturns => 104,
-        Table::WebSales => 963,
-        Table::WebSite => 198,
+        Table::DbgenVersion => 448.00,
+        Table::HouseholdDemographics => 6.44,
+        Table::IncomeBand => 20.05,
+        Table::Inventory => 3.45,
+        Table::Item => 188.84,
+        Table::Promotion => 85.67,
+        Table::Reason => 45.85,
+        Table::ShipMode => 71.65,
+        Table::Store => 131.99,
+        Table::StoreReturns => 66.27,
+        Table::StoreSales => 578.47,
+        Table::TimeDim => 34.03,
+        Table::Warehouse => 156.93,
+        Table::WebPage => 27.57,
+        Table::WebReturns => 86.25,
+        Table::WebSales => 799.19,
+        Table::WebSite => 231.17,
         // Not a main table; never generated as Parquet output
         _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
-    };
-    let large_group_estimate = match table {
-        Table::CatalogReturns => 67,
-        Table::CatalogSales => 669,
-        Table::Customer => 78,
-        Table::CustomerAddress => 35,
-        Table::Inventory => 4,
-        Table::Item => 191,
-        Table::StoreReturns => 68,
-        Table::StoreSales => 594,
-        Table::WebReturns => 88,
-        Table::WebSales => 806,
-        _ => return small_group_estimate,
-    };
-
-    if row_group_bytes <= SMALL_ROW_GROUP_BYTES {
-        return small_group_estimate;
     }
-    if row_group_bytes >= LARGE_ROW_GROUP_BYTES {
-        return large_group_estimate;
-    }
-
-    let range = (LARGE_ROW_GROUP_BYTES - SMALL_ROW_GROUP_BYTES) as i64;
-    let progress = (row_group_bytes - SMALL_ROW_GROUP_BYTES) as i64;
-    small_group_estimate + (large_group_estimate - small_group_estimate) * progress / range
 }
 
 #[cfg(test)]
@@ -178,77 +150,17 @@ mod tests {
     #[test]
     fn store_sales_sf1_default() {
         let plan = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        // ~144 MiB estimated output in 7 MiB row groups over 240k source rows
-        assert_eq!(plan.row_group_count(), 21);
+        // ~132 MiB estimated output in 7 MiB row groups over 240k source rows
+        assert_eq!(plan.row_group_count(), 19);
         assert_covers(&plan, 240_000);
     }
 
     #[test]
-    fn large_row_groups_use_target_sized_estimates() {
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::CatalogReturns, 128 * 1024 * 1024),
-            67
-        );
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::CatalogSales, 128 * 1024 * 1024),
-            669
-        );
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::Customer, 128 * 1024 * 1024),
-            78
-        );
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::StoreSales, 128 * 1024 * 1024),
-            594
-        );
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::WebSales, 128 * 1024 * 1024),
-            806
-        );
-    }
-
-    #[test]
-    fn sf1000_large_row_group_counts_use_large_group_calibration() {
-        let row_group_bytes = 128 * 1024 * 1024;
-        for (table, expected) in [
-            (Table::CatalogReturns, 80),
-            (Table::CatalogSales, 798),
-            (Table::Customer, 7),
-            (Table::CustomerAddress, 2),
-            (Table::CustomerDemographics, 1),
-            (Table::Inventory, 24),
-            (Table::Item, 1),
-            (Table::StoreReturns, 122),
-            (Table::StoreSales, 1063),
-            (Table::WebReturns, 40),
-            (Table::WebSales, 361),
-        ] {
-            assert_eq!(
-                plan(table, 1000.0, row_group_bytes).row_group_count(),
-                expected,
-                "unexpected row-group count for {}",
-                table.get_name()
-            );
-        }
-    }
-
-    #[test]
-    fn small_row_groups_keep_small_group_estimates() {
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::Customer, 1024 * 1024),
-            86
-        );
-        assert_eq!(
-            estimated_bytes_per_source_row(Table::StoreSales, DEFAULT_ROW_GROUP_BYTES),
-            631
-        );
-    }
-
-    #[test]
-    fn medium_row_groups_blend_between_calibrations() {
-        let medium = estimated_bytes_per_source_row(Table::Customer, 64 * 1024 * 1024);
-        assert!(medium < 86);
-        assert!(medium > 78);
+    fn narrow_tables_keep_fractional_byte_estimates() {
+        let plan = plan(Table::Inventory, 100.0, 128 * 1024 * 1024);
+        // Rounding 3.45 bytes/source row to an integer would produce 9 or 12 groups.
+        assert_eq!(plan.row_group_count(), 11);
+        assert_covers(&plan, Scaling::new(100.0).get_row_count(Table::Inventory));
     }
 
     #[test]

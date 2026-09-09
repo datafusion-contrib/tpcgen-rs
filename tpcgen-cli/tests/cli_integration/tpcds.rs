@@ -415,7 +415,7 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                1035315, 1034115, 1032547, 1033370, 1034311, 1031250, 1033646, 1033808, 1032868,
+                1154938, 1153793, 1152175, 1152992, 1152614, 1152066, 1153473, 1152964,
             ],
         }],
     );
@@ -1072,14 +1072,14 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     // Parquet data
     let (store_sales, num_row_groups) =
         read_concatenated_parquet(&temp_dir.path().join("store_sales.parquet"));
-    assert_eq!(num_row_groups, 26);
+    assert_eq!(num_row_groups, 24);
     let expected = read_concatenated_reference(StoreSalesArrow::new(test_session(0.001)));
     assert_eq!(store_sales, expected);
 
     // regenerate same data directly from arrow generator
     let (store_returns, num_row_groups) =
         read_concatenated_parquet(&temp_dir.path().join("store_returns.parquet"));
-    assert_eq!(num_row_groups, 4);
+    assert_eq!(num_row_groups, 3);
     let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
     assert_eq!(store_returns, expected);
 }
@@ -1116,7 +1116,7 @@ fn test_tpcgen_cli_tpcds_parquet_num_threads_equivalence() {
         let mut metadata_reader = ParquetMetaDataReader::new();
         metadata_reader.try_parse(&file).unwrap();
         let num_row_groups = metadata_reader.finish().unwrap().num_row_groups();
-        assert_eq!(num_row_groups, 7);
+        assert_eq!(num_row_groups, 6);
 
         outputs.push(fs::read(&path).expect("Failed to read Parquet file"));
     }
