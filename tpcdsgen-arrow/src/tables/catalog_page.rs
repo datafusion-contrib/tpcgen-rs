@@ -1,6 +1,6 @@
-use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,10 +68,10 @@ impl Iterator for CatalogPageArrow {
             return None;
         }
 
-        let mut cp_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cp_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cp_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cp_start: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cp_end: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cp_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cp_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cp_dept: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut cp_num: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cp_page_num: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -80,10 +80,10 @@ impl Iterator for CatalogPageArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            cp_sk.push(sk_opt(nbm, 0, r.get_cp_catalog_page_sk()));
+            cp_sk.push(integer_sk_opt(nbm, 0, r.get_cp_catalog_page_sk()));
             cp_id.push(opt(nbm, 1, r.get_cp_catalog_page_id().to_owned()));
-            cp_start.push(sk_opt(nbm, 2, r.get_cp_start_date_id()));
-            cp_end.push(sk_opt(nbm, 3, r.get_cp_end_date_id()));
+            cp_start.push(integer_sk_opt(nbm, 2, r.get_cp_start_date_id()));
+            cp_end.push(integer_sk_opt(nbm, 3, r.get_cp_end_date_id()));
             // CpPromoId occupies global bit 4 but is not in the output schema,
             // so output columns shift: CpDepartment=bit5, ..., CpType=bit9.
             cp_dept.push(opt(nbm, 5, r.get_cp_department().to_owned()));
@@ -96,12 +96,12 @@ impl Iterator for CatalogPageArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(cp_sk)),
+                Arc::new(Int32Array::from(cp_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     cp_id.iter().map(|s| s.as_deref()),
                 )),
-                Arc::new(Int64Array::from(cp_start)),
-                Arc::new(Int64Array::from(cp_end)),
+                Arc::new(Int32Array::from(cp_start)),
+                Arc::new(Int32Array::from(cp_end)),
                 Arc::new(string_view_array_from_opt_iter(
                     cp_dept.iter().map(|s| s.as_deref()),
                 )),
@@ -123,10 +123,10 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("cp_catalog_page_sk", DataType::Int64, true),
-        Field::new("cp_catalog_page_id", DataType::Utf8View, true),
-        Field::new("cp_start_date_sk", DataType::Int64, true),
-        Field::new("cp_end_date_sk", DataType::Int64, true),
+        Field::new("cp_catalog_page_sk", DataType::Int32, false),
+        Field::new("cp_catalog_page_id", DataType::Utf8View, false),
+        Field::new("cp_start_date_sk", DataType::Int32, true),
+        Field::new("cp_end_date_sk", DataType::Int32, true),
         Field::new("cp_department", DataType::Utf8View, true),
         Field::new("cp_catalog_number", DataType::Int32, true),
         Field::new("cp_catalog_page_number", DataType::Int32, true),

@@ -1,6 +1,6 @@
-use crate::conversions::{decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -71,23 +71,23 @@ impl Iterator for CatalogSalesArrow {
             return None;
         }
 
-        let mut cs_sold_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_sold_time: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_ship_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_bill_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_bill_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_bill_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_bill_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_ship_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_ship_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_ship_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_ship_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_call_center: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_catalog_page: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_ship_mode: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_warehouse: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_item: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cs_promo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cs_sold_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_sold_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_ship_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_bill_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_bill_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_bill_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_bill_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_ship_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_ship_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_ship_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_ship_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_call_center: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_catalog_page: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_ship_mode: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_warehouse: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cs_promo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cs_order_number: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut cs_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cs_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -109,23 +109,23 @@ impl Iterator for CatalogSalesArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             let p = r.get_cs_pricing();
-            cs_sold_date.push(sk_opt(nbm, 0, r.get_cs_sold_date_sk()));
-            cs_sold_time.push(sk_opt(nbm, 1, r.get_cs_sold_time_sk()));
-            cs_ship_date.push(sk_opt(nbm, 2, r.get_cs_ship_date_sk()));
-            cs_bill_customer.push(sk_opt(nbm, 3, r.get_cs_bill_customer_sk()));
-            cs_bill_cdemo.push(sk_opt(nbm, 4, r.get_cs_bill_cdemo_sk()));
-            cs_bill_hdemo.push(sk_opt(nbm, 5, r.get_cs_bill_hdemo_sk()));
-            cs_bill_addr.push(sk_opt(nbm, 6, r.get_cs_bill_addr_sk()));
-            cs_ship_customer.push(sk_opt(nbm, 7, r.get_cs_ship_customer_sk()));
-            cs_ship_cdemo.push(sk_opt(nbm, 8, r.get_cs_ship_cdemo_sk()));
-            cs_ship_hdemo.push(sk_opt(nbm, 9, r.get_cs_ship_hdemo_sk()));
-            cs_ship_addr.push(sk_opt(nbm, 10, r.get_cs_ship_addr_sk()));
-            cs_call_center.push(sk_opt(nbm, 11, r.get_cs_call_center_sk()));
-            cs_catalog_page.push(sk_opt(nbm, 12, r.get_cs_catalog_page_sk()));
-            cs_ship_mode.push(sk_opt(nbm, 13, r.get_cs_ship_mode_sk()));
-            cs_warehouse.push(sk_opt(nbm, 14, r.get_cs_warehouse_sk()));
-            cs_item.push(sk_opt(nbm, 15, r.get_cs_sold_item_sk()));
-            cs_promo.push(sk_opt(nbm, 16, r.get_cs_promo_sk()));
+            cs_sold_date.push(integer_sk_opt(nbm, 0, r.get_cs_sold_date_sk()));
+            cs_sold_time.push(integer_sk_opt(nbm, 1, r.get_cs_sold_time_sk()));
+            cs_ship_date.push(integer_sk_opt(nbm, 2, r.get_cs_ship_date_sk()));
+            cs_bill_customer.push(integer_sk_opt(nbm, 3, r.get_cs_bill_customer_sk()));
+            cs_bill_cdemo.push(integer_sk_opt(nbm, 4, r.get_cs_bill_cdemo_sk()));
+            cs_bill_hdemo.push(integer_sk_opt(nbm, 5, r.get_cs_bill_hdemo_sk()));
+            cs_bill_addr.push(integer_sk_opt(nbm, 6, r.get_cs_bill_addr_sk()));
+            cs_ship_customer.push(integer_sk_opt(nbm, 7, r.get_cs_ship_customer_sk()));
+            cs_ship_cdemo.push(integer_sk_opt(nbm, 8, r.get_cs_ship_cdemo_sk()));
+            cs_ship_hdemo.push(integer_sk_opt(nbm, 9, r.get_cs_ship_hdemo_sk()));
+            cs_ship_addr.push(integer_sk_opt(nbm, 10, r.get_cs_ship_addr_sk()));
+            cs_call_center.push(integer_sk_opt(nbm, 11, r.get_cs_call_center_sk()));
+            cs_catalog_page.push(integer_sk_opt(nbm, 12, r.get_cs_catalog_page_sk()));
+            cs_ship_mode.push(integer_sk_opt(nbm, 13, r.get_cs_ship_mode_sk()));
+            cs_warehouse.push(integer_sk_opt(nbm, 14, r.get_cs_warehouse_sk()));
+            cs_item.push(integer_sk_opt(nbm, 15, r.get_cs_sold_item_sk()));
+            cs_promo.push(integer_sk_opt(nbm, 16, r.get_cs_promo_sk()));
             cs_order_number.push(opt(nbm, 17, r.get_cs_order_number()));
             cs_quantity.push(opt(nbm, 18, p.get_quantity()));
             cs_wholesale_cost.push(opt(nbm, 19, decimal_to_i128(p.get_wholesale_cost())));
@@ -157,31 +157,27 @@ impl Iterator for CatalogSalesArrow {
             cs_net_profit.push(opt(nbm, 33, decimal_to_i128(p.get_net_profit())));
         }
 
-        let dec = |v: Vec<Option<i128>>| {
-            Decimal128Array::from(v)
-                .with_precision_and_scale(38, 2)
-                .unwrap()
-        };
+        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(cs_sold_date)),
-                Arc::new(Int64Array::from(cs_sold_time)),
-                Arc::new(Int64Array::from(cs_ship_date)),
-                Arc::new(Int64Array::from(cs_bill_customer)),
-                Arc::new(Int64Array::from(cs_bill_cdemo)),
-                Arc::new(Int64Array::from(cs_bill_hdemo)),
-                Arc::new(Int64Array::from(cs_bill_addr)),
-                Arc::new(Int64Array::from(cs_ship_customer)),
-                Arc::new(Int64Array::from(cs_ship_cdemo)),
-                Arc::new(Int64Array::from(cs_ship_hdemo)),
-                Arc::new(Int64Array::from(cs_ship_addr)),
-                Arc::new(Int64Array::from(cs_call_center)),
-                Arc::new(Int64Array::from(cs_catalog_page)),
-                Arc::new(Int64Array::from(cs_ship_mode)),
-                Arc::new(Int64Array::from(cs_warehouse)),
-                Arc::new(Int64Array::from(cs_item)),
-                Arc::new(Int64Array::from(cs_promo)),
+                Arc::new(Int32Array::from(cs_sold_date)),
+                Arc::new(Int32Array::from(cs_sold_time)),
+                Arc::new(Int32Array::from(cs_ship_date)),
+                Arc::new(Int32Array::from(cs_bill_customer)),
+                Arc::new(Int32Array::from(cs_bill_cdemo)),
+                Arc::new(Int32Array::from(cs_bill_hdemo)),
+                Arc::new(Int32Array::from(cs_bill_addr)),
+                Arc::new(Int32Array::from(cs_ship_customer)),
+                Arc::new(Int32Array::from(cs_ship_cdemo)),
+                Arc::new(Int32Array::from(cs_ship_hdemo)),
+                Arc::new(Int32Array::from(cs_ship_addr)),
+                Arc::new(Int32Array::from(cs_call_center)),
+                Arc::new(Int32Array::from(cs_catalog_page)),
+                Arc::new(Int32Array::from(cs_ship_mode)),
+                Arc::new(Int32Array::from(cs_warehouse)),
+                Arc::new(Int32Array::from(cs_item)),
+                Arc::new(Int32Array::from(cs_promo)),
                 Arc::new(Int64Array::from(cs_order_number)),
                 Arc::new(Int32Array::from(cs_quantity)),
                 Arc::new(dec(cs_wholesale_cost)),
@@ -209,43 +205,39 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("cs_sold_date_sk", DataType::Int64, true),
-        Field::new("cs_sold_time_sk", DataType::Int64, true),
-        Field::new("cs_ship_date_sk", DataType::Int64, true),
-        Field::new("cs_bill_customer_sk", DataType::Int64, true),
-        Field::new("cs_bill_cdemo_sk", DataType::Int64, true),
-        Field::new("cs_bill_hdemo_sk", DataType::Int64, true),
-        Field::new("cs_bill_addr_sk", DataType::Int64, true),
-        Field::new("cs_ship_customer_sk", DataType::Int64, true),
-        Field::new("cs_ship_cdemo_sk", DataType::Int64, true),
-        Field::new("cs_ship_hdemo_sk", DataType::Int64, true),
-        Field::new("cs_ship_addr_sk", DataType::Int64, true),
-        Field::new("cs_call_center_sk", DataType::Int64, true),
-        Field::new("cs_catalog_page_sk", DataType::Int64, true),
-        Field::new("cs_ship_mode_sk", DataType::Int64, true),
-        Field::new("cs_warehouse_sk", DataType::Int64, true),
-        Field::new("cs_item_sk", DataType::Int64, true),
-        Field::new("cs_promo_sk", DataType::Int64, true),
-        Field::new("cs_order_number", DataType::Int64, true),
+        Field::new("cs_sold_date_sk", DataType::Int32, true),
+        Field::new("cs_sold_time_sk", DataType::Int32, true),
+        Field::new("cs_ship_date_sk", DataType::Int32, true),
+        Field::new("cs_bill_customer_sk", DataType::Int32, true),
+        Field::new("cs_bill_cdemo_sk", DataType::Int32, true),
+        Field::new("cs_bill_hdemo_sk", DataType::Int32, true),
+        Field::new("cs_bill_addr_sk", DataType::Int32, true),
+        Field::new("cs_ship_customer_sk", DataType::Int32, true),
+        Field::new("cs_ship_cdemo_sk", DataType::Int32, true),
+        Field::new("cs_ship_hdemo_sk", DataType::Int32, true),
+        Field::new("cs_ship_addr_sk", DataType::Int32, true),
+        Field::new("cs_call_center_sk", DataType::Int32, true),
+        Field::new("cs_catalog_page_sk", DataType::Int32, true),
+        Field::new("cs_ship_mode_sk", DataType::Int32, true),
+        Field::new("cs_warehouse_sk", DataType::Int32, true),
+        Field::new("cs_item_sk", DataType::Int32, false),
+        Field::new("cs_promo_sk", DataType::Int32, true),
+        Field::new("cs_order_number", DataType::Int64, false),
         Field::new("cs_quantity", DataType::Int32, true),
-        Field::new("cs_wholesale_cost", DataType::Decimal128(38, 2), true),
-        Field::new("cs_list_price", DataType::Decimal128(38, 2), true),
-        Field::new("cs_sales_price", DataType::Decimal128(38, 2), true),
-        Field::new("cs_ext_discount_amt", DataType::Decimal128(38, 2), true),
-        Field::new("cs_ext_sales_price", DataType::Decimal128(38, 2), true),
-        Field::new("cs_ext_wholesale_cost", DataType::Decimal128(38, 2), true),
-        Field::new("cs_ext_list_price", DataType::Decimal128(38, 2), true),
-        Field::new("cs_ext_tax", DataType::Decimal128(38, 2), true),
-        Field::new("cs_coupon_amt", DataType::Decimal128(38, 2), true),
-        Field::new("cs_ext_ship_cost", DataType::Decimal128(38, 2), true),
-        Field::new("cs_net_paid", DataType::Decimal128(38, 2), true),
-        Field::new("cs_net_paid_inc_tax", DataType::Decimal128(38, 2), true),
-        Field::new("cs_net_paid_inc_ship", DataType::Decimal128(38, 2), true),
-        Field::new(
-            "cs_net_paid_inc_ship_tax",
-            DataType::Decimal128(38, 2),
-            true,
-        ),
-        Field::new("cs_net_profit", DataType::Decimal128(38, 2), true),
+        Field::new("cs_wholesale_cost", DataType::Decimal128(7, 2), true),
+        Field::new("cs_list_price", DataType::Decimal128(7, 2), true),
+        Field::new("cs_sales_price", DataType::Decimal128(7, 2), true),
+        Field::new("cs_ext_discount_amt", DataType::Decimal128(7, 2), true),
+        Field::new("cs_ext_sales_price", DataType::Decimal128(7, 2), true),
+        Field::new("cs_ext_wholesale_cost", DataType::Decimal128(7, 2), true),
+        Field::new("cs_ext_list_price", DataType::Decimal128(7, 2), true),
+        Field::new("cs_ext_tax", DataType::Decimal128(7, 2), true),
+        Field::new("cs_coupon_amt", DataType::Decimal128(7, 2), true),
+        Field::new("cs_ext_ship_cost", DataType::Decimal128(7, 2), true),
+        Field::new("cs_net_paid", DataType::Decimal128(7, 2), true),
+        Field::new("cs_net_paid_inc_tax", DataType::Decimal128(7, 2), true),
+        Field::new("cs_net_paid_inc_ship", DataType::Decimal128(7, 2), true),
+        Field::new("cs_net_paid_inc_ship_tax", DataType::Decimal128(7, 2), true),
+        Field::new("cs_net_profit", DataType::Decimal128(7, 2), true),
     ]))
 }

@@ -415,8 +415,7 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                1074775, 1073988, 1073405, 1071992, 1073785, 1072613, 1072227, 1073264, 1073338,
-                1072748,
+                938811, 937816, 937405, 936032, 937085, 936633, 936135, 937020, 937410, 936800,
             ],
         }],
     );
@@ -832,6 +831,29 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     );
 }
 
+#[test]
+fn test_tpcgen_cli_tpcds_csv_preserves_web_returns_header() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("0")
+        .arg("--tables")
+        .arg("web_returns")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents = fs::read_to_string(temp_dir.path().join("web_returns.csv"))
+        .expect("Failed to read CSV file");
+    let header = contents.lines().next().expect("CSV output is empty");
+    assert!(header.contains(",wr_store_credit,"));
+    assert!(!header.contains("wr_account_credit"));
+}
+
 /// Test that TPC-DS CSV generation supports a custom delimiter.
 #[test]
 fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
@@ -1133,6 +1155,61 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
         .field_with_name("dv_create_time")
         .expect("dv_create_time field");
     assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_uses_canonical_schemas() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("customer_address,item,promotion,web_returns")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for (table, column, expected) in [
+        (
+            "customer_address",
+            "ca_gmt_offset",
+            DataType::Decimal128(5, 2),
+        ),
+        ("item", "i_current_price", DataType::Decimal128(7, 2)),
+        ("promotion", "p_cost", DataType::Decimal128(15, 2)),
+        ("web_returns", "wr_store_credit", DataType::Decimal128(7, 2)),
+    ] {
+        let file = File::open(temp_dir.path().join(format!("{table}.parquet")))
+            .expect("Failed to open Parquet file");
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to read Parquet metadata");
+        let field = builder
+            .schema()
+            .field_with_name(column)
+            .expect("Expected decimal field");
+        assert_eq!(field.data_type(), &expected);
+    }
+
+    for (table, column, expected) in [
+        ("customer_address", "ca_address_sk", DataType::Int32),
+        ("item", "i_item_sk", DataType::Int32),
+        ("web_returns", "wr_item_sk", DataType::Int32),
+        ("web_returns", "wr_order_number", DataType::Int64),
+    ] {
+        let file = File::open(temp_dir.path().join(format!("{table}.parquet")))
+            .expect("Failed to open Parquet file");
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to read Parquet metadata");
+        let field = builder
+            .schema()
+            .field_with_name(column)
+            .expect("Expected integer field");
+        assert_eq!(field.data_type(), &expected);
+    }
 }
 
 /// Test that `--help` lists each selectable TPC-DS table.

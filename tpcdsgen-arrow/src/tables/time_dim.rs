@@ -1,6 +1,6 @@
-use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,7 +68,7 @@ impl Iterator for TimeDimArrow {
             return None;
         }
 
-        let mut t_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut t_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut t_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut t_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut t_hour: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -81,7 +81,7 @@ impl Iterator for TimeDimArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            t_sk.push(sk_opt(nbm, 0, r.t_time_sk));
+            t_sk.push(integer_sk_opt(nbm, 0, r.t_time_sk));
             t_id.push(opt(nbm, 1, r.t_time_id.clone()));
             t_time.push(opt(nbm, 2, r.t_time));
             t_hour.push(opt(nbm, 3, r.t_hour));
@@ -103,7 +103,7 @@ impl Iterator for TimeDimArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(t_sk)),
+                Arc::new(Int32Array::from(t_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     t_id.iter().map(|s| s.as_deref()),
                 )),
@@ -133,15 +133,15 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("t_time_sk", DataType::Int64, false),
+        Field::new("t_time_sk", DataType::Int32, false),
         Field::new("t_time_id", DataType::Utf8View, false),
-        Field::new("t_time", DataType::Int32, false),
-        Field::new("t_hour", DataType::Int32, false),
-        Field::new("t_minute", DataType::Int32, false),
-        Field::new("t_second", DataType::Int32, false),
-        Field::new("t_am_pm", DataType::Utf8View, false),
-        Field::new("t_shift", DataType::Utf8View, false),
-        Field::new("t_sub_shift", DataType::Utf8View, false),
+        Field::new("t_time", DataType::Int32, true),
+        Field::new("t_hour", DataType::Int32, true),
+        Field::new("t_minute", DataType::Int32, true),
+        Field::new("t_second", DataType::Int32, true),
+        Field::new("t_am_pm", DataType::Utf8View, true),
+        Field::new("t_shift", DataType::Utf8View, true),
+        Field::new("t_sub_shift", DataType::Utf8View, true),
         Field::new("t_meal_time", DataType::Utf8View, true),
     ]))
 }

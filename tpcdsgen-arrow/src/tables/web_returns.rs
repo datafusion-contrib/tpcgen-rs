@@ -1,6 +1,6 @@
-use crate::conversions::{decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -71,19 +71,19 @@ impl Iterator for WebReturnsArrow {
             return None;
         }
 
-        let mut wr_returned_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_returned_time: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_item: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_refunded_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_refunded_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_refunded_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_refunded_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_returning_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_returning_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_returning_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_returning_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_web_page: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wr_reason: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut wr_returned_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_returned_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_refunded_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_refunded_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_refunded_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_refunded_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_returning_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_returning_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_returning_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_returning_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_web_page: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wr_reason: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wr_order_number: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut wr_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wr_return_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -99,19 +99,19 @@ impl Iterator for WebReturnsArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             let p = r.get_wr_pricing();
-            wr_returned_date.push(sk_opt(nbm, 0, r.get_wr_returned_date_sk()));
-            wr_returned_time.push(sk_opt(nbm, 1, r.get_wr_returned_time_sk()));
-            wr_item.push(sk_opt(nbm, 2, r.get_wr_item_sk()));
-            wr_refunded_customer.push(sk_opt(nbm, 3, r.get_wr_refunded_customer_sk()));
-            wr_refunded_cdemo.push(sk_opt(nbm, 4, r.get_wr_refunded_cdemo_sk()));
-            wr_refunded_hdemo.push(sk_opt(nbm, 5, r.get_wr_refunded_hdemo_sk()));
-            wr_refunded_addr.push(sk_opt(nbm, 6, r.get_wr_refunded_addr_sk()));
-            wr_returning_customer.push(sk_opt(nbm, 7, r.get_wr_returning_customer_sk()));
-            wr_returning_cdemo.push(sk_opt(nbm, 8, r.get_wr_returning_cdemo_sk()));
-            wr_returning_hdemo.push(sk_opt(nbm, 9, r.get_wr_returning_hdemo_sk()));
-            wr_returning_addr.push(sk_opt(nbm, 10, r.get_wr_returning_addr_sk()));
-            wr_web_page.push(sk_opt(nbm, 11, r.get_wr_web_page_sk()));
-            wr_reason.push(sk_opt(nbm, 12, r.get_wr_reason_sk()));
+            wr_returned_date.push(integer_sk_opt(nbm, 0, r.get_wr_returned_date_sk()));
+            wr_returned_time.push(integer_sk_opt(nbm, 1, r.get_wr_returned_time_sk()));
+            wr_item.push(integer_sk_opt(nbm, 2, r.get_wr_item_sk()));
+            wr_refunded_customer.push(integer_sk_opt(nbm, 3, r.get_wr_refunded_customer_sk()));
+            wr_refunded_cdemo.push(integer_sk_opt(nbm, 4, r.get_wr_refunded_cdemo_sk()));
+            wr_refunded_hdemo.push(integer_sk_opt(nbm, 5, r.get_wr_refunded_hdemo_sk()));
+            wr_refunded_addr.push(integer_sk_opt(nbm, 6, r.get_wr_refunded_addr_sk()));
+            wr_returning_customer.push(integer_sk_opt(nbm, 7, r.get_wr_returning_customer_sk()));
+            wr_returning_cdemo.push(integer_sk_opt(nbm, 8, r.get_wr_returning_cdemo_sk()));
+            wr_returning_hdemo.push(integer_sk_opt(nbm, 9, r.get_wr_returning_hdemo_sk()));
+            wr_returning_addr.push(integer_sk_opt(nbm, 10, r.get_wr_returning_addr_sk()));
+            wr_web_page.push(integer_sk_opt(nbm, 11, r.get_wr_web_page_sk()));
+            wr_reason.push(integer_sk_opt(nbm, 12, r.get_wr_reason_sk()));
             wr_order_number.push(opt(nbm, 13, r.get_wr_order_number()));
             wr_quantity.push(opt(nbm, 14, p.get_quantity()));
             wr_return_amt.push(opt(nbm, 15, decimal_to_i128(p.get_net_paid())));
@@ -129,27 +129,23 @@ impl Iterator for WebReturnsArrow {
             wr_net_loss.push(opt(nbm, 23, decimal_to_i128(p.get_net_loss())));
         }
 
-        let dec = |v: Vec<Option<i128>>| {
-            Decimal128Array::from(v)
-                .with_precision_and_scale(38, 2)
-                .unwrap()
-        };
+        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(wr_returned_date)),
-                Arc::new(Int64Array::from(wr_returned_time)),
-                Arc::new(Int64Array::from(wr_item)),
-                Arc::new(Int64Array::from(wr_refunded_customer)),
-                Arc::new(Int64Array::from(wr_refunded_cdemo)),
-                Arc::new(Int64Array::from(wr_refunded_hdemo)),
-                Arc::new(Int64Array::from(wr_refunded_addr)),
-                Arc::new(Int64Array::from(wr_returning_customer)),
-                Arc::new(Int64Array::from(wr_returning_cdemo)),
-                Arc::new(Int64Array::from(wr_returning_hdemo)),
-                Arc::new(Int64Array::from(wr_returning_addr)),
-                Arc::new(Int64Array::from(wr_web_page)),
-                Arc::new(Int64Array::from(wr_reason)),
+                Arc::new(Int32Array::from(wr_returned_date)),
+                Arc::new(Int32Array::from(wr_returned_time)),
+                Arc::new(Int32Array::from(wr_item)),
+                Arc::new(Int32Array::from(wr_refunded_customer)),
+                Arc::new(Int32Array::from(wr_refunded_cdemo)),
+                Arc::new(Int32Array::from(wr_refunded_hdemo)),
+                Arc::new(Int32Array::from(wr_refunded_addr)),
+                Arc::new(Int32Array::from(wr_returning_customer)),
+                Arc::new(Int32Array::from(wr_returning_cdemo)),
+                Arc::new(Int32Array::from(wr_returning_hdemo)),
+                Arc::new(Int32Array::from(wr_returning_addr)),
+                Arc::new(Int32Array::from(wr_web_page)),
+                Arc::new(Int32Array::from(wr_reason)),
                 Arc::new(Int64Array::from(wr_order_number)),
                 Arc::new(Int32Array::from(wr_quantity)),
                 Arc::new(dec(wr_return_amt)),
@@ -171,29 +167,29 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("wr_returned_date_sk", DataType::Int64, true),
-        Field::new("wr_returned_time_sk", DataType::Int64, true),
-        Field::new("wr_item_sk", DataType::Int64, true),
-        Field::new("wr_refunded_customer_sk", DataType::Int64, true),
-        Field::new("wr_refunded_cdemo_sk", DataType::Int64, true),
-        Field::new("wr_refunded_hdemo_sk", DataType::Int64, true),
-        Field::new("wr_refunded_addr_sk", DataType::Int64, true),
-        Field::new("wr_returning_customer_sk", DataType::Int64, true),
-        Field::new("wr_returning_cdemo_sk", DataType::Int64, true),
-        Field::new("wr_returning_hdemo_sk", DataType::Int64, true),
-        Field::new("wr_returning_addr_sk", DataType::Int64, true),
-        Field::new("wr_web_page_sk", DataType::Int64, true),
-        Field::new("wr_reason_sk", DataType::Int64, true),
-        Field::new("wr_order_number", DataType::Int64, true),
+        Field::new("wr_returned_date_sk", DataType::Int32, true),
+        Field::new("wr_returned_time_sk", DataType::Int32, true),
+        Field::new("wr_item_sk", DataType::Int32, false),
+        Field::new("wr_refunded_customer_sk", DataType::Int32, true),
+        Field::new("wr_refunded_cdemo_sk", DataType::Int32, true),
+        Field::new("wr_refunded_hdemo_sk", DataType::Int32, true),
+        Field::new("wr_refunded_addr_sk", DataType::Int32, true),
+        Field::new("wr_returning_customer_sk", DataType::Int32, true),
+        Field::new("wr_returning_cdemo_sk", DataType::Int32, true),
+        Field::new("wr_returning_hdemo_sk", DataType::Int32, true),
+        Field::new("wr_returning_addr_sk", DataType::Int32, true),
+        Field::new("wr_web_page_sk", DataType::Int32, true),
+        Field::new("wr_reason_sk", DataType::Int32, true),
+        Field::new("wr_order_number", DataType::Int64, false),
         Field::new("wr_return_quantity", DataType::Int32, true),
-        Field::new("wr_return_amt", DataType::Decimal128(38, 2), true),
-        Field::new("wr_return_tax", DataType::Decimal128(38, 2), true),
-        Field::new("wr_return_amt_inc_tax", DataType::Decimal128(38, 2), true),
-        Field::new("wr_fee", DataType::Decimal128(38, 2), true),
-        Field::new("wr_return_ship_cost", DataType::Decimal128(38, 2), true),
-        Field::new("wr_refunded_cash", DataType::Decimal128(38, 2), true),
-        Field::new("wr_reversed_charge", DataType::Decimal128(38, 2), true),
-        Field::new("wr_store_credit", DataType::Decimal128(38, 2), true),
-        Field::new("wr_net_loss", DataType::Decimal128(38, 2), true),
+        Field::new("wr_return_amt", DataType::Decimal128(7, 2), true),
+        Field::new("wr_return_tax", DataType::Decimal128(7, 2), true),
+        Field::new("wr_return_amt_inc_tax", DataType::Decimal128(7, 2), true),
+        Field::new("wr_fee", DataType::Decimal128(7, 2), true),
+        Field::new("wr_return_ship_cost", DataType::Decimal128(7, 2), true),
+        Field::new("wr_refunded_cash", DataType::Decimal128(7, 2), true),
+        Field::new("wr_reversed_charge", DataType::Decimal128(7, 2), true),
+        Field::new("wr_store_credit", DataType::Decimal128(7, 2), true),
+        Field::new("wr_net_loss", DataType::Decimal128(7, 2), true),
     ]))
 }

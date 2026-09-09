@@ -1,6 +1,6 @@
-use crate::conversions::{address_columns, opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{address_columns, integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,7 +68,7 @@ impl Iterator for WarehouseArrow {
             return None;
         }
 
-        let mut w_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut w_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut w_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut w_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut w_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -77,7 +77,7 @@ impl Iterator for WarehouseArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            w_sk.push(sk_opt(nbm, 0, r.get_w_warehouse_sk()));
+            w_sk.push(integer_sk_opt(nbm, 0, r.get_w_warehouse_sk()));
             w_id.push(opt(nbm, 1, r.get_w_warehouse_id().to_owned()));
             w_name.push(opt(nbm, 2, r.get_w_warehouse_name().to_owned()));
             w_sq_ft.push(opt(nbm, 3, r.get_w_warehouse_sq_ft()));
@@ -100,7 +100,7 @@ impl Iterator for WarehouseArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(w_sk)),
+                Arc::new(Int32Array::from(w_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     w_id.iter().map(|s| s.as_deref()),
                 )),
@@ -128,11 +128,11 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("w_warehouse_sk", DataType::Int64, true),
-        Field::new("w_warehouse_id", DataType::Utf8View, true),
+        Field::new("w_warehouse_sk", DataType::Int32, false),
+        Field::new("w_warehouse_id", DataType::Utf8View, false),
         Field::new("w_warehouse_name", DataType::Utf8View, true),
         Field::new("w_warehouse_sq_ft", DataType::Int32, true),
-        Field::new("w_street_number", DataType::Int32, true),
+        Field::new("w_street_number", DataType::Utf8View, true),
         Field::new("w_street_name", DataType::Utf8View, true),
         Field::new("w_street_type", DataType::Utf8View, true),
         Field::new("w_suite_number", DataType::Utf8View, true),
@@ -141,6 +141,6 @@ fn make_schema() -> SchemaRef {
         Field::new("w_state", DataType::Utf8View, true),
         Field::new("w_zip", DataType::Utf8View, true),
         Field::new("w_country", DataType::Utf8View, true),
-        Field::new("w_gmt_offset", DataType::Int32, true),
+        Field::new("w_gmt_offset", DataType::Decimal128(5, 2), true),
     ]))
 }
