@@ -114,18 +114,18 @@ impl IntoIterator for TpcdsGenerationPlan {
 /// +-------------+----------------------+
 /// | table_name  | bytes_per_source_row |
 /// +-------------+----------------------+
-/// | call_center | 423.0                |
+/// | call_center | 406.0                |
 /// +-------------+----------------------+
 /// ...
 /// +-----------------+----------------------+
 /// | table_name      | bytes_per_source_row |
 /// +-----------------+----------------------+
-/// | catalog_returns | 195.0                |
+/// | catalog_returns | 79.0                 |
 /// +-----------------+----------------------+
 /// +---------------+----------------------+
 /// | table_name    | bytes_per_source_row |
 /// +---------------+----------------------+
-/// | catalog_sales | 2391.0               |
+/// | catalog_sales | 786.0                |
 /// +---------------+----------------------+
 /// ```
 ///
@@ -133,33 +133,33 @@ impl IntoIterator for TpcdsGenerationPlan {
 /// for sales vs returns tables) to get the bytes per source row.
 fn estimated_bytes_per_source_row(table: Table) -> i64 {
     match table {
-        Table::CallCenter => 423,
-        Table::CatalogPage => 113,
-        Table::CatalogReturns => 195,
-        Table::CatalogSales => 2391,
-        Table::Customer => 92,
-        Table::CustomerAddress => 46,
-        Table::CustomerDemographics => 9,
-        Table::DateDim => 57,
+        Table::CallCenter => 406,
+        Table::CatalogPage => 108,
+        Table::CatalogReturns => 79,
+        Table::CatalogSales => 786,
+        Table::Customer => 86,
+        Table::CustomerAddress => 42,
+        Table::CustomerDemographics => 5,
+        Table::DateDim => 53,
         // Note: this value is not performance critical as this is a 1 row table
         // and the size depends on the command line args.
-        Table::DbgenVersion => 358,
-        Table::HouseholdDemographics => 10,
+        Table::DbgenVersion => 407,
+        Table::HouseholdDemographics => 6,
         Table::IncomeBand => 20,
         Table::Inventory => 3,
-        Table::Item => 197,
-        Table::Promotion => 120,
-        Table::Reason => 54,
-        Table::ShipMode => 76,
-        Table::Store => 265,
-        Table::StoreReturns => 220,
-        Table::StoreSales => 2366,
-        Table::TimeDim => 38,
-        Table::Warehouse => 206,
-        Table::WebPage => 50,
-        Table::WebReturns => 261,
-        Table::WebSales => 3119,
-        Table::WebSite => 218,
+        Table::Item => 165,
+        Table::Promotion => 90,
+        Table::Reason => 50,
+        Table::ShipMode => 72,
+        Table::Store => 248,
+        Table::StoreReturns => 78,
+        Table::StoreSales => 631,
+        Table::TimeDim => 34,
+        Table::Warehouse => 202,
+        Table::WebPage => 42,
+        Table::WebReturns => 104,
+        Table::WebSales => 963,
+        Table::WebSite => 198,
         // Not a main table; never generated as Parquet output
         _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
     }
@@ -195,8 +195,8 @@ mod tests {
     #[test]
     fn store_sales_sf1_default() {
         let plan = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        // ~568 MB estimated output in 7 MB row groups over 240k source rows
-        assert_eq!(plan.row_group_count(), 78);
+        // ~144 MiB estimated output in 7 MiB row groups over 240k source rows
+        assert_eq!(plan.row_group_count(), 21);
         assert_covers(&plan, 240_000);
     }
 
@@ -205,7 +205,7 @@ mod tests {
         let plan = plan(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES);
         // store_returns is generated from the 240k store_sales source rows
         // (its own scaling row count is 0)
-        assert_eq!(plan.row_group_count(), 8);
+        assert_eq!(plan.row_group_count(), 3);
         assert_covers(&plan, 240_000);
     }
 
