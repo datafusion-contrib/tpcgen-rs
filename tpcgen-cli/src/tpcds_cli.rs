@@ -128,7 +128,7 @@ struct ParquetArgs {
     ///
     /// Format: `COLUMN=ENCODING[,COLUMN=ENCODING...]`
     ///
-    /// Example: `r_reason_description=DELTA_LENGTH_BYTE_ARRAY`
+    /// Example: `r_reason_desc=DELTA_LENGTH_BYTE_ARRAY`
     ///
     /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
     /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each

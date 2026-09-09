@@ -7,7 +7,7 @@ pub struct ReasonRow {
     null_bit_map: i64,
     pub(crate) r_reason_sk: i64,
     pub(crate) r_reason_id: String,
-    pub(crate) r_reason_description: String,
+    pub(crate) r_reason_desc: String,
 }
 
 impl ReasonRow {
@@ -15,13 +15,13 @@ impl ReasonRow {
         null_bit_map: i64,
         r_reason_sk: i64,
         r_reason_id: String,
-        r_reason_description: String,
+        r_reason_desc: String,
     ) -> Self {
         ReasonRow {
             null_bit_map,
             r_reason_sk,
             r_reason_id,
-            r_reason_description,
+            r_reason_desc,
         }
     }
 
@@ -42,8 +42,13 @@ impl ReasonRow {
         &self.r_reason_id
     }
 
+    pub fn get_r_reason_desc(&self) -> &str {
+        &self.r_reason_desc
+    }
+
+    #[deprecated(note = "use get_r_reason_desc")]
     pub fn get_r_reason_description(&self) -> &str {
-        &self.r_reason_description
+        self.get_r_reason_desc()
     }
 }
 
@@ -65,7 +70,7 @@ impl fmt::Display for ReasonRow {
             "{}|{}|{}|",
             self.field(self.r_reason_sk, 0),
             self.field(&self.r_reason_id, 1),
-            self.field(&self.r_reason_description, 2),
+            self.field(&self.r_reason_desc, 2),
         )
     }
 }

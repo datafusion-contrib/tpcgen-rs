@@ -254,15 +254,36 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("r_reason_desc=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
         .success();
 
     let path = temp_dir.path().join("reason.parquet");
-    expect_column_encoding(
-        &path,
-        "r_reason_description",
-        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    expect_column_encoding(&path, "r_reason_desc", Encoding::DELTA_LENGTH_BYTE_ARRAY);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_rejects_obsolete_column_name() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("column 'r_reason_description'"),
+        "unexpected stderr: {stderr}"
     );
 }
 
@@ -276,7 +297,7 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=NOT_AN_ENCODING")
+        .arg("r_reason_desc=NOT_AN_ENCODING")
         .assert()
         .failure();
 
@@ -294,7 +315,7 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
 fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_exists() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    // r_reason_description only exists on reason, not item.
+    // r_reason_desc only exists on reason, not item.
     cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("parquet")
@@ -305,19 +326,19 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_e
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("r_reason_desc=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
         .success();
 
     let reason_path = temp_dir.path().join("reason.parquet");
     expect_column_encoding(
         &reason_path,
-        "r_reason_description",
+        "r_reason_desc",
         Encoding::DELTA_LENGTH_BYTE_ARRAY,
     );
     assert!(
         temp_dir.path().join("item.parquet").exists(),
-        "expected item.parquet to still be generated, just without r_reason_description applied to it"
+        "expected item.parquet to still be generated, just without r_reason_desc applied to it"
     );
 }
 
@@ -337,13 +358,13 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("r_reason_desc_typo=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
         .failure();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("column 'r_reason_description_typo'"),
+        stderr.contains("column 'r_reason_desc_typo'"),
         "unexpected stderr: {stderr}"
     );
     assert_eq!(
@@ -362,7 +383,7 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
 fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    // r_reason_description only exists on reason. This must still fail up
+    // r_reason_desc only exists on reason. This must still fail up
     // front, before either table is scheduled.
     let assert = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
@@ -374,7 +395,7 @@ fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--column-encoding")
-        .arg("r_reason_description=PLAIN_DICTIONARY")
+        .arg("r_reason_desc=PLAIN_DICTIONARY")
         .assert()
         .failure();
 
@@ -819,7 +840,7 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     let lines: Vec<_> = contents.lines().collect();
     assert_eq!(
         lines.first(),
-        Some(&"r_reason_sk,r_reason_id,r_reason_description")
+        Some(&"r_reason_sk,r_reason_id,r_reason_desc")
     );
     assert_eq!(
         lines.len(),
@@ -830,6 +851,47 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
         lines.iter().all(|line| !line.ends_with(',')),
         "Expected CSV rows not to end with a trailing delimiter, got:\n{contents}"
     );
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_uses_canonical_column_names() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("catalog_returns,income_band,reason,web_returns")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for (table, canonical, obsolete) in [
+        (
+            "catalog_returns",
+            "cr_return_amt_inc_tax",
+            "cr_return_amount_inc_tax",
+        ),
+        ("income_band", "ib_income_band_sk", "ib_income_band_id"),
+        ("reason", "r_reason_desc", "r_reason_description"),
+        ("web_returns", "wr_account_credit", "wr_store_credit"),
+    ] {
+        let contents = fs::read_to_string(temp_dir.path().join(format!("{table}.csv")))
+            .expect("Failed to read CSV file");
+        let header = contents.lines().next().expect("CSV output is empty");
+        let columns = header.split(',').collect::<BTreeSet<_>>();
+        assert!(
+            columns.contains(canonical),
+            "missing canonical column {canonical} in {table}.csv"
+        );
+        assert!(
+            !columns.contains(obsolete),
+            "obsolete column {obsolete} remains in {table}.csv"
+        );
+    }
 }
 
 /// Test that TPC-DS CSV generation supports a custom delimiter.
@@ -854,7 +916,7 @@ fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
     let contents =
         fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
     let first_line = contents.lines().next().expect("CSV output is empty");
-    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_description");
+    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_desc");
     assert!(
         !first_line.contains(','),
         "Expected custom-delimited CSV header not to use commas: {first_line}"
@@ -891,7 +953,7 @@ fn test_tpcgen_cli_tpcds_csv_delimiter_in_header_is_escaped() {
     let second_line = contents.lines().nth(1).expect("CSV data row is missing");
     assert_eq!(
         first_line,
-        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_description\""
+        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_desc\""
     );
     assert_eq!(
         second_line.split('_').count(),

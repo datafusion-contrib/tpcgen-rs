@@ -44,7 +44,7 @@ impl ReasonRowGenerator {
 
         let r_reason_sk = row_number;
         let r_reason_id = make_business_key(row_number);
-        let r_reason_description = ReturnReasonsDistribution::get_return_reason_at_index(
+        let r_reason_desc = ReturnReasonsDistribution::get_return_reason_at_index(
             (row_number - 1) as usize,
             session.get_compat_mode(),
         )?;
@@ -53,7 +53,7 @@ impl ReasonRowGenerator {
             null_bit_map,
             r_reason_sk,
             r_reason_id.to_string(),
-            r_reason_description.to_string(),
+            r_reason_desc.to_string(),
         ))
     }
 }
