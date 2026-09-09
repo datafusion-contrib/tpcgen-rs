@@ -411,8 +411,7 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                1074759, 1073972, 1073389, 1071976, 1073769, 1072597, 1072211, 1073248, 1073322,
-                1072732,
+                938811, 937816, 937405, 936032, 937085, 936633, 936135, 937020, 937410, 936800,
             ],
         }],
     );
@@ -1155,7 +1154,7 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
 }
 
 #[test]
-fn test_tpcgen_cli_tpcds_parquet_uses_canonical_decimal_schemas() {
+fn test_tpcgen_cli_tpcds_parquet_uses_canonical_schemas() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     cargo_bin_cmd!("tpcgen-cli")
@@ -1192,6 +1191,23 @@ fn test_tpcgen_cli_tpcds_parquet_uses_canonical_decimal_schemas() {
             .schema()
             .field_with_name(column)
             .expect("Expected decimal field");
+        assert_eq!(field.data_type(), &expected);
+    }
+
+    for (table, column, expected) in [
+        ("customer_address", "ca_address_sk", DataType::Int32),
+        ("item", "i_item_sk", DataType::Int32),
+        ("web_returns", "wr_item_sk", DataType::Int32),
+        ("web_returns", "wr_order_number", DataType::Int64),
+    ] {
+        let file = File::open(temp_dir.path().join(format!("{table}.parquet")))
+            .expect("Failed to open Parquet file");
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to read Parquet metadata");
+        let field = builder
+            .schema()
+            .field_with_name(column)
+            .expect("Expected integer field");
         assert_eq!(field.data_type(), &expected);
     }
 }

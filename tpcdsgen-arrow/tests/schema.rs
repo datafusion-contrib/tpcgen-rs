@@ -1,7 +1,7 @@
 use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
 use arrow::record_batch::RecordBatchReader;
 use std::collections::BTreeSet;
-use tpcdsgen::config::{Session, Table};
+use tpcdsgen::config::{Scaling, Session, Table};
 use tpcdsgen::csv::csv_header;
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
@@ -193,6 +193,81 @@ fn schemas_match_canonical_c_kit_columns_and_decimals() {
         .collect::<BTreeSet<_>>();
     assert_eq!(visited, expected_tables);
     assert!(mismatches.is_empty(), "{mismatches:#x?}");
+}
+
+#[test]
+fn integer_widths_match_lakebench_v4() {
+    let session = Session::default();
+    let mut integer_fields = 0;
+    let mut bigint_fields = Vec::new();
+
+    for (table, schema) in table_schemas(&session) {
+        for field in schema.fields() {
+            match field.data_type() {
+                DataType::Int32 => {
+                    integer_fields += 1;
+                }
+                DataType::Int64 => {
+                    bigint_fields.push(format!("{}.{}", table.get_name(), field.name()));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    bigint_fields.sort_unstable();
+    assert_eq!(integer_fields, 183);
+    assert_eq!(
+        bigint_fields,
+        [
+            "catalog_returns.cr_order_number",
+            "catalog_sales.cs_order_number",
+            "store_returns.sr_ticket_number",
+            "store_sales.ss_ticket_number",
+            "web_returns.wr_order_number",
+            "web_sales.ws_order_number",
+        ]
+    );
+}
+
+#[test]
+fn sf100000_integer_domains_fit_i32() {
+    let scaling = Scaling::new(100000.0);
+    let integer_key_tables = [
+        Table::CallCenter,
+        Table::CatalogPage,
+        Table::Customer,
+        Table::CustomerAddress,
+        Table::CustomerDemographics,
+        Table::DateDim,
+        Table::HouseholdDemographics,
+        Table::IncomeBand,
+        Table::Item,
+        Table::Promotion,
+        Table::Reason,
+        Table::ShipMode,
+        Table::Store,
+        Table::TimeDim,
+        Table::Warehouse,
+        Table::WebPage,
+        Table::WebSite,
+    ];
+
+    for table in integer_key_tables {
+        assert!(
+            scaling.get_row_count(table) <= i64::from(i32::MAX),
+            "{} exceeds the Arrow Int32 key domain at SF100000",
+            table.get_name()
+        );
+    }
+
+    for table in [Table::StoreSales, Table::CatalogSales, Table::WebSales] {
+        assert!(
+            scaling.get_row_count(table) > i64::from(i32::MAX),
+            "{} order identifiers require Arrow Int64 at SF100000",
+            table.get_name()
+        );
+    }
 }
 
 fn assert_decimal_fields(schema: SchemaRef, expected: &[(&str, u8)]) {

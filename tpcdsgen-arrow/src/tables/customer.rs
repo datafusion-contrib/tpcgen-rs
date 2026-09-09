@@ -1,6 +1,6 @@
-use crate::conversions::{bool_to_yn, opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{bool_to_yn, integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,11 +68,11 @@ impl Iterator for CustomerArrow {
             return None;
         }
 
-        let mut c_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut c_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut c_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut c_cdemo_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut c_hdemo_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut c_addr_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut c_cdemo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut c_hdemo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut c_addr_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut c_shipto_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut c_sales_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut c_salutation: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -89,11 +89,11 @@ impl Iterator for CustomerArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            c_sk.push(sk_opt(nbm, 0, r.get_c_customer_sk()));
+            c_sk.push(integer_sk_opt(nbm, 0, r.get_c_customer_sk()));
             c_id.push(opt(nbm, 1, r.get_c_customer_id().to_owned()));
-            c_cdemo_sk.push(sk_opt(nbm, 2, r.get_c_current_cdemo_sk()));
-            c_hdemo_sk.push(sk_opt(nbm, 3, r.get_c_current_hdemo_sk()));
-            c_addr_sk.push(sk_opt(nbm, 4, r.get_c_current_addr_sk()));
+            c_cdemo_sk.push(integer_sk_opt(nbm, 2, r.get_c_current_cdemo_sk()));
+            c_hdemo_sk.push(integer_sk_opt(nbm, 3, r.get_c_current_hdemo_sk()));
+            c_addr_sk.push(integer_sk_opt(nbm, 4, r.get_c_current_addr_sk()));
             c_shipto_date.push(opt(nbm, 5, r.get_c_first_shipto_date_id()));
             c_sales_date.push(opt(nbm, 6, r.get_c_first_sales_date_id()));
             c_salutation.push(opt(nbm, 7, r.get_c_salutation().to_owned()));
@@ -116,13 +116,13 @@ impl Iterator for CustomerArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(c_sk)),
+                Arc::new(Int32Array::from(c_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     c_id.iter().map(|s| s.as_deref()),
                 )),
-                Arc::new(Int64Array::from(c_cdemo_sk)),
-                Arc::new(Int64Array::from(c_hdemo_sk)),
-                Arc::new(Int64Array::from(c_addr_sk)),
+                Arc::new(Int32Array::from(c_cdemo_sk)),
+                Arc::new(Int32Array::from(c_hdemo_sk)),
+                Arc::new(Int32Array::from(c_addr_sk)),
                 Arc::new(Int32Array::from(c_shipto_date)),
                 Arc::new(Int32Array::from(c_sales_date)),
                 Arc::new(string_view_array_from_opt_iter(
@@ -160,11 +160,11 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("c_customer_sk", DataType::Int64, false),
+        Field::new("c_customer_sk", DataType::Int32, false),
         Field::new("c_customer_id", DataType::Utf8View, false),
-        Field::new("c_current_cdemo_sk", DataType::Int64, true),
-        Field::new("c_current_hdemo_sk", DataType::Int64, true),
-        Field::new("c_current_addr_sk", DataType::Int64, true),
+        Field::new("c_current_cdemo_sk", DataType::Int32, true),
+        Field::new("c_current_hdemo_sk", DataType::Int32, true),
+        Field::new("c_current_addr_sk", DataType::Int32, true),
         Field::new("c_first_shipto_date_sk", DataType::Int32, true),
         Field::new("c_first_sales_date_sk", DataType::Int32, true),
         Field::new("c_salutation", DataType::Utf8View, true),

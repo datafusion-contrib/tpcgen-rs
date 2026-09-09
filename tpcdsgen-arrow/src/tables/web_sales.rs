@@ -1,4 +1,4 @@
-use crate::conversions::{decimal128_7_2_array, decimal_to_i128, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
@@ -71,23 +71,23 @@ impl Iterator for WebSalesArrow {
             return None;
         }
 
-        let mut ws_sold_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_sold_time: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_ship_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_item: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_bill_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_bill_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_bill_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_bill_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_ship_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_ship_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_ship_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_ship_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_web_page: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_web_site: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_ship_mode: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_warehouse: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ws_promo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ws_sold_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_sold_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_ship_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_bill_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_bill_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_bill_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_bill_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_ship_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_ship_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_ship_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_ship_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_web_page: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_web_site: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_ship_mode: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_warehouse: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ws_promo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut ws_order_number: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut ws_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut ws_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -109,23 +109,23 @@ impl Iterator for WebSalesArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             let p = r.get_ws_pricing();
-            ws_sold_date.push(sk_opt(nbm, 0, r.get_ws_sold_date_sk()));
-            ws_sold_time.push(sk_opt(nbm, 1, r.get_ws_sold_time_sk()));
-            ws_ship_date.push(sk_opt(nbm, 2, r.get_ws_ship_date_sk()));
-            ws_item.push(sk_opt(nbm, 3, r.get_ws_item_sk()));
-            ws_bill_customer.push(sk_opt(nbm, 4, r.get_ws_bill_customer_sk()));
-            ws_bill_cdemo.push(sk_opt(nbm, 5, r.get_ws_bill_cdemo_sk()));
-            ws_bill_hdemo.push(sk_opt(nbm, 6, r.get_ws_bill_hdemo_sk()));
-            ws_bill_addr.push(sk_opt(nbm, 7, r.get_ws_bill_addr_sk()));
-            ws_ship_customer.push(sk_opt(nbm, 8, r.get_ws_ship_customer_sk()));
-            ws_ship_cdemo.push(sk_opt(nbm, 9, r.get_ws_ship_cdemo_sk()));
-            ws_ship_hdemo.push(sk_opt(nbm, 10, r.get_ws_ship_hdemo_sk()));
-            ws_ship_addr.push(sk_opt(nbm, 11, r.get_ws_ship_addr_sk()));
-            ws_web_page.push(sk_opt(nbm, 12, r.get_ws_web_page_sk()));
-            ws_web_site.push(sk_opt(nbm, 13, r.get_ws_web_site_sk()));
-            ws_ship_mode.push(sk_opt(nbm, 14, r.get_ws_ship_mode_sk()));
-            ws_warehouse.push(sk_opt(nbm, 15, r.get_ws_warehouse_sk()));
-            ws_promo.push(sk_opt(nbm, 16, r.get_ws_promo_sk()));
+            ws_sold_date.push(integer_sk_opt(nbm, 0, r.get_ws_sold_date_sk()));
+            ws_sold_time.push(integer_sk_opt(nbm, 1, r.get_ws_sold_time_sk()));
+            ws_ship_date.push(integer_sk_opt(nbm, 2, r.get_ws_ship_date_sk()));
+            ws_item.push(integer_sk_opt(nbm, 3, r.get_ws_item_sk()));
+            ws_bill_customer.push(integer_sk_opt(nbm, 4, r.get_ws_bill_customer_sk()));
+            ws_bill_cdemo.push(integer_sk_opt(nbm, 5, r.get_ws_bill_cdemo_sk()));
+            ws_bill_hdemo.push(integer_sk_opt(nbm, 6, r.get_ws_bill_hdemo_sk()));
+            ws_bill_addr.push(integer_sk_opt(nbm, 7, r.get_ws_bill_addr_sk()));
+            ws_ship_customer.push(integer_sk_opt(nbm, 8, r.get_ws_ship_customer_sk()));
+            ws_ship_cdemo.push(integer_sk_opt(nbm, 9, r.get_ws_ship_cdemo_sk()));
+            ws_ship_hdemo.push(integer_sk_opt(nbm, 10, r.get_ws_ship_hdemo_sk()));
+            ws_ship_addr.push(integer_sk_opt(nbm, 11, r.get_ws_ship_addr_sk()));
+            ws_web_page.push(integer_sk_opt(nbm, 12, r.get_ws_web_page_sk()));
+            ws_web_site.push(integer_sk_opt(nbm, 13, r.get_ws_web_site_sk()));
+            ws_ship_mode.push(integer_sk_opt(nbm, 14, r.get_ws_ship_mode_sk()));
+            ws_warehouse.push(integer_sk_opt(nbm, 15, r.get_ws_warehouse_sk()));
+            ws_promo.push(integer_sk_opt(nbm, 16, r.get_ws_promo_sk()));
             ws_order_number.push(opt(nbm, 17, r.get_ws_order_number()));
             ws_quantity.push(opt(nbm, 18, p.get_quantity()));
             ws_wholesale_cost.push(opt(nbm, 19, decimal_to_i128(p.get_wholesale_cost())));
@@ -161,23 +161,23 @@ impl Iterator for WebSalesArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(ws_sold_date)),
-                Arc::new(Int64Array::from(ws_sold_time)),
-                Arc::new(Int64Array::from(ws_ship_date)),
-                Arc::new(Int64Array::from(ws_item)),
-                Arc::new(Int64Array::from(ws_bill_customer)),
-                Arc::new(Int64Array::from(ws_bill_cdemo)),
-                Arc::new(Int64Array::from(ws_bill_hdemo)),
-                Arc::new(Int64Array::from(ws_bill_addr)),
-                Arc::new(Int64Array::from(ws_ship_customer)),
-                Arc::new(Int64Array::from(ws_ship_cdemo)),
-                Arc::new(Int64Array::from(ws_ship_hdemo)),
-                Arc::new(Int64Array::from(ws_ship_addr)),
-                Arc::new(Int64Array::from(ws_web_page)),
-                Arc::new(Int64Array::from(ws_web_site)),
-                Arc::new(Int64Array::from(ws_ship_mode)),
-                Arc::new(Int64Array::from(ws_warehouse)),
-                Arc::new(Int64Array::from(ws_promo)),
+                Arc::new(Int32Array::from(ws_sold_date)),
+                Arc::new(Int32Array::from(ws_sold_time)),
+                Arc::new(Int32Array::from(ws_ship_date)),
+                Arc::new(Int32Array::from(ws_item)),
+                Arc::new(Int32Array::from(ws_bill_customer)),
+                Arc::new(Int32Array::from(ws_bill_cdemo)),
+                Arc::new(Int32Array::from(ws_bill_hdemo)),
+                Arc::new(Int32Array::from(ws_bill_addr)),
+                Arc::new(Int32Array::from(ws_ship_customer)),
+                Arc::new(Int32Array::from(ws_ship_cdemo)),
+                Arc::new(Int32Array::from(ws_ship_hdemo)),
+                Arc::new(Int32Array::from(ws_ship_addr)),
+                Arc::new(Int32Array::from(ws_web_page)),
+                Arc::new(Int32Array::from(ws_web_site)),
+                Arc::new(Int32Array::from(ws_ship_mode)),
+                Arc::new(Int32Array::from(ws_warehouse)),
+                Arc::new(Int32Array::from(ws_promo)),
                 Arc::new(Int64Array::from(ws_order_number)),
                 Arc::new(Int32Array::from(ws_quantity)),
                 Arc::new(dec(ws_wholesale_cost)),
@@ -205,23 +205,23 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("ws_sold_date_sk", DataType::Int64, true),
-        Field::new("ws_sold_time_sk", DataType::Int64, true),
-        Field::new("ws_ship_date_sk", DataType::Int64, true),
-        Field::new("ws_item_sk", DataType::Int64, false),
-        Field::new("ws_bill_customer_sk", DataType::Int64, true),
-        Field::new("ws_bill_cdemo_sk", DataType::Int64, true),
-        Field::new("ws_bill_hdemo_sk", DataType::Int64, true),
-        Field::new("ws_bill_addr_sk", DataType::Int64, true),
-        Field::new("ws_ship_customer_sk", DataType::Int64, true),
-        Field::new("ws_ship_cdemo_sk", DataType::Int64, true),
-        Field::new("ws_ship_hdemo_sk", DataType::Int64, true),
-        Field::new("ws_ship_addr_sk", DataType::Int64, true),
-        Field::new("ws_web_page_sk", DataType::Int64, true),
-        Field::new("ws_web_site_sk", DataType::Int64, true),
-        Field::new("ws_ship_mode_sk", DataType::Int64, true),
-        Field::new("ws_warehouse_sk", DataType::Int64, true),
-        Field::new("ws_promo_sk", DataType::Int64, true),
+        Field::new("ws_sold_date_sk", DataType::Int32, true),
+        Field::new("ws_sold_time_sk", DataType::Int32, true),
+        Field::new("ws_ship_date_sk", DataType::Int32, true),
+        Field::new("ws_item_sk", DataType::Int32, false),
+        Field::new("ws_bill_customer_sk", DataType::Int32, true),
+        Field::new("ws_bill_cdemo_sk", DataType::Int32, true),
+        Field::new("ws_bill_hdemo_sk", DataType::Int32, true),
+        Field::new("ws_bill_addr_sk", DataType::Int32, true),
+        Field::new("ws_ship_customer_sk", DataType::Int32, true),
+        Field::new("ws_ship_cdemo_sk", DataType::Int32, true),
+        Field::new("ws_ship_hdemo_sk", DataType::Int32, true),
+        Field::new("ws_ship_addr_sk", DataType::Int32, true),
+        Field::new("ws_web_page_sk", DataType::Int32, true),
+        Field::new("ws_web_site_sk", DataType::Int32, true),
+        Field::new("ws_ship_mode_sk", DataType::Int32, true),
+        Field::new("ws_warehouse_sk", DataType::Int32, true),
+        Field::new("ws_promo_sk", DataType::Int32, true),
         Field::new("ws_order_number", DataType::Int64, false),
         Field::new("ws_quantity", DataType::Int32, true),
         Field::new("ws_wholesale_cost", DataType::Decimal128(7, 2), true),

@@ -1,6 +1,8 @@
-use crate::conversions::{bool_to_yn, date_to_date32, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{
+    bool_to_yn, date_to_date32, integer_sk_opt, string_view_array_from_opt_iter,
+};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewBuilder};
+use arrow::array::{Date32Array, Int32Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,7 +70,7 @@ impl Iterator for DateDimArrow {
             return None;
         }
 
-        let mut d_date_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut d_date_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut d_date_id: Vec<String> = Vec::with_capacity(rows.len());
         let mut d_date: Vec<i32> = Vec::with_capacity(rows.len());
         let mut d_month_seq: Vec<i32> = Vec::with_capacity(rows.len());
@@ -99,7 +101,7 @@ impl Iterator for DateDimArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            d_date_sk.push(sk_opt(nbm, 0, r.d_date_sk));
+            d_date_sk.push(integer_sk_opt(nbm, 0, r.d_date_sk));
             d_date_id.push(r.d_date_id.clone());
             d_date.push(date_to_date32(&r.d_date));
             d_month_seq.push(r.d_month_seq);
@@ -145,7 +147,7 @@ impl Iterator for DateDimArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(d_date_sk)),
+                Arc::new(Int32Array::from(d_date_sk)),
                 Arc::new(id_b.finish()),
                 Arc::new(Date32Array::from_iter_values(d_date)),
                 Arc::new(Int32Array::from_iter_values(d_month_seq)),
@@ -199,7 +201,7 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("d_date_sk", DataType::Int64, false),
+        Field::new("d_date_sk", DataType::Int32, false),
         Field::new("d_date_id", DataType::Utf8View, false),
         Field::new("d_date", DataType::Date32, true),
         Field::new("d_month_seq", DataType::Int32, true),

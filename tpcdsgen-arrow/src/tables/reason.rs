@@ -1,6 +1,6 @@
-use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,13 +68,13 @@ impl Iterator for ReasonArrow {
             return None;
         }
 
-        let mut sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut id: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            sk.push(sk_opt(nbm, 0, r.get_r_reason_sk()));
+            sk.push(integer_sk_opt(nbm, 0, r.get_r_reason_sk()));
             id.push(opt(nbm, 1, r.get_r_reason_id().to_owned()));
             desc.push(opt(nbm, 2, r.get_r_reason_desc().to_owned()));
         }
@@ -82,7 +82,7 @@ impl Iterator for ReasonArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(sk)),
+                Arc::new(Int32Array::from(sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     id.iter().map(|s| s.as_deref()),
                 )),
@@ -99,7 +99,7 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("r_reason_sk", DataType::Int64, false),
+        Field::new("r_reason_sk", DataType::Int32, false),
         Field::new("r_reason_id", DataType::Utf8View, false),
         Field::new("r_reason_desc", DataType::Utf8View, true),
     ]))

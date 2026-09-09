@@ -1,6 +1,6 @@
-use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -70,7 +70,7 @@ impl Iterator for CustomerDemographicsArrow {
             return None;
         }
 
-        let mut demo_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut demo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut gender: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut marital: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut education: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -82,7 +82,7 @@ impl Iterator for CustomerDemographicsArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            demo_sk.push(sk_opt(nbm, 0, r.get_cd_demo_sk()));
+            demo_sk.push(integer_sk_opt(nbm, 0, r.get_cd_demo_sk()));
             gender.push(opt(nbm, 1, r.get_cd_gender().to_owned()));
             marital.push(opt(nbm, 2, r.get_cd_marital_status().to_owned()));
             education.push(opt(nbm, 3, r.get_cd_education_status().to_owned()));
@@ -96,7 +96,7 @@ impl Iterator for CustomerDemographicsArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(demo_sk)),
+                Arc::new(Int32Array::from(demo_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     gender.iter().map(|s| s.as_deref()),
                 )),
@@ -123,7 +123,7 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("cd_demo_sk", DataType::Int64, false),
+        Field::new("cd_demo_sk", DataType::Int32, false),
         Field::new("cd_gender", DataType::Utf8View, true),
         Field::new("cd_marital_status", DataType::Utf8View, true),
         Field::new("cd_education_status", DataType::Utf8View, true),

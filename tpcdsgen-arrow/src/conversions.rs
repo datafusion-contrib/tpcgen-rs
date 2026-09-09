@@ -163,6 +163,16 @@ pub fn opt<T>(nbm: i64, pos: u32, val: T) -> Option<T> {
     }
 }
 
+/// Return a checked Arrow Int32 value unless the null bitmap bit is set.
+#[inline(always)]
+pub fn integer_opt(nbm: i64, pos: u32, value: i64) -> Option<i32> {
+    if is_null(nbm, pos) {
+        None
+    } else {
+        Some(i32::try_from(value).expect("TPC-DS INTEGER value exceeds i32 range"))
+    }
+}
+
 /// Return `Some(sk)` unless null bitmap bit is set OR sk < 0 (sentinel for absent FK).
 #[inline(always)]
 pub fn sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i64> {
@@ -170,6 +180,16 @@ pub fn sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i64> {
         None
     } else {
         Some(sk)
+    }
+}
+
+/// Return a checked Arrow Int32 surrogate key unless null or an absent-key sentinel.
+#[inline(always)]
+pub fn integer_sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i32> {
+    if is_null(nbm, pos) || sk < 0 {
+        None
+    } else {
+        Some(i32::try_from(sk).expect("TPC-DS INTEGER surrogate key exceeds i32 range"))
     }
 }
 
@@ -310,5 +330,25 @@ mod tests {
     fn test_bool_to_yn() {
         assert_eq!(bool_to_yn(true), "Y");
         assert_eq!(bool_to_yn(false), "N");
+    }
+
+    #[test]
+    fn test_integer_opt_boundaries() {
+        assert_eq!(integer_opt(0, 0, i64::from(i32::MIN)), Some(i32::MIN));
+        assert_eq!(integer_opt(0, 0, i64::from(i32::MAX)), Some(i32::MAX));
+        assert_eq!(integer_opt(1, 0, i64::from(i32::MAX) + 1), None);
+    }
+
+    #[test]
+    #[should_panic(expected = "TPC-DS INTEGER value exceeds i32 range")]
+    fn test_integer_opt_rejects_overflow() {
+        integer_opt(0, 0, i64::from(i32::MAX) + 1);
+    }
+
+    #[test]
+    fn test_integer_sk_opt_handles_absent_keys() {
+        assert_eq!(integer_sk_opt(0, 0, -1), None);
+        assert_eq!(integer_sk_opt(1, 0, i64::from(i32::MAX) + 1), None);
+        assert_eq!(integer_sk_opt(0, 0, i64::from(i32::MAX)), Some(i32::MAX));
     }
 }

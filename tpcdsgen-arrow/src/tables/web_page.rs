@@ -1,8 +1,8 @@
 use crate::conversions::{
-    bool_to_yn, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
+    bool_to_yn, integer_sk_opt, julian_to_date32, opt, string_view_array_from_opt_iter,
 };
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Date32Array, Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -70,14 +70,14 @@ impl Iterator for WebPageArrow {
             return None;
         }
 
-        let mut wp_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut wp_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut wp_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_creation_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut wp_access_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut wp_creation_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut wp_access_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_autogen: Vec<Option<&'static str>> = Vec::with_capacity(rows.len());
-        let mut wp_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut wp_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_url: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut wp_type: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut wp_char_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -87,14 +87,14 @@ impl Iterator for WebPageArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            wp_sk.push(sk_opt(nbm, 0, r.get_wp_page_sk()));
+            wp_sk.push(integer_sk_opt(nbm, 0, r.get_wp_page_sk()));
             wp_id.push(opt(nbm, 1, r.get_wp_page_id().to_owned()));
             wp_rec_start.push(julian_to_date32(r.get_wp_rec_start_date_id()));
             wp_rec_end.push(julian_to_date32(r.get_wp_rec_end_date_id()));
-            wp_creation_date.push(sk_opt(nbm, 4, r.get_wp_creation_date_sk()));
-            wp_access_date.push(sk_opt(nbm, 5, r.get_wp_access_date_sk()));
+            wp_creation_date.push(integer_sk_opt(nbm, 4, r.get_wp_creation_date_sk()));
+            wp_access_date.push(integer_sk_opt(nbm, 5, r.get_wp_access_date_sk()));
             wp_autogen.push(opt(nbm, 6, bool_to_yn(r.get_wp_autogen_flag())));
-            wp_customer.push(sk_opt(nbm, 7, r.get_wp_customer_sk()));
+            wp_customer.push(integer_sk_opt(nbm, 7, r.get_wp_customer_sk()));
             wp_url.push(opt(nbm, 8, r.get_wp_url().to_owned()));
             wp_type.push(opt(nbm, 9, r.get_wp_type().to_owned()));
             wp_char_count.push(opt(nbm, 10, r.get_wp_char_count()));
@@ -106,16 +106,16 @@ impl Iterator for WebPageArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(wp_sk)),
+                Arc::new(Int32Array::from(wp_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     wp_id.iter().map(|s| s.as_deref()),
                 )),
                 Arc::new(Date32Array::from(wp_rec_start)),
                 Arc::new(Date32Array::from(wp_rec_end)),
-                Arc::new(Int64Array::from(wp_creation_date)),
-                Arc::new(Int64Array::from(wp_access_date)),
+                Arc::new(Int32Array::from(wp_creation_date)),
+                Arc::new(Int32Array::from(wp_access_date)),
                 Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
-                Arc::new(Int64Array::from(wp_customer)),
+                Arc::new(Int32Array::from(wp_customer)),
                 Arc::new(string_view_array_from_opt_iter(
                     wp_url.iter().map(|s| s.as_deref()),
                 )),
@@ -136,14 +136,14 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("wp_web_page_sk", DataType::Int64, false),
+        Field::new("wp_web_page_sk", DataType::Int32, false),
         Field::new("wp_web_page_id", DataType::Utf8View, false),
         Field::new("wp_rec_start_date", DataType::Date32, true),
         Field::new("wp_rec_end_date", DataType::Date32, true),
-        Field::new("wp_creation_date_sk", DataType::Int64, true),
-        Field::new("wp_access_date_sk", DataType::Int64, true),
+        Field::new("wp_creation_date_sk", DataType::Int32, true),
+        Field::new("wp_access_date_sk", DataType::Int32, true),
         Field::new("wp_autogen_flag", DataType::Utf8View, true),
-        Field::new("wp_customer_sk", DataType::Int64, true),
+        Field::new("wp_customer_sk", DataType::Int32, true),
         Field::new("wp_url", DataType::Utf8View, true),
         Field::new("wp_type", DataType::Utf8View, true),
         Field::new("wp_char_count", DataType::Int32, true),
