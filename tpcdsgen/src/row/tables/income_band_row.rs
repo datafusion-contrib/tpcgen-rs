@@ -38,11 +38,6 @@ impl IncomeBandRow {
         self.ib_income_band_sk
     }
 
-    #[deprecated(note = "use get_ib_income_band_sk")]
-    pub fn get_ib_income_band_id(&self) -> i32 {
-        self.get_ib_income_band_sk()
-    }
-
     pub fn get_ib_lower_bound(&self) -> i32 {
         self.ib_lower_bound
     }

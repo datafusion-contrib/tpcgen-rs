@@ -45,11 +45,6 @@ impl ReasonRow {
     pub fn get_r_reason_desc(&self) -> &str {
         &self.r_reason_desc
     }
-
-    #[deprecated(note = "use get_r_reason_desc")]
-    pub fn get_r_reason_description(&self) -> &str {
-        self.get_r_reason_desc()
-    }
 }
 
 /// DAT field helper: NULL is driven purely by the null bit
