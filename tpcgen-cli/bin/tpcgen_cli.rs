@@ -64,3 +64,62 @@ async fn main() -> ExitCode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+    use tpcgen_cli::tpch_cli::Table;
+
+    #[test]
+    fn full_table_names_are_case_insensitive() {
+        for (benchmark, name) in [
+            ("tpch", "Nation"),
+            ("tpch", "Region"),
+            ("tpch", "Supplier"),
+            ("tpch", "Part"),
+            ("tpch", "PartSupp"),
+            ("tpch", "Customer"),
+            ("tpch", "Orders"),
+            ("tpch", "LineItem"),
+            ("tpcds", "Reason"),
+            ("tpcds", "Ship_Mode"),
+        ] {
+            for name in [
+                name.to_ascii_lowercase(),
+                name.to_ascii_uppercase(),
+                name.to_string(),
+            ] {
+                Cli::try_parse_from(["tpcgen-cli", benchmark, "--tables", &name]).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn tpch_table_aliases_remain_case_sensitive() {
+        // Only TPC-H: the Rust TPC-DS CLI does not support table aliases.
+        for (alias, table) in [
+            ("n", Table::Nation),
+            ("r", Table::Region),
+            ("s", Table::Supplier),
+            ("P", Table::Part),
+            ("S", Table::Partsupp),
+            ("c", Table::Customer),
+            ("O", Table::Orders),
+            ("L", Table::Lineitem),
+        ] {
+            let matches = Cli::command()
+                .try_get_matches_from(["tpcgen-cli", "tpch", "--tables", alias])
+                .unwrap();
+            let tpch = matches.subcommand_matches("tpch").unwrap();
+            assert_eq!(tpch.get_one::<Table>("tables"), Some(&table), "{alias}");
+        }
+
+        for alias in ["N", "R", "p", "C", "o", "l"] {
+            assert!(
+                Cli::try_parse_from(["tpcgen-cli", "tpch", "--tables", alias]).is_err(),
+                "{alias}"
+            );
+        }
+    }
+}
