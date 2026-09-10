@@ -1,6 +1,6 @@
 const BUSINESS_KEY_CHARS: &str = "ABCDEFGHIJKLMNOP";
 
-pub fn make_business_key(primary: i64) -> String {
+pub fn make_business_key(primary: u64) -> String {
     let key_part1 = long_to_8_char_string((primary >> 32) as u32);
     let key_part2 = long_to_8_char_string(primary as u32);
     format!("{}{}", key_part1, key_part2)

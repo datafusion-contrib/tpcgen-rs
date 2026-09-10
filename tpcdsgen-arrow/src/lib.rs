@@ -42,13 +42,13 @@ pub const DEFAULT_BATCH_SIZE: usize = 8_000;
 pub(crate) struct RowIter<G: RowGenerator> {
     generator: G,
     session: Session,
-    current_row: i64,
-    row_count: i64,
+    current_row: u64,
+    row_count: u64,
     pending: VecDeque<GeneratedRow>,
 }
 
 impl<G: RowGenerator> RowIter<G> {
-    pub(crate) fn new(generator: G, session: Session, row_count: i64) -> Self {
+    pub(crate) fn new(generator: G, session: Session, row_count: u64) -> Self {
         Self {
             generator,
             session,
@@ -58,7 +58,7 @@ impl<G: RowGenerator> RowIter<G> {
         }
     }
 
-    pub(crate) fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    pub(crate) fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.generator
             .skip_rows_until_starting_row_number(starting_row_number);
         self.current_row = starting_row_number;
@@ -71,8 +71,8 @@ impl<G: RowGenerator> RowIter<G> {
     /// The ending row number is clamped to the table's row count.
     pub(crate) fn set_source_row_range(
         &mut self,
-        starting_row_number: i64,
-        ending_row_number: i64,
+        starting_row_number: u64,
+        ending_row_number: u64,
     ) {
         self.skip_rows_until_starting_row_number(starting_row_number);
         self.row_count = self.row_count.min(ending_row_number);

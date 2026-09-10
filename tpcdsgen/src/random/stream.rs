@@ -3,7 +3,7 @@ use crate::{check_argument, error::Result, TpcdsError};
 pub trait RandomNumberStream: Send + Sync {
     fn next_random(&mut self) -> i64;
     fn next_random_double(&mut self) -> f64;
-    fn skip_rows(&mut self, number_of_rows: i64);
+    fn skip_rows(&mut self, number_of_rows: u64);
     fn reset_seed(&mut self);
     fn get_seeds_used(&self) -> i32;
     fn reset_seeds_used(&mut self);
@@ -75,13 +75,13 @@ impl RandomNumberStream for RandomNumberStreamImpl {
         self.next_random() as f64 / i32::MAX as f64
     }
 
-    fn skip_rows(&mut self, number_of_rows: i64) {
-        let mut number_of_values_to_skip = number_of_rows * self.seeds_per_row as i64;
+    fn skip_rows(&mut self, number_of_rows: u64) {
+        let mut number_of_values_to_skip = number_of_rows * self.seeds_per_row as u64;
         let mut next_seed = self.initial_seed;
         let mut multiplier = Self::MULTIPLIER;
 
         while number_of_values_to_skip > 0 {
-            if number_of_values_to_skip % 2 != 0 {
+            if !number_of_values_to_skip.is_multiple_of(2) {
                 // n is odd
                 next_seed = (multiplier * next_seed) % i32::MAX as i64;
             }

@@ -51,11 +51,13 @@ impl Default for PromotionRowGenerator {
 impl RowGenerator for PromotionRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &crate::config::Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> crate::error::Result<RowGeneratorResult> {
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
         let scaling = session.get_scaling();
 
         let null_bit_map = create_null_bit_map(
@@ -64,7 +66,7 @@ impl RowGenerator for PromotionRowGenerator {
                 .get_random_number_stream(&PromotionGeneratorColumn::PNulls),
         );
 
-        let p_promo_sk = row_number;
+        let p_promo_sk = row_number_i64;
         let p_promo_id = make_business_key(row_number);
 
         let p_start_date_id = Date::JULIAN_DATE_MINIMUM as i64
@@ -101,7 +103,7 @@ impl RowGenerator for PromotionRowGenerator {
             .abstract_row_generator
             .get_random_number_stream(&PromotionGeneratorColumn::PPromoName);
         let p_promo_name = RandomValueGenerator::generate_word(
-            row_number,
+            row_number_i64,
             PROMO_NAME_LENGTH,
             crate::distribution::get_syllables_distribution(),
         );
@@ -178,7 +180,7 @@ impl RowGenerator for PromotionRowGenerator {
             .consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_row_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

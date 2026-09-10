@@ -49,7 +49,7 @@ impl Default for InventoryRowGenerator {
 impl RowGenerator for InventoryRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -81,13 +81,14 @@ impl RowGenerator for InventoryRowGenerator {
         index /= warehouse_count;
 
         // Date cycles slowest - inventory is updated weekly
-        let inv_date_sk = Date::JULIAN_DATE_MINIMUM as i64 + (index * 7);
+        let inv_date_sk = Date::JULIAN_DATE_MINIMUM as i64
+            + i64::try_from(index * 7).expect("inventory date offset fits in i64");
 
         // The join between item and inventory is tricky. The item_id selected above identifies
         // a unique part num but item is a slowly changing dimension, so we need to account for
         // that in selecting the surrogate key to join with
         let inv_item_sk = match_surrogate_key(
-            inv_item_sk_unique,
+            i64::try_from(inv_item_sk_unique).expect("inventory item key fits in i64"),
             inv_date_sk,
             crate::config::Table::Item,
             scaling,
@@ -104,7 +105,7 @@ impl RowGenerator for InventoryRowGenerator {
             null_bit_map,
             inv_date_sk,
             inv_item_sk,
-            inv_warehouse_sk,
+            i64::try_from(inv_warehouse_sk).expect("warehouse key fits in i64"),
             inv_quantity_on_hand,
         );
 
@@ -115,7 +116,7 @@ impl RowGenerator for InventoryRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

@@ -25,18 +25,20 @@ impl TimeDimRowGenerator {
 impl RowGenerator for TimeDimRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         _session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> crate::error::Result<RowGeneratorResult> {
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
         // Create null bitmap - TimeDim has very few nulls
         let null_bit_map = 0i64;
 
         // Row number represents seconds since midnight (0-based)
-        let t_time_sk = row_number - 1;
+        let t_time_sk = row_number_i64 - 1;
         let t_time_id = make_business_key(row_number);
-        let t_time = (row_number - 1) as i32;
+        let t_time = (row_number_i64 - 1) as i32;
 
         // Extract time components
         let mut time_temp = t_time as i64;
@@ -75,7 +77,7 @@ impl RowGenerator for TimeDimRowGenerator {
         self.base.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.base
             .skip_rows_until_starting_row_number(starting_row_number);
     }

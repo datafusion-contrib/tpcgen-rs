@@ -40,10 +40,12 @@ impl RowGeneratorResult {
 
 /// RowGenerator trait matching the Java RowGenerator interface
 pub trait RowGenerator: Send + Sync {
-    /// Generate a row and its child rows (generateRowAndChildRows)
+    /// Generate a row and its child rows (generateRowAndChildRows).
+    ///
+    /// `row_number` is 1-based.
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         parent_row_generator: Option<&mut dyn RowGenerator>,
         child_row_generator: Option<&mut dyn RowGenerator>,
@@ -53,7 +55,7 @@ pub trait RowGenerator: Send + Sync {
     fn consume_remaining_seeds_for_row(&mut self);
 
     /// Skip rows until reaching the starting row number
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64);
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64);
 }
 
 #[cfg(test)]

@@ -180,7 +180,7 @@ impl Default for StoreReturnsRowGenerator {
 impl RowGenerator for StoreReturnsRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        _row_number: i64,
+        _row_number: u64,
         _session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -200,7 +200,7 @@ impl RowGenerator for StoreReturnsRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

@@ -53,8 +53,10 @@ impl StoreRowGenerator {
         }
     }
 
-    fn generate_store_row(&mut self, row_number: i64, session: &Session) -> Result<StoreRow> {
+    fn generate_store_row(&mut self, row_number: u64, session: &Session) -> Result<StoreRow> {
         use StoreGeneratorColumn::*;
+
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Generate null bit map first
         let stream = self
@@ -62,7 +64,7 @@ impl StoreRowGenerator {
             .get_random_number_stream(&WStoreNulls);
         let null_bit_map = create_null_bit_map(Table::Store, stream);
 
-        let store_sk = row_number;
+        let store_sk = row_number_i64;
 
         // Compute SCD key using S_STORE table
         let scd_key = compute_scd_key(Table::SStore, row_number);
@@ -105,7 +107,7 @@ impl StoreRowGenerator {
 
         // Generate store name
         let mut store_name = RandomValueGenerator::generate_word(
-            row_number,
+            row_number_i64,
             5,
             crate::distribution::get_syllables_distribution(),
         );
@@ -368,7 +370,7 @@ impl Default for StoreRowGenerator {
 impl RowGenerator for StoreRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -383,7 +385,7 @@ impl RowGenerator for StoreRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }
