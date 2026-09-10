@@ -80,11 +80,14 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # Build wheels + sdist (but don’t upload artifacts)
+  # PR CI and merge queue runs smoke-test one representative wheel per OS type.
+  # Pushes to the main branch and manually triggered runs build all supported wheels.
+  # Every run also builds both CLIs' sdists without uploading artifacts.
   build-packages:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
+      smoke: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:
