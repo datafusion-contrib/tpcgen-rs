@@ -194,6 +194,44 @@ fn test_tpcgen_cli_tpch_parquet_column_encoding_typo_fails_before_any_output() {
     );
 }
 
+/// An encoding the column's Parquet physical type cannot use must fail
+/// before any table is written. The parquet writer panics on such a pair,
+/// so it must never reach the writer.
+#[test]
+fn test_tpcgen_cli_tpch_parquet_incompatible_encoding_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // l_orderkey is INT64; DELTA_LENGTH_BYTE_ARRAY needs BYTE_ARRAY. orders
+    // is listed first so it would otherwise finish before lineitem fails.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("orders,lineitem")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_orderkey=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("encoding DELTA_LENGTH_BYTE_ARRAY cannot encode column 'l_orderkey'"),
+        "unexpected stderr: {stderr}"
+    );
+    assert!(!stderr.contains("panicked"), "unexpected stderr: {stderr}");
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
 /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are always rejected.
 /// This must fail before any table is written, same as a typo, even when
 /// the column exists on only one of the selected tables.

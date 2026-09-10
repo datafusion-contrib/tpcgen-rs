@@ -7,7 +7,6 @@ use crate::parquet::IntoSize;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
 use arrow::datatypes::SchemaRef;
-use arrow::record_batch::RecordBatchReader;
 use log::info;
 use std::fmt::Display;
 use std::fs::File;
@@ -17,10 +16,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
-use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSuppGenerator, RegionGenerator, SupplierGenerator,
-};
 use tpchgen::text::TextPool;
 use tpchgen_arrow::{
     CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
@@ -231,42 +226,42 @@ impl Default for GeneratorConfig {
     }
 }
 
-/// Returns `table`'s Arrow schema. Does not generate any rows.
-///
-/// `part` and `part_count` do not change the schema, so this always asks
-/// for `(1, 1)`.
-pub(super) fn table_schema(table: Table, scale_factor: f64) -> SchemaRef {
+/// Returns `table`'s Arrow schema without building a generator.
+pub(super) fn table_schema(table: Table) -> SchemaRef {
     match table {
-        Table::Nation => NationArrow::new(NationGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Region => RegionArrow::new(RegionGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Part => PartArrow::new(PartGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Supplier => SupplierArrow::new(SupplierGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Partsupp => PartSuppArrow::new(PartSuppGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Customer => CustomerArrow::new(CustomerGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Orders => OrderArrow::new(OrderGenerator::new(scale_factor, 1, 1)).schema(),
-        Table::Lineitem => LineItemArrow::new(LineItemGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Nation => NationArrow::schema_ref(),
+        Table::Region => RegionArrow::schema_ref(),
+        Table::Part => PartArrow::schema_ref(),
+        Table::Supplier => SupplierArrow::schema_ref(),
+        Table::Partsupp => PartSuppArrow::schema_ref(),
+        Table::Customer => CustomerArrow::schema_ref(),
+        Table::Orders => OrderArrow::schema_ref(),
+        Table::Lineitem => LineItemArrow::schema_ref(),
     }
 }
 
 /// Checks each column in `encodings` against every table in `tables`.
 ///
 /// Rejects an encoding `reject_unsupported_encoding` always rejects.
-/// Rejects a column name that matches no table (almost always a typo). A
-/// column that matches only some tables is fine: [`column_encodings_for_table`]
-/// applies it there and skips it elsewhere.
+/// Rejects an encoding that cannot encode a column it matches (the parquet
+/// writer would panic on it). Rejects a column name that matches no table
+/// (almost always a typo). A column that matches only some tables is fine:
+/// [`column_encodings_for_table`] applies it there and skips it elsewhere.
 pub(super) fn validate_column_encodings(
     tables: &[Table],
-    scale_factor: f64,
     encodings: &[(String, Encoding)],
 ) -> io::Result<()> {
     for (col, enc) in encodings {
         crate::parquet::reject_unsupported_encoding(*enc)?;
-        let matches_any_table = tables.iter().any(|table| {
-            table_schema(*table, scale_factor)
-                .fields()
-                .iter()
-                .any(|f| f.name() == col)
-        });
+        let mut matches_any_table = false;
+        for table in tables {
+            if let Some(physical_type) =
+                crate::parquet::column_physical_type(&table_schema(*table), col)
+            {
+                matches_any_table = true;
+                crate::parquet::check_encoding_supports_type(col, *enc, physical_type)?;
+            }
+        }
         if !matches_any_table {
             return Err(io::Error::other(format!(
                 "column '{col}' for --column-encoding not found in any selected table"
@@ -279,10 +274,9 @@ pub(super) fn validate_column_encodings(
 /// Keeps only the encodings whose column exists in `table`'s schema.
 pub(super) fn column_encodings_for_table(
     table: Table,
-    scale_factor: f64,
     encodings: &[(String, Encoding)],
 ) -> Vec<(String, Encoding)> {
-    let schema = table_schema(table, scale_factor);
+    let schema = table_schema(table);
     encodings
         .iter()
         .filter(|(col, _)| schema.fields().iter().any(|f| f.name() == col))
@@ -332,10 +326,7 @@ impl TpchGenerator {
         };
 
         // Warm up the distributions and text pool now, not on the first
-        // table. validate_column_encodings (below) builds a real generator
-        // per table to read its schema, and every generator also creates
-        // these statics. Warm up first, or the cost hides inside
-        // validation and this timing is wrong.
+        // table.
         let start = Instant::now();
         Distributions::static_default();
         TextPool::get_or_init_default();
@@ -343,11 +334,11 @@ impl TpchGenerator {
         info!("Created static distributions and text pools in {elapsed:?}");
 
         // Reject a --column-encoding column that matches no selected table
-        // (a typo) before any work starts. column_encodings_for_table
-        // (below) skips a column that only matches some tables, so that
-        // case is not an error.
+        // (a typo), or an encoding its column cannot use, before any work
+        // starts. column_encodings_for_table (below) skips a column that
+        // only matches some tables, so that case is not an error.
         if let Some(encodings) = &config.parquet_column_encodings {
-            validate_column_encodings(&tables, config.scale_factor, encodings)?;
+            validate_column_encodings(&tables, encodings)?;
         }
 
         // Determine what files to generate
@@ -536,14 +527,14 @@ mod tests {
         // l_comment exists only on lineitem, not orders.
         let tables = [Table::Lineitem, Table::Orders];
         let encodings = [("l_comment".to_string(), Encoding::PLAIN)];
-        assert!(validate_column_encodings(&tables, 0.001, &encodings).is_ok());
+        assert!(validate_column_encodings(&tables, &encodings).is_ok());
     }
 
     #[test]
     fn validate_column_encodings_rejects_a_typo() {
         let tables = [Table::Lineitem, Table::Orders];
         let encodings = [("l_comment_typo".to_string(), Encoding::PLAIN)];
-        let err = validate_column_encodings(&tables, 0.001, &encodings).unwrap_err();
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
         assert!(err.to_string().contains("column 'l_comment_typo'"), "{err}");
     }
 
@@ -551,7 +542,20 @@ mod tests {
     fn validate_column_encodings_rejects_dictionary_encoding() {
         let tables = [Table::Lineitem];
         let encodings = [("l_comment".to_string(), Encoding::PLAIN_DICTIONARY)];
-        assert!(validate_column_encodings(&tables, 0.001, &encodings).is_err());
+        assert!(validate_column_encodings(&tables, &encodings).is_err());
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_an_encoding_the_column_cannot_use() {
+        // l_orderkey is INT64; DELTA_LENGTH_BYTE_ARRAY needs BYTE_ARRAY.
+        let tables = [Table::Lineitem, Table::Orders];
+        let encodings = [("l_orderkey".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot encode column 'l_orderkey'"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -561,11 +565,11 @@ mod tests {
             ("o_comment".to_string(), Encoding::PLAIN),
         ];
         assert_eq!(
-            column_encodings_for_table(Table::Lineitem, 0.001, &encodings),
+            column_encodings_for_table(Table::Lineitem, &encodings),
             vec![("l_comment".to_string(), Encoding::PLAIN)]
         );
         assert_eq!(
-            column_encodings_for_table(Table::Nation, 0.001, &encodings),
+            column_encodings_for_table(Table::Nation, &encodings),
             Vec::new()
         );
     }
