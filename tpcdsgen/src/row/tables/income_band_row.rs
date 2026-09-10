@@ -5,7 +5,7 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct IncomeBandRow {
     null_bit_map: i64,
-    pub(crate) ib_income_band_id: i32,
+    pub(crate) ib_income_band_sk: i32,
     pub(crate) ib_lower_bound: i32,
     pub(crate) ib_upper_bound: i32,
 }
@@ -13,13 +13,13 @@ pub struct IncomeBandRow {
 impl IncomeBandRow {
     pub fn new(
         null_bit_map: i64,
-        ib_income_band_id: i32,
+        ib_income_band_sk: i32,
         ib_lower_bound: i32,
         ib_upper_bound: i32,
     ) -> Self {
         IncomeBandRow {
             null_bit_map,
-            ib_income_band_id,
+            ib_income_band_sk,
             ib_lower_bound,
             ib_upper_bound,
         }
@@ -34,8 +34,8 @@ impl IncomeBandRow {
         self.null_bit_map
     }
 
-    pub fn get_ib_income_band_id(&self) -> i32 {
-        self.ib_income_band_id
+    pub fn get_ib_income_band_sk(&self) -> i32 {
+        self.ib_income_band_sk
     }
 
     pub fn get_ib_lower_bound(&self) -> i32 {
@@ -62,7 +62,7 @@ impl fmt::Display for IncomeBandRow {
         write!(
             f,
             "{}|{}|{}|",
-            self.field(self.ib_income_band_id, 0),
+            self.field(self.ib_income_band_sk, 0),
             self.field(self.ib_lower_bound, 1),
             self.field(self.ib_upper_bound, 2),
         )

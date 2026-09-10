@@ -70,13 +70,13 @@ impl Iterator for ReasonArrow {
 
         let mut sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut reason_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             sk.push(integer_sk_opt(nbm, 0, r.get_r_reason_sk()));
             id.push(opt(nbm, 1, r.get_r_reason_id().to_owned()));
-            desc.push(opt(nbm, 2, r.get_r_reason_description().to_owned()));
+            reason_desc.push(opt(nbm, 2, r.get_r_reason_desc().to_owned()));
         }
 
         let batch = RecordBatch::try_new(
@@ -87,7 +87,7 @@ impl Iterator for ReasonArrow {
                     id.iter().map(|s| s.as_deref()),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    desc.iter().map(|s| s.as_deref()),
+                    reason_desc.iter().map(|s| s.as_deref()),
                 )),
             ],
         );
@@ -101,6 +101,6 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("r_reason_sk", DataType::Int32, false),
         Field::new("r_reason_id", DataType::Utf8View, false),
-        Field::new("r_reason_description", DataType::Utf8View, true),
+        Field::new("r_reason_desc", DataType::Utf8View, true),
     ]))
 }

@@ -74,7 +74,7 @@ impl Iterator for IncomeBandArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            band_sk.push(opt(nbm, 0, r.get_ib_income_band_id()));
+            band_sk.push(opt(nbm, 0, r.get_ib_income_band_sk()));
             lower.push(opt(nbm, 1, r.get_ib_lower_bound()));
             upper.push(opt(nbm, 2, r.get_ib_upper_bound()));
         }
@@ -95,7 +95,7 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("ib_income_band_id", DataType::Int32, false),
+        Field::new("ib_income_band_sk", DataType::Int32, false),
         Field::new("ib_lower_bound", DataType::Int32, true),
         Field::new("ib_upper_bound", DataType::Int32, true),
     ]))
