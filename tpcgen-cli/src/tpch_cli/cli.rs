@@ -317,11 +317,25 @@ impl TypedValueParser for TableValueParser {
         _: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, clap::Error> {
+        let to_err = |msg: String| {
+            clap::Error::raw(clap::error::ErrorKind::InvalidValue, format!("{msg}\n")).with_cmd(cmd)
+        };
+
         let value = value
             .to_str()
-            .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))?;
-        Table::from_str(value)
-            .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))
+            .ok_or_else(|| to_err("table names must be valid UTF-8".to_string()))?;
+
+        Table::from_str(value).map_err(|_| {
+            let expected = self
+                .possible_values()
+                .expect("table parser defines possible values")
+                .map(|table| table.get_name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            to_err(format!(
+                "unknown table '{value}'. Expected one of: {expected}"
+            ))
+        })
     }
 
     fn possible_values(
