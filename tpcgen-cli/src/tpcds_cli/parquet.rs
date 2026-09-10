@@ -587,44 +587,42 @@ mod tests {
 
     #[test]
     fn validate_column_encodings_accepts_a_column_present_on_just_one_table() {
-        // r_reason_description exists only on reason, not item.
+        // r_reason_desc exists only on reason, not item.
         let tables = table_sessions(&[Table::Reason, Table::Item]);
-        let encodings = [("r_reason_description".to_string(), Encoding::PLAIN)];
+        let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN)];
         assert!(validate_column_encodings(&tables, &encodings).is_ok());
     }
 
     #[test]
     fn validate_column_encodings_rejects_a_typo() {
         let tables = table_sessions(&[Table::Reason]);
-        let encodings = [("r_reason_description_typo".to_string(), Encoding::PLAIN)];
+        let encodings = [("r_reason_desc_typo".to_string(), Encoding::PLAIN)];
         let err = validate_column_encodings(&tables, &encodings).unwrap_err();
         assert!(
-            err.to_string()
-                .contains("column 'r_reason_description_typo'"),
+            err.to_string().contains("column 'r_reason_desc_typo'"),
             "{err}"
         );
     }
 
     #[test]
     fn validate_column_encodings_rejects_dictionary_encoding() {
+        // The column is real, so the only reason to fail is the encoding.
         let tables = table_sessions(&[Table::Reason]);
-        let encodings = [(
-            "r_reason_description".to_string(),
-            Encoding::PLAIN_DICTIONARY,
-        )];
-        assert!(validate_column_encodings(&tables, &encodings).is_err());
+        let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN_DICTIONARY)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(err.to_string().contains("dictionary encoding"), "{err}");
     }
 
     #[test]
     fn column_encodings_for_table_keeps_only_matching_columns() {
         let session = Session::default();
         let encodings = [
-            ("r_reason_description".to_string(), Encoding::PLAIN),
+            ("r_reason_desc".to_string(), Encoding::PLAIN),
             ("i_item_desc".to_string(), Encoding::PLAIN),
         ];
         assert_eq!(
             column_encodings_for_table(Table::Reason, &session, &encodings),
-            vec![("r_reason_description".to_string(), Encoding::PLAIN)]
+            vec![("r_reason_desc".to_string(), Encoding::PLAIN)]
         );
         assert_eq!(
             column_encodings_for_table(Table::CallCenter, &session, &encodings),

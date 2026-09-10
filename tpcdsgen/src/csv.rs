@@ -254,7 +254,7 @@ impl Display for CatalogPageCsv<'_> {
 /// # }
 /// assert_eq!(
 ///   csv,
-///   "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amount_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss\n\
+///   "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amt_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss\n\
 ///    2450926,45816,17368,14601,797995,6189,9583,14601,797995,4703,9583,1,106,2,2,30,5,47,3888.31,233.29,4121.60,91.23,1348.90,3577.24,186.64,124.43,1673.42\n\
 ///    2450946,74710,6295,14601,797995,6189,9583,82809,665550,991,14832,1,17,2,5,6,5,49,2490.18,99.60,2589.78,52.54,1867.39,323.72,931.57,1234.89,2019.53\n\
 ///    2451065,71104,3391,25383,3755,2480,5652,2311,700704,5571,12485,4,7,13,2,1,26,12,64.32,4.50,68.82,22.97,78.60,1.28,55.47,7.57,106.07\n"
@@ -281,7 +281,7 @@ impl<'a> CatalogReturnsCsv<'a> {
 
     /// Returns the CSV header for the catalog_returns table
     pub fn header() -> &'static str {
-        "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amount_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss"
+        "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amt_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss"
     }
 
     /// Returns the CSV header with a custom delimiter
@@ -1001,7 +1001,7 @@ impl Display for HouseholdDemographicsCsv<'_> {
 /// # }
 /// assert_eq!(
 ///   csv,
-///   "ib_income_band_id,ib_lower_bound,ib_upper_bound\n\
+///   "ib_income_band_sk,ib_lower_bound,ib_upper_bound\n\
 ///    1,0,10000\n\
 ///    2,10001,20000\n\
 ///    3,20001,30000\n"
@@ -1028,7 +1028,7 @@ impl<'a> IncomeBandCsv<'a> {
 
     /// Returns the CSV header for the income_band table
     pub fn header() -> &'static str {
-        "ib_income_band_id,ib_lower_bound,ib_upper_bound"
+        "ib_income_band_sk,ib_lower_bound,ib_upper_bound"
     }
 
     /// Returns the CSV header with a custom delimiter
@@ -1044,7 +1044,7 @@ impl Display for IncomeBandCsv<'_> {
         write!(
             f,
             "{}{d}{}{d}{}",
-            row.field(row.ib_income_band_id, 0),
+            row.field(row.ib_income_band_sk, 0),
             row.field(row.ib_lower_bound, 1),
             row.field(row.ib_upper_bound, 2),
         )
@@ -1335,7 +1335,7 @@ impl Display for PromotionCsv<'_> {
 /// # }
 /// assert_eq!(
 ///   csv,
-///   "r_reason_sk,r_reason_id,r_reason_description\n\
+///   "r_reason_sk,r_reason_id,r_reason_desc\n\
 ///    1,AAAAAAAABAAAAAAA,Package was damaged\n\
 ///    2,AAAAAAAACAAAAAAA,Stopped working\n\
 ///    3,AAAAAAAADAAAAAAA,Did not get it on time\n"
@@ -1362,7 +1362,7 @@ impl<'a> ReasonCsv<'a> {
 
     /// Returns the CSV header for the reason table
     pub fn header() -> &'static str {
-        "r_reason_sk,r_reason_id,r_reason_description"
+        "r_reason_sk,r_reason_id,r_reason_desc"
     }
 
     /// Returns the CSV header with a custom delimiter
@@ -1380,7 +1380,7 @@ impl Display for ReasonCsv<'_> {
             "{}{d}{}{d}{}",
             row.field(row.r_reason_sk, 0),
             row.field(&row.r_reason_id, 1),
-            row.field(&row.r_reason_description, 2),
+            row.field(&row.r_reason_desc, 2),
         )
     }
 }
@@ -2103,7 +2103,7 @@ impl Display for WebPageCsv<'_> {
 /// # }
 /// assert_eq!(
 ///   csv,
-///   "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_store_credit,wr_net_loss\n\
+///   "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_account_credit,wr_net_loss\n\
 ///    2451653,7022,10402,46224,1011635,3446,4057,46224,1011635,3446,4057,56,23,1,10,698.20,13.96,712.16,18.63,820.30,300.22,382.06,15.92,852.89\n\
 ///    2451627,64915,15464,3811,18405,199,48793,3811,18405,199,48793,13,9,1,47,1248.79,49.95,1298.74,61.81,709.23,262.24,128.25,858.30,820.99\n\
 ///    2452798,,9559,,31639,,18790,,31639,2038,18790,,11,10,11,,25.52,,,16.72,,16.36,165.47,\n"
@@ -2130,7 +2130,7 @@ impl<'a> WebReturnsCsv<'a> {
 
     /// Returns the CSV header for the web_returns table
     pub fn header() -> &'static str {
-        "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_store_credit,wr_net_loss"
+        "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_account_credit,wr_net_loss"
     }
 
     /// Returns the CSV header with a custom delimiter

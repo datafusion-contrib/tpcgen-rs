@@ -93,7 +93,7 @@ impl Iterator for WebReturnsArrow {
         let mut wr_return_ship_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut wr_refunded_cash: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut wr_reversed_charge: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut wr_store_credit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut wr_account_credit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut wr_net_loss: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
@@ -125,7 +125,7 @@ impl Iterator for WebReturnsArrow {
             wr_return_ship_cost.push(opt(nbm, 19, decimal_to_i128(p.get_ext_ship_cost())));
             wr_refunded_cash.push(opt(nbm, 20, decimal_to_i128(p.get_refunded_cash())));
             wr_reversed_charge.push(opt(nbm, 21, decimal_to_i128(p.get_reversed_charge())));
-            wr_store_credit.push(opt(nbm, 22, decimal_to_i128(p.get_store_credit())));
+            wr_account_credit.push(opt(nbm, 22, decimal_to_i128(p.get_store_credit())));
             wr_net_loss.push(opt(nbm, 23, decimal_to_i128(p.get_net_loss())));
         }
 
@@ -159,7 +159,7 @@ impl Iterator for WebReturnsArrow {
                 Arc::new(dec(wr_return_ship_cost)),
                 Arc::new(dec(wr_refunded_cash)),
                 Arc::new(dec(wr_reversed_charge)),
-                Arc::new(dec(wr_store_credit)),
+                Arc::new(dec(wr_account_credit)),
                 Arc::new(dec(wr_net_loss)),
             ],
         );
@@ -193,7 +193,7 @@ fn make_schema() -> SchemaRef {
         Field::new("wr_return_ship_cost", DataType::Decimal128(38, 2), true),
         Field::new("wr_refunded_cash", DataType::Decimal128(38, 2), true),
         Field::new("wr_reversed_charge", DataType::Decimal128(38, 2), true),
-        Field::new("wr_store_credit", DataType::Decimal128(38, 2), true),
+        Field::new("wr_account_credit", DataType::Decimal128(38, 2), true),
         Field::new("wr_net_loss", DataType::Decimal128(38, 2), true),
     ]))
 }
