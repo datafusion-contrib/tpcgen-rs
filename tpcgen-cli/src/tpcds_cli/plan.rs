@@ -29,11 +29,13 @@ impl TpcdsGenerationPlan {
     /// `row_group_bytes`.
     pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: usize) -> Self {
         let source_rows = scaling.get_row_count(table.source_table());
-        let estimated_bytes = source_rows.saturating_mul(estimated_bytes_per_source_row(table));
-        let num_row_groups = (estimated_bytes / row_group_bytes.max(1) as i64 + 1)
-            .min(MAX_ROW_GROUPS)
-            .min(source_rows)
-            .max(1);
+        let estimated_bytes =
+            (source_rows as f64 * estimated_bytes_per_source_row(table)).ceil() as u64;
+        let num_row_groups = estimated_bytes
+            .div_ceil(row_group_bytes.max(1) as u64)
+            .min(MAX_ROW_GROUPS as u64)
+            .min(source_rows as u64)
+            .max(1) as i64;
         // ceiling division so the last row group is the one that comes up short
         let rows_per_group = ((source_rows + num_row_groups - 1) / num_row_groups).max(1);
 
@@ -75,91 +77,45 @@ impl IntoIterator for TpcdsGenerationPlan {
 /// Row group sizes are conventionally measured in uncompressed bytes, which
 /// is also what the previous `ArrowWriter` based implementation limited.
 ///
-/// Measured from files generated at scale factor 1: the total uncompressed
-/// bytes, computed using datafusion-cli:
+/// Measured offline at scale factor 100 using the default column encodings.
+/// Large tables were sampled in single row groups near 128 MiB uncompressed
+/// (119-165 MiB); smaller tables were measured in full. Sizes are approximate:
+/// cardinality, row-group size, and column encodings affect encoding efficiency.
 ///
-/// You can verify these numbers using
-/// ```shell
-/// for table in call_center catalog_page catalog_returns catalog_sales customer customer_address \
-///   customer_demographics date_dim dbgen_version household_demographics income_band inventory \
-///   item promotion reason ship_mode store store_returns store_sales time_dim warehouse web_page \
-///   web_returns web_sales web_site; do
-///   case "$table" in
-///     catalog_sales|catalog_returns)
-///       source_rows="(select count(distinct cs_order_number) from 'catalog_sales.parquet')"
-///       ;;
-///     store_sales|store_returns)
-///       source_rows="(select count(distinct ss_ticket_number) from 'store_sales.parquet')"
-///       ;;
-///     web_sales|web_returns)
-///       source_rows="(select count(distinct ws_order_number) from 'web_sales.parquet')"
-///       ;;
-///     *)
-///       source_rows="(select count(*) from '$table.parquet')"
-///       ;;
-///   esac
-///
-///   datafusion-cli -q -c "
-///   select
-///     '$table' as table_name,
-///     round(
-///       cast(sum(total_uncompressed_size) as double) / cast($source_rows as double)
-///     ) as bytes_per_source_row
-///   from parquet_metadata('$table.parquet')"
-/// done
-/// ```
-///
-/// Which results in something like
-/// ```text
-/// +-------------+----------------------+
-/// | table_name  | bytes_per_source_row |
-/// +-------------+----------------------+
-/// | call_center | 423.0                |
-/// +-------------+----------------------+
-/// ...
-/// +-----------------+----------------------+
-/// | table_name      | bytes_per_source_row |
-/// +-----------------+----------------------+
-/// | catalog_returns | 195.0                |
-/// +-----------------+----------------------+
-/// +---------------+----------------------+
-/// | table_name    | bytes_per_source_row |
-/// +---------------+----------------------+
-/// | catalog_sales | 2391.0               |
-/// +---------------+----------------------+
-/// ```
-///
-/// Remember you have to divide by the **source** row count (which is different
-/// for sales vs returns tables) to get the bytes per source row.
-fn estimated_bytes_per_source_row(table: Table) -> i64 {
+/// The estimates are the sum of Parquet metadata's
+/// `total_uncompressed_size` divided by the exact source-row range used to
+/// generate the group. Sales and returns must both use their paired sales
+/// table's source-row count, not their output-row count. Fractional bytes avoid
+/// large rounding errors for narrow tables such as inventory.
+fn estimated_bytes_per_source_row(table: Table) -> f64 {
     match table {
-        Table::CallCenter => 423,
-        Table::CatalogPage => 113,
-        Table::CatalogReturns => 195,
-        Table::CatalogSales => 2391,
-        Table::Customer => 92,
-        Table::CustomerAddress => 46,
-        Table::CustomerDemographics => 9,
-        Table::DateDim => 57,
+        Table::CallCenter => 229.80,
+        Table::CatalogPage => 108.21,
+        Table::CatalogReturns => 65.97,
+        Table::CatalogSales => 668.72,
+        Table::Customer => 76.65,
+        Table::CustomerAddress => 35.63,
+        Table::CustomerDemographics => 5.06,
+        Table::DateDim => 52.56,
         // Note: this value is not performance critical as this is a 1 row table
         // and the size depends on the command line args.
-        Table::DbgenVersion => 358,
-        Table::HouseholdDemographics => 10,
-        Table::IncomeBand => 20,
-        Table::Inventory => 3,
-        Table::Item => 197,
-        Table::Promotion => 120,
-        Table::Reason => 54,
-        Table::ShipMode => 76,
-        Table::Store => 265,
-        Table::StoreReturns => 220,
-        Table::StoreSales => 2366,
-        Table::TimeDim => 38,
-        Table::Warehouse => 206,
-        Table::WebPage => 50,
-        Table::WebReturns => 261,
-        Table::WebSales => 3119,
-        Table::WebSite => 218,
+        Table::DbgenVersion => 448.00,
+        Table::HouseholdDemographics => 6.44,
+        Table::IncomeBand => 20.05,
+        Table::Inventory => 3.45,
+        Table::Item => 188.84,
+        Table::Promotion => 85.67,
+        Table::Reason => 45.85,
+        Table::ShipMode => 71.65,
+        Table::Store => 131.99,
+        Table::StoreReturns => 66.27,
+        Table::StoreSales => 578.47,
+        Table::TimeDim => 34.03,
+        Table::Warehouse => 156.93,
+        Table::WebPage => 27.57,
+        Table::WebReturns => 86.25,
+        Table::WebSales => 799.19,
+        Table::WebSite => 231.17,
         // Not a main table; never generated as Parquet output
         _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
     }
@@ -195,8 +151,32 @@ mod tests {
     #[test]
     fn store_sales_sf1_default() {
         let plan = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        // ~568 MB estimated output in 7 MB row groups over 240k source rows
-        assert_eq!(plan.row_group_count(), 78);
+        // ~132 MiB estimated output in 7 MiB row groups over 240k source rows
+        assert_eq!(plan.row_group_count(), 19);
+        assert_covers(&plan, 240_000);
+    }
+
+    #[test]
+    fn narrow_tables_keep_fractional_byte_estimates() {
+        let plan = plan(Table::Inventory, 100.0, 128 * 1024 * 1024);
+        // Rounding 3.45 bytes/source row to an integer would produce 9 or 12 groups.
+        assert_eq!(plan.row_group_count(), 11);
+        assert_covers(&plan, Scaling::new(100.0).get_row_count(Table::Inventory));
+    }
+
+    #[test]
+    fn exact_target_multiples_do_not_add_a_row_group() {
+        for (target, expected) in [(46_368, 1), (23_184, 2), (23_183, 3)] {
+            let plan = plan(Table::HouseholdDemographics, 1.0, target);
+            assert_eq!(plan.row_group_count(), expected);
+            assert_covers(&plan, 7200);
+        }
+    }
+
+    #[test]
+    fn maximum_target_keeps_one_row_group() {
+        let plan = plan(Table::StoreSales, 1.0, usize::MAX);
+        assert_eq!(plan.row_group_count(), 1);
         assert_covers(&plan, 240_000);
     }
 
@@ -205,7 +185,7 @@ mod tests {
         let plan = plan(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES);
         // store_returns is generated from the 240k store_sales source rows
         // (its own scaling row count is 0)
-        assert_eq!(plan.row_group_count(), 8);
+        assert_eq!(plan.row_group_count(), 3);
         assert_covers(&plan, 240_000);
     }
 

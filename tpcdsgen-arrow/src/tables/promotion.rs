@@ -1,8 +1,9 @@
 use crate::conversions::{
-    bool_to_yn, decimal_to_i128, opt, sk_opt, string_view_array_from_opt_iter,
+    bool_to_yn, decimal128_15_2_array, decimal_to_i128, integer_sk_opt, opt,
+    string_view_array_from_opt_iter,
 };
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -70,11 +71,11 @@ impl Iterator for PromotionArrow {
             return None;
         }
 
-        let mut p_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut p_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut p_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut p_start: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut p_end: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut p_item: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut p_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut p_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut p_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut p_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut p_response: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut p_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -92,11 +93,11 @@ impl Iterator for PromotionArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            p_sk.push(sk_opt(nbm, 0, r.get_p_promo_sk()));
+            p_sk.push(integer_sk_opt(nbm, 0, r.get_p_promo_sk()));
             p_id.push(opt(nbm, 1, r.get_p_promo_id().to_owned()));
-            p_start.push(sk_opt(nbm, 2, r.get_p_start_date_id()));
-            p_end.push(sk_opt(nbm, 3, r.get_p_end_date_id()));
-            p_item.push(sk_opt(nbm, 4, r.get_p_item_sk()));
+            p_start.push(integer_sk_opt(nbm, 2, r.get_p_start_date_id()));
+            p_end.push(integer_sk_opt(nbm, 3, r.get_p_end_date_id()));
+            p_item.push(integer_sk_opt(nbm, 4, r.get_p_item_sk()));
             p_cost.push(opt(nbm, 5, decimal_to_i128(r.get_p_cost())));
             p_response.push(opt(nbm, 6, r.get_p_response_target()));
             p_name.push(opt(nbm, 7, r.get_p_promo_name().to_owned()));
@@ -121,19 +122,17 @@ impl Iterator for PromotionArrow {
             ));
         }
 
-        let cost_arr = Decimal128Array::from(p_cost)
-            .with_precision_and_scale(38, 2)
-            .unwrap();
+        let cost_arr = decimal128_15_2_array(p_cost);
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(p_sk)),
+                Arc::new(Int32Array::from(p_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     p_id.iter().map(|s| s.as_deref()),
                 )),
-                Arc::new(Int64Array::from(p_start)),
-                Arc::new(Int64Array::from(p_end)),
-                Arc::new(Int64Array::from(p_item)),
+                Arc::new(Int32Array::from(p_start)),
+                Arc::new(Int32Array::from(p_end)),
+                Arc::new(Int32Array::from(p_item)),
                 Arc::new(cost_arr),
                 Arc::new(Int32Array::from(p_response)),
                 Arc::new(string_view_array_from_opt_iter(
@@ -182,12 +181,12 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("p_promo_sk", DataType::Int64, true),
-        Field::new("p_promo_id", DataType::Utf8View, true),
-        Field::new("p_start_date_sk", DataType::Int64, true),
-        Field::new("p_end_date_sk", DataType::Int64, true),
-        Field::new("p_item_sk", DataType::Int64, true),
-        Field::new("p_cost", DataType::Decimal128(38, 2), true),
+        Field::new("p_promo_sk", DataType::Int32, false),
+        Field::new("p_promo_id", DataType::Utf8View, false),
+        Field::new("p_start_date_sk", DataType::Int32, true),
+        Field::new("p_end_date_sk", DataType::Int32, true),
+        Field::new("p_item_sk", DataType::Int32, true),
+        Field::new("p_cost", DataType::Decimal128(15, 2), true),
         Field::new("p_response_target", DataType::Int32, true),
         Field::new("p_promo_name", DataType::Utf8View, true),
         Field::new("p_channel_dmail", DataType::Utf8View, true),

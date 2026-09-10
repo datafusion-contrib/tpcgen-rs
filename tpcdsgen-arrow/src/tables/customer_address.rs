@@ -1,6 +1,9 @@
-use crate::conversions::{is_null, opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{
+    gmt_offset_decimal128_array, integer_sk_opt, is_null, opt, string_view_array_from_opt_iter,
+    string_view_array_from_string_opt_iter,
+};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch, StringViewBuilder};
+use arrow::array::{Int32Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -68,9 +71,9 @@ impl Iterator for CustomerAddressArrow {
             return None;
         }
 
-        let mut ca_addr_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ca_addr_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut ca_addr_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut street_number: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut street_number: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut street_name_b = StringViewBuilder::new();
         let mut street_type_b = StringViewBuilder::new();
         let mut suite_number_b = StringViewBuilder::new();
@@ -85,12 +88,12 @@ impl Iterator for CustomerAddressArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             let a = r.get_ca_address();
-            ca_addr_sk.push(sk_opt(nbm, 0, r.get_ca_addr_sk()));
+            ca_addr_sk.push(integer_sk_opt(nbm, 0, r.get_ca_addr_sk()));
             ca_addr_id.push(opt(nbm, 1, r.get_ca_addr_id().to_owned()));
             street_number.push(if is_null(nbm, 2) {
                 None
             } else {
-                Some(a.get_street_number())
+                Some(a.get_street_number().to_string())
             });
             if is_null(nbm, 3) {
                 street_name_b.append_null();
@@ -142,11 +145,13 @@ impl Iterator for CustomerAddressArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(ca_addr_sk)),
+                Arc::new(Int32Array::from(ca_addr_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     ca_addr_id.iter().map(|s| s.as_deref()),
                 )),
-                Arc::new(Int32Array::from(street_number)),
+                Arc::new(string_view_array_from_string_opt_iter(
+                    street_number.into_iter(),
+                )),
                 Arc::new(street_name_b.finish()),
                 Arc::new(street_type_b.finish()),
                 Arc::new(suite_number_b.finish()),
@@ -155,7 +160,7 @@ impl Iterator for CustomerAddressArrow {
                 Arc::new(state_b.finish()),
                 Arc::new(zip_b.finish()),
                 Arc::new(country_b.finish()),
-                Arc::new(Int32Array::from(gmt_offset)),
+                Arc::new(gmt_offset_decimal128_array(gmt_offset)),
                 Arc::new(string_view_array_from_opt_iter(
                     location_type.iter().map(|s| s.as_deref()),
                 )),
@@ -169,9 +174,9 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("ca_address_sk", DataType::Int64, true),
-        Field::new("ca_address_id", DataType::Utf8View, true),
-        Field::new("ca_street_number", DataType::Int32, true),
+        Field::new("ca_address_sk", DataType::Int32, false),
+        Field::new("ca_address_id", DataType::Utf8View, false),
+        Field::new("ca_street_number", DataType::Utf8View, true),
         Field::new("ca_street_name", DataType::Utf8View, true),
         Field::new("ca_street_type", DataType::Utf8View, true),
         Field::new("ca_suite_number", DataType::Utf8View, true),
@@ -180,7 +185,7 @@ fn make_schema() -> SchemaRef {
         Field::new("ca_state", DataType::Utf8View, true),
         Field::new("ca_zip", DataType::Utf8View, true),
         Field::new("ca_country", DataType::Utf8View, true),
-        Field::new("ca_gmt_offset", DataType::Int32, true),
+        Field::new("ca_gmt_offset", DataType::Decimal128(5, 2), true),
         Field::new("ca_location_type", DataType::Utf8View, true),
     ]))
 }

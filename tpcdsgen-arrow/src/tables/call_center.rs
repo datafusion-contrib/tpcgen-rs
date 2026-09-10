@@ -1,9 +1,9 @@
 use crate::conversions::{
-    address_columns, decimal_to_i128, is_null, julian_to_date32, opt, sk_opt,
-    string_view_array_from_opt_iter,
+    address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, is_null,
+    julian_to_date32, opt, string_view_array_from_opt_iter,
 };
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Date32Array, Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -71,12 +71,12 @@ impl Iterator for CallCenterArrow {
             return None;
         }
 
-        let mut cc_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cc_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut cc_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_closed_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cc_open_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cc_closed_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_open_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut cc_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut cc_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -97,7 +97,7 @@ impl Iterator for CallCenterArrow {
 
         for r in &rows {
             let nbm = r.get_null_bit_map();
-            cc_sk.push(sk_opt(nbm, 0, r.get_cc_call_center_sk()));
+            cc_sk.push(integer_sk_opt(nbm, 0, r.get_cc_call_center_sk()));
             cc_id.push(opt(nbm, 1, r.get_cc_call_center_id().to_owned()));
             cc_rec_start.push(if is_null(nbm, 2) {
                 None
@@ -109,8 +109,8 @@ impl Iterator for CallCenterArrow {
             } else {
                 julian_to_date32(r.get_cc_rec_end_date_id())
             });
-            cc_closed_date.push(sk_opt(nbm, 4, r.get_cc_closed_date_id()));
-            cc_open_date.push(sk_opt(nbm, 5, r.get_cc_open_date_id()));
+            cc_closed_date.push(integer_sk_opt(nbm, 4, r.get_cc_closed_date_id()));
+            cc_open_date.push(integer_sk_opt(nbm, 5, r.get_cc_open_date_id()));
             cc_name.push(opt(nbm, 6, r.get_cc_name().to_owned()));
             cc_class.push(opt(nbm, 7, r.get_cc_class().to_owned()));
             cc_employees.push(opt(nbm, 8, r.get_cc_employees()));
@@ -142,21 +142,19 @@ impl Iterator for CallCenterArrow {
             gmt_offset,
         ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
 
-        let tax_arr = Decimal128Array::from(cc_tax_pct)
-            .with_precision_and_scale(38, 2)
-            .unwrap();
+        let tax_arr = decimal128_5_2_array(cc_tax_pct);
 
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(cc_sk)),
+                Arc::new(Int32Array::from(cc_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     cc_id.iter().map(|s| s.as_deref()),
                 )),
                 Arc::new(Date32Array::from(cc_rec_start)),
                 Arc::new(Date32Array::from(cc_rec_end)),
-                Arc::new(Int64Array::from(cc_closed_date)),
-                Arc::new(Int64Array::from(cc_open_date)),
+                Arc::new(Int32Array::from(cc_closed_date)),
+                Arc::new(Int32Array::from(cc_open_date)),
                 Arc::new(string_view_array_from_opt_iter(
                     cc_name.iter().map(|s| s.as_deref()),
                 )),
@@ -210,12 +208,12 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("cc_call_center_sk", DataType::Int64, true),
-        Field::new("cc_call_center_id", DataType::Utf8View, true),
+        Field::new("cc_call_center_sk", DataType::Int32, false),
+        Field::new("cc_call_center_id", DataType::Utf8View, false),
         Field::new("cc_rec_start_date", DataType::Date32, true),
         Field::new("cc_rec_end_date", DataType::Date32, true),
-        Field::new("cc_closed_date_sk", DataType::Int64, true),
-        Field::new("cc_open_date_sk", DataType::Int64, true),
+        Field::new("cc_closed_date_sk", DataType::Int32, true),
+        Field::new("cc_open_date_sk", DataType::Int32, true),
         Field::new("cc_name", DataType::Utf8View, true),
         Field::new("cc_class", DataType::Utf8View, true),
         Field::new("cc_employees", DataType::Int32, true),
@@ -230,7 +228,7 @@ fn make_schema() -> SchemaRef {
         Field::new("cc_division_name", DataType::Utf8View, true),
         Field::new("cc_company", DataType::Int32, true),
         Field::new("cc_company_name", DataType::Utf8View, true),
-        Field::new("cc_street_number", DataType::Int32, true),
+        Field::new("cc_street_number", DataType::Utf8View, true),
         Field::new("cc_street_name", DataType::Utf8View, true),
         Field::new("cc_street_type", DataType::Utf8View, true),
         Field::new("cc_suite_number", DataType::Utf8View, true),
@@ -239,7 +237,7 @@ fn make_schema() -> SchemaRef {
         Field::new("cc_state", DataType::Utf8View, true),
         Field::new("cc_zip", DataType::Utf8View, true),
         Field::new("cc_country", DataType::Utf8View, true),
-        Field::new("cc_gmt_offset", DataType::Int32, true),
-        Field::new("cc_tax_percentage", DataType::Decimal128(38, 2), true),
+        Field::new("cc_gmt_offset", DataType::Decimal128(5, 2), true),
+        Field::new("cc_tax_percentage", DataType::Decimal128(5, 2), true),
     ]))
 }
