@@ -1,4 +1,5 @@
 //! This library contains both the TPCH and TPCDS command line clients.
+mod args;
 mod logging;
 mod parquet;
 pub mod progress;

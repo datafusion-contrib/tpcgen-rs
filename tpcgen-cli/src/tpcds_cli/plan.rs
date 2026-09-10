@@ -27,10 +27,10 @@ pub(super) struct TpcdsGenerationPlan {
 impl TpcdsGenerationPlan {
     /// Compute the row group layout for `table` given the target
     /// `row_group_bytes`.
-    pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: usize) -> Self {
+    pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: i64) -> Self {
         let source_rows = scaling.get_row_count(table.source_table());
         let estimated_bytes = source_rows.saturating_mul(estimated_bytes_per_source_row(table));
-        let num_row_groups = (estimated_bytes / row_group_bytes.max(1) as i64 + 1)
+        let num_row_groups = (estimated_bytes / row_group_bytes.max(1) + 1)
             .min(MAX_ROW_GROUPS)
             .min(source_rows)
             .max(1);
@@ -169,9 +169,9 @@ fn estimated_bytes_per_source_row(table: Table) -> i64 {
 mod tests {
     use super::*;
 
-    const DEFAULT_ROW_GROUP_BYTES: usize = 7 * 1024 * 1024;
+    const DEFAULT_ROW_GROUP_BYTES: i64 = 7 * 1024 * 1024;
 
-    fn plan(table: Table, scale_factor: f64, row_group_bytes: usize) -> TpcdsGenerationPlan {
+    fn plan(table: Table, scale_factor: f64, row_group_bytes: i64) -> TpcdsGenerationPlan {
         TpcdsGenerationPlan::new(table, &Scaling::new(scale_factor), row_group_bytes)
     }
 

@@ -1,4 +1,5 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
@@ -24,8 +25,6 @@ mod plan;
 mod progress;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-const DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES: usize = DEFAULT_PARQUET_ROW_GROUP_BYTES as usize;
 
 enum OutputFormat {
     Dat(dat::Dat),
@@ -96,7 +95,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Target row-group size in bytes
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better
@@ -110,10 +109,10 @@ struct ParquetArgs {
     /// Typical values range from 10MB to 100MB.
     #[arg(
         long,
-        default_value_t = DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
         value_parser = parse_row_group_bytes
     )]
-    row_group_bytes: usize,
+    row_group_bytes: i64,
 
     /// The number of threads for parallel generation, defaults to the number of CPUs
     #[arg(
@@ -225,7 +224,7 @@ impl CommonArgs {
     async fn run_parquet(
         self,
         compression: Compression,
-        row_group_bytes: usize,
+        row_group_bytes: i64,
         num_threads: usize,
         column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
@@ -487,15 +486,6 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
         ));
     }
     Ok(parsed)
-}
-
-fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
-    let parsed = s.parse::<usize>().map_err(|e| e.to_string())?;
-    if parsed == 0 {
-        Err("must be greater than zero".to_string())
-    } else {
-        Ok(parsed)
-    }
 }
 
 #[cfg(test)]
