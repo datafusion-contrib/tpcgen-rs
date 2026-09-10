@@ -196,7 +196,7 @@ where
     // Keep only the encodings for columns on this table.
     let column_encodings = plan
         .parquet_column_encodings()
-        .map(|encodings| column_encodings_for_table(plan.table(), plan.scale_factor(), encodings));
+        .map(|encodings| column_encodings_for_table(plan.table(), encodings));
     let column_encodings = column_encodings.as_deref();
 
     match plan.output_location() {
