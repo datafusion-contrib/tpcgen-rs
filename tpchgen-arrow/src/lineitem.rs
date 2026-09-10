@@ -57,6 +57,11 @@ pub struct LineItemArrow {
 }
 
 impl LineItemArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&LINEITEM_SCHEMA)
+    }
+
     pub fn new(generator: LineItemGenerator<'static>) -> Self {
         Self {
             inner: generator.iter(),
@@ -73,7 +78,7 @@ impl LineItemArrow {
 
 impl RecordBatchReader for LineItemArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&LINEITEM_SCHEMA)
+        Self::schema_ref()
     }
 }
 
