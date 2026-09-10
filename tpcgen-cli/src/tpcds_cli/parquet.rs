@@ -606,9 +606,11 @@ mod tests {
 
     #[test]
     fn validate_column_encodings_rejects_dictionary_encoding() {
+        // The column is real, so the only reason to fail is the encoding.
         let tables = table_sessions(&[Table::Reason]);
         let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN_DICTIONARY)];
-        assert!(validate_column_encodings(&tables, &encodings).is_err());
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(err.to_string().contains("dictionary encoding"), "{err}");
     }
 
     #[test]

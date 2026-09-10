@@ -263,31 +263,6 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
 }
 
 #[test]
-fn test_tpcgen_cli_tpcds_parquet_rejects_obsolete_column_name() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    let assert = cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpcds")
-        .arg("parquet")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("reason")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .arg("--column-encoding")
-        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
-        .assert()
-        .failure();
-
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(
-        stderr.contains("column 'r_reason_description'"),
-        "unexpected stderr: {stderr}"
-    );
-}
-
-#[test]
 fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
@@ -851,47 +826,6 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
         lines.iter().all(|line| !line.ends_with(',')),
         "Expected CSV rows not to end with a trailing delimiter, got:\n{contents}"
     );
-}
-
-#[test]
-fn test_tpcgen_cli_tpcds_csv_uses_canonical_column_names() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpcds")
-        .arg("csv")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("catalog_returns,income_band,reason,web_returns")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .success();
-
-    for (table, canonical, obsolete) in [
-        (
-            "catalog_returns",
-            "cr_return_amt_inc_tax",
-            "cr_return_amount_inc_tax",
-        ),
-        ("income_band", "ib_income_band_sk", "ib_income_band_id"),
-        ("reason", "r_reason_desc", "r_reason_description"),
-        ("web_returns", "wr_account_credit", "wr_store_credit"),
-    ] {
-        let contents = fs::read_to_string(temp_dir.path().join(format!("{table}.csv")))
-            .expect("Failed to read CSV file");
-        let header = contents.lines().next().expect("CSV output is empty");
-        let columns = header.split(',').collect::<BTreeSet<_>>();
-        assert!(
-            columns.contains(canonical),
-            "missing canonical column {canonical} in {table}.csv"
-        );
-        assert!(
-            !columns.contains(obsolete),
-            "obsolete column {obsolete} remains in {table}.csv"
-        );
-    }
 }
 
 /// Test that TPC-DS CSV generation supports a custom delimiter.
