@@ -110,7 +110,7 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("hd_demo_sk", DataType::Int32, true),
+        Field::new("hd_demo_sk", DataType::Int32, false),
         Field::new("hd_income_band_sk", DataType::Int32, true),
         Field::new("hd_buy_potential", DataType::Utf8View, true),
         Field::new("hd_dep_count", DataType::Int32, true),

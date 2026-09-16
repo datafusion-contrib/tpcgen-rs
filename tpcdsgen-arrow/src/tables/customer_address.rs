@@ -179,8 +179,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("ca_address_sk", DataType::Int32, true),
-        Field::new("ca_address_id", DataType::Utf8View, true),
+        Field::new("ca_address_sk", DataType::Int32, false),
+        Field::new("ca_address_id", DataType::Utf8View, false),
         Field::new("ca_street_number", DataType::Utf8View, true),
         Field::new("ca_street_name", DataType::Utf8View, true),
         Field::new("ca_street_type", DataType::Utf8View, true),

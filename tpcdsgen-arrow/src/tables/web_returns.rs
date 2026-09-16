@@ -174,7 +174,7 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("wr_returned_date_sk", DataType::Int32, true),
         Field::new("wr_returned_time_sk", DataType::Int32, true),
-        Field::new("wr_item_sk", DataType::Int32, true),
+        Field::new("wr_item_sk", DataType::Int32, false),
         Field::new("wr_refunded_customer_sk", DataType::Int32, true),
         Field::new("wr_refunded_cdemo_sk", DataType::Int32, true),
         Field::new("wr_refunded_hdemo_sk", DataType::Int32, true),
@@ -185,7 +185,7 @@ fn make_schema() -> SchemaRef {
         Field::new("wr_returning_addr_sk", DataType::Int32, true),
         Field::new("wr_web_page_sk", DataType::Int32, true),
         Field::new("wr_reason_sk", DataType::Int32, true),
-        Field::new("wr_order_number", DataType::Int64, true),
+        Field::new("wr_order_number", DataType::Int64, false),
         Field::new("wr_return_quantity", DataType::Int32, true),
         Field::new("wr_return_amt", DataType::Decimal128(7, 2), true),
         Field::new("wr_return_tax", DataType::Decimal128(7, 2), true),
