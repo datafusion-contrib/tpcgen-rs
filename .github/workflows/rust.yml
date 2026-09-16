@@ -80,8 +80,7 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # The merge queue and manual runs build the full wheel matrix and both CLIs'
-  # source distributions. Pull requests and post-merge pushes skip packaging.
+  # Run full packaging in the merge queue and manual workflows only.
   build-packages:
     if: ${{ github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/build-py-packages.yml
