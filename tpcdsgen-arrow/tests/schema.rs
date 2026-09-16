@@ -1,13 +1,9 @@
-//! Verifies that every TPC-DS Arrow schema uses the canonical column names,
-//! in the canonical order, from the `tpcds.sql` DDL shipped with the TPC-DS
-//! toolkit.
-//!
-//! The CSV headers are covered transitively: `reparse.rs` re-parses CSV output
-//! with header validation enabled against these same Arrow schemas.
+//! Verifies canonical TPC-DS column names, ordering, data types, and nullability.
 
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{DataType, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
-use tpcdsgen::config::Session;
+use tpcdsgen::config::{Scaling, Session, Table};
+use tpcdsgen::csv::csv_header;
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
@@ -15,6 +11,94 @@ use tpcdsgen_arrow::{
     PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
+
+#[path = "schema/expected.rs"]
+mod expected;
+use expected::expected_schema;
+
+fn table_schemas(session: &Session) -> Vec<(Table, SchemaRef)> {
+    vec![
+        (
+            Table::DbgenVersion,
+            DbgenVersionArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::CustomerAddress,
+            CustomerAddressArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::CustomerDemographics,
+            CustomerDemographicsArrow::new(session.clone()).schema(),
+        ),
+        (Table::DateDim, DateDimArrow::new(session.clone()).schema()),
+        (
+            Table::Warehouse,
+            WarehouseArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::ShipMode,
+            ShipModeArrow::new(session.clone()).schema(),
+        ),
+        (Table::TimeDim, TimeDimArrow::new(session.clone()).schema()),
+        (Table::Reason, ReasonArrow::new(session.clone()).schema()),
+        (
+            Table::IncomeBand,
+            IncomeBandArrow::new(session.clone()).schema(),
+        ),
+        (Table::Item, ItemArrow::new(session.clone()).schema()),
+        (Table::Store, StoreArrow::new(session.clone()).schema()),
+        (
+            Table::CallCenter,
+            CallCenterArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::Customer,
+            CustomerArrow::new(session.clone()).schema(),
+        ),
+        (Table::WebSite, WebSiteArrow::new(session.clone()).schema()),
+        (
+            Table::StoreReturns,
+            StoreReturnsArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::HouseholdDemographics,
+            HouseholdDemographicsArrow::new(session.clone()).schema(),
+        ),
+        (Table::WebPage, WebPageArrow::new(session.clone()).schema()),
+        (
+            Table::Promotion,
+            PromotionArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::CatalogPage,
+            CatalogPageArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::Inventory,
+            InventoryArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::CatalogReturns,
+            CatalogReturnsArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::WebReturns,
+            WebReturnsArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::WebSales,
+            WebSalesArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::CatalogSales,
+            CatalogSalesArrow::new(session.clone()).schema(),
+        ),
+        (
+            Table::StoreSales,
+            StoreSalesArrow::new(session.clone()).schema(),
+        ),
+    ]
+}
 
 /// `(table name, Arrow schema, canonical column names)` for every TPC-DS table.
 fn canonical_schemas(session: &Session) -> Vec<(&'static str, SchemaRef, &'static [&'static str])> {
@@ -591,6 +675,255 @@ fn canonical_schemas(session: &Session) -> Vec<(&'static str, SchemaRef, &'stati
             ],
         ),
     ]
+}
+
+#[test]
+fn schemas_match_expected_columns_and_canonical_types() {
+    let session = Session::default();
+
+    for (table, schema) in table_schemas(&session) {
+        let table_name = table.get_name();
+        let arrow_header = schema
+            .fields()
+            .iter()
+            .map(|field| field.name().as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+
+        assert_eq!(schema.as_ref(), &expected_schema(table), "{table_name}");
+        assert_eq!(
+            csv_header(table, ',').expect("CSV header"),
+            arrow_header,
+            "{table_name}"
+        );
+    }
+}
+
+#[test]
+fn integer_widths_match_lakebench_v4() {
+    let session = Session::default();
+    let mut integer_fields = 0;
+    let mut bigint_fields = Vec::new();
+
+    for (table, schema) in table_schemas(&session) {
+        for field in schema.fields() {
+            match field.data_type() {
+                DataType::Int32 => {
+                    integer_fields += 1;
+                }
+                DataType::Int64 => {
+                    bigint_fields.push(format!("{}.{}", table.get_name(), field.name()));
+                }
+                _ => {}
+            }
+        }
+    }
+
+    bigint_fields.sort_unstable();
+    assert_eq!(integer_fields, 183);
+    assert_eq!(
+        bigint_fields,
+        [
+            "catalog_returns.cr_order_number",
+            "catalog_sales.cs_order_number",
+            "store_returns.sr_ticket_number",
+            "store_sales.ss_ticket_number",
+            "web_returns.wr_order_number",
+            "web_sales.ws_order_number",
+        ]
+    );
+}
+
+#[test]
+fn sf100000_integer_domains_fit_i32() {
+    let scaling = Scaling::new(100000.0);
+    let integer_key_tables = [
+        Table::CallCenter,
+        Table::CatalogPage,
+        Table::Customer,
+        Table::CustomerAddress,
+        Table::CustomerDemographics,
+        Table::DateDim,
+        Table::HouseholdDemographics,
+        Table::IncomeBand,
+        Table::Item,
+        Table::Promotion,
+        Table::Reason,
+        Table::ShipMode,
+        Table::Store,
+        Table::TimeDim,
+        Table::Warehouse,
+        Table::WebPage,
+        Table::WebSite,
+    ];
+
+    for table in integer_key_tables {
+        assert!(
+            scaling.get_row_count(table) <= i32::MAX as u64,
+            "{} exceeds the Arrow Int32 key domain at SF100000",
+            table.get_name()
+        );
+    }
+
+    for table in [Table::StoreSales, Table::CatalogSales, Table::WebSales] {
+        assert!(
+            scaling.get_row_count(table) > i32::MAX as u64,
+            "{} order identifiers require Arrow Int64 at SF100000",
+            table.get_name()
+        );
+    }
+}
+
+fn assert_decimal_fields(schema: SchemaRef, expected: &[(&str, u8)]) {
+    let actual: Vec<_> = schema
+        .fields()
+        .iter()
+        .filter_map(|field| match field.data_type() {
+            DataType::Decimal128(precision, scale) => {
+                Some((field.name().as_str(), *precision, *scale))
+            }
+            _ => None,
+        })
+        .collect();
+    let expected: Vec<_> = expected
+        .iter()
+        .map(|(name, precision)| (*name, *precision, 2))
+        .collect();
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn decimal_schemas_match_canonical_c_kit() {
+    let session = Session::default();
+
+    assert_decimal_fields(
+        CallCenterArrow::new(session.clone()).schema(),
+        &[("cc_gmt_offset", 5), ("cc_tax_percentage", 5)],
+    );
+    assert_decimal_fields(
+        CatalogReturnsArrow::new(session.clone()).schema(),
+        &[
+            ("cr_return_amount", 7),
+            ("cr_return_tax", 7),
+            ("cr_return_amt_inc_tax", 7),
+            ("cr_fee", 7),
+            ("cr_return_ship_cost", 7),
+            ("cr_refunded_cash", 7),
+            ("cr_reversed_charge", 7),
+            ("cr_store_credit", 7),
+            ("cr_net_loss", 7),
+        ],
+    );
+    assert_decimal_fields(
+        CatalogSalesArrow::new(session.clone()).schema(),
+        &[
+            ("cs_wholesale_cost", 7),
+            ("cs_list_price", 7),
+            ("cs_sales_price", 7),
+            ("cs_ext_discount_amt", 7),
+            ("cs_ext_sales_price", 7),
+            ("cs_ext_wholesale_cost", 7),
+            ("cs_ext_list_price", 7),
+            ("cs_ext_tax", 7),
+            ("cs_coupon_amt", 7),
+            ("cs_ext_ship_cost", 7),
+            ("cs_net_paid", 7),
+            ("cs_net_paid_inc_tax", 7),
+            ("cs_net_paid_inc_ship", 7),
+            ("cs_net_paid_inc_ship_tax", 7),
+            ("cs_net_profit", 7),
+        ],
+    );
+    assert_decimal_fields(
+        CustomerAddressArrow::new(session.clone()).schema(),
+        &[("ca_gmt_offset", 5)],
+    );
+    assert_decimal_fields(
+        ItemArrow::new(session.clone()).schema(),
+        &[("i_current_price", 7), ("i_wholesale_cost", 7)],
+    );
+    assert_decimal_fields(
+        PromotionArrow::new(session.clone()).schema(),
+        &[("p_cost", 15)],
+    );
+    assert_decimal_fields(
+        StoreArrow::new(session.clone()).schema(),
+        &[("s_gmt_offset", 5), ("s_tax_precentage", 5)],
+    );
+    assert_decimal_fields(
+        StoreReturnsArrow::new(session.clone()).schema(),
+        &[
+            ("sr_return_amt", 7),
+            ("sr_return_tax", 7),
+            ("sr_return_amt_inc_tax", 7),
+            ("sr_fee", 7),
+            ("sr_return_ship_cost", 7),
+            ("sr_refunded_cash", 7),
+            ("sr_reversed_charge", 7),
+            ("sr_store_credit", 7),
+            ("sr_net_loss", 7),
+        ],
+    );
+    assert_decimal_fields(
+        StoreSalesArrow::new(session.clone()).schema(),
+        &[
+            ("ss_wholesale_cost", 7),
+            ("ss_list_price", 7),
+            ("ss_sales_price", 7),
+            ("ss_ext_discount_amt", 7),
+            ("ss_ext_sales_price", 7),
+            ("ss_ext_wholesale_cost", 7),
+            ("ss_ext_list_price", 7),
+            ("ss_ext_tax", 7),
+            ("ss_coupon_amt", 7),
+            ("ss_net_paid", 7),
+            ("ss_net_paid_inc_tax", 7),
+            ("ss_net_profit", 7),
+        ],
+    );
+    assert_decimal_fields(
+        WarehouseArrow::new(session.clone()).schema(),
+        &[("w_gmt_offset", 5)],
+    );
+    assert_decimal_fields(
+        WebReturnsArrow::new(session.clone()).schema(),
+        &[
+            ("wr_return_amt", 7),
+            ("wr_return_tax", 7),
+            ("wr_return_amt_inc_tax", 7),
+            ("wr_fee", 7),
+            ("wr_return_ship_cost", 7),
+            ("wr_refunded_cash", 7),
+            ("wr_reversed_charge", 7),
+            ("wr_account_credit", 7),
+            ("wr_net_loss", 7),
+        ],
+    );
+    assert_decimal_fields(
+        WebSalesArrow::new(session.clone()).schema(),
+        &[
+            ("ws_wholesale_cost", 7),
+            ("ws_list_price", 7),
+            ("ws_sales_price", 7),
+            ("ws_ext_discount_amt", 7),
+            ("ws_ext_sales_price", 7),
+            ("ws_ext_wholesale_cost", 7),
+            ("ws_ext_list_price", 7),
+            ("ws_ext_tax", 7),
+            ("ws_coupon_amt", 7),
+            ("ws_ext_ship_cost", 7),
+            ("ws_net_paid", 7),
+            ("ws_net_paid_inc_tax", 7),
+            ("ws_net_paid_inc_ship", 7),
+            ("ws_net_paid_inc_ship_tax", 7),
+            ("ws_net_profit", 7),
+        ],
+    );
+    assert_decimal_fields(
+        WebSiteArrow::new(session).schema(),
+        &[("web_gmt_offset", 5), ("web_tax_percentage", 5)],
+    );
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
-use arrow::datatypes::{DataType, TimeUnit};
+use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -13,7 +13,57 @@ use std::fs::File;
 use std::path::Path;
 use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
-use tpcdsgen_arrow::{StoreReturnsArrow, StoreSalesArrow};
+use tpcdsgen_arrow::{
+    CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
+    CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
+    DbgenVersionArrow, HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow,
+    PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
+    TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
+};
+
+fn tpcds_arrow_schema(table: Table) -> SchemaRef {
+    match table {
+        Table::CallCenter => CallCenterArrow::schema_ref(),
+        Table::CatalogPage => CatalogPageArrow::schema_ref(),
+        Table::CatalogReturns => CatalogReturnsArrow::schema_ref(),
+        Table::CatalogSales => CatalogSalesArrow::schema_ref(),
+        Table::Customer => CustomerArrow::schema_ref(),
+        Table::CustomerAddress => CustomerAddressArrow::schema_ref(),
+        Table::CustomerDemographics => CustomerDemographicsArrow::schema_ref(),
+        Table::DateDim => DateDimArrow::schema_ref(),
+        Table::HouseholdDemographics => HouseholdDemographicsArrow::schema_ref(),
+        Table::IncomeBand => IncomeBandArrow::schema_ref(),
+        Table::Inventory => InventoryArrow::schema_ref(),
+        Table::Item => ItemArrow::schema_ref(),
+        Table::Promotion => PromotionArrow::schema_ref(),
+        Table::Reason => ReasonArrow::schema_ref(),
+        Table::ShipMode => ShipModeArrow::schema_ref(),
+        Table::Store => StoreArrow::schema_ref(),
+        Table::StoreReturns => StoreReturnsArrow::schema_ref(),
+        Table::StoreSales => StoreSalesArrow::schema_ref(),
+        Table::TimeDim => TimeDimArrow::schema_ref(),
+        Table::Warehouse => WarehouseArrow::schema_ref(),
+        Table::WebPage => WebPageArrow::schema_ref(),
+        Table::WebReturns => WebReturnsArrow::schema_ref(),
+        Table::WebSales => WebSalesArrow::schema_ref(),
+        Table::WebSite => WebSiteArrow::schema_ref(),
+        Table::DbgenVersion => DbgenVersionArrow::schema_ref(),
+        Table::SBrand
+        | Table::SCustomerAddress
+        | Table::SCallCenter
+        | Table::SCatalog
+        | Table::SCatalogOrder
+        | Table::SCatalogOrderLineitem
+        | Table::SCatalogPage
+        | Table::SCatalogPromotionalItem
+        | Table::SCatalogReturns
+        | Table::SCategory
+        | Table::SClass
+        | Table::SCompany
+        | Table::SCustomer
+        | Table::SInventory => unreachable!("source tables do not have Arrow generators"),
+    }
+}
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
@@ -162,36 +212,11 @@ fn test_tpcgen_cli_tpcds_parquet_default_options_generate_all_outputs() {
         .assert()
         .success();
 
-    let expected_files: BTreeSet<_> = [
-        "call_center.parquet",
-        "catalog_page.parquet",
-        "catalog_returns.parquet",
-        "catalog_sales.parquet",
-        "customer.parquet",
-        "customer_address.parquet",
-        "customer_demographics.parquet",
-        "date_dim.parquet",
-        "dbgen_version.parquet",
-        "household_demographics.parquet",
-        "income_band.parquet",
-        "inventory.parquet",
-        "item.parquet",
-        "promotion.parquet",
-        "reason.parquet",
-        "ship_mode.parquet",
-        "store.parquet",
-        "store_returns.parquet",
-        "store_sales.parquet",
-        "time_dim.parquet",
-        "warehouse.parquet",
-        "web_page.parquet",
-        "web_returns.parquet",
-        "web_sales.parquet",
-        "web_site.parquet",
-    ]
-    .into_iter()
-    .map(String::from)
-    .collect();
+    let tables = Table::main_tables();
+    let expected_files = tables
+        .iter()
+        .map(|table| format!("{}.parquet", table.get_name()))
+        .collect::<BTreeSet<_>>();
     let actual_files = fs::read_dir(temp_dir.path())
         .expect("Failed to read generated output directory")
         .map(|entry| {
@@ -207,6 +232,23 @@ fn test_tpcgen_cli_tpcds_parquet_default_options_generate_all_outputs() {
         actual_files, expected_files,
         "Expected default TPC-DS Parquet generation to produce every main table"
     );
+
+    for table in tables {
+        let path = temp_dir
+            .path()
+            .join(format!("{}.parquet", table.get_name()));
+        let file = File::open(path).expect("Failed to open generated Parquet file");
+        let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+            .expect("Failed to read Parquet metadata");
+        let expected_schema = tpcds_arrow_schema(table);
+
+        assert_eq!(
+            builder.schema().as_ref(),
+            expected_schema.as_ref(),
+            "Persisted Parquet schema for {}",
+            table.get_name()
+        );
+    }
 }
 
 #[test]
@@ -1099,36 +1141,6 @@ fn test_tpcgen_cli_tpcds_parquet_num_threads_equivalence() {
         outputs[0], outputs[1],
         "Expected --num-threads=1 and --num-threads=4 to produce identical files"
     );
-}
-
-/// Test that the Arrow schema is embedded in the Parquet metadata: the
-/// dbgen_version dv_create_time column is Time32(Second), which has no exact
-/// Parquet equivalent and only survives via the embedded Arrow schema.
-#[test]
-fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpcds")
-        .arg("parquet")
-        .arg("--scale-factor")
-        .arg("1")
-        .arg("--tables")
-        .arg("dbgen_version")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .success();
-
-    let file = File::open(temp_dir.path().join("dbgen_version.parquet"))
-        .expect("Failed to open Parquet file");
-    let builder =
-        ParquetRecordBatchReaderBuilder::try_new(file).expect("Failed to read Parquet metadata");
-    let field = builder
-        .schema()
-        .field_with_name("dv_create_time")
-        .expect("dv_create_time field");
-    assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
 }
 
 /// Test that `--help` lists each selectable TPC-DS table.
