@@ -201,7 +201,7 @@ fn make_schema() -> SchemaRef {
         Field::new("web_market_manager", DataType::Utf8View, true),
         Field::new("web_company_id", DataType::Int32, true),
         Field::new("web_company_name", DataType::Utf8View, true),
-        Field::new("web_street_number", DataType::Int32, true),
+        Field::new("web_street_number", DataType::Utf8View, true),
         Field::new("web_street_name", DataType::Utf8View, true),
         Field::new("web_street_type", DataType::Utf8View, true),
         Field::new("web_suite_number", DataType::Utf8View, true),
@@ -210,7 +210,7 @@ fn make_schema() -> SchemaRef {
         Field::new("web_state", DataType::Utf8View, true),
         Field::new("web_zip", DataType::Utf8View, true),
         Field::new("web_country", DataType::Utf8View, true),
-        Field::new("web_gmt_offset", DataType::Int32, true),
+        Field::new("web_gmt_offset", DataType::Decimal128(5, 2), true),
         Field::new("web_tax_percentage", DataType::Decimal128(5, 2), true),
     ]))
 }

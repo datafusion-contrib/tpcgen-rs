@@ -137,7 +137,7 @@ fn make_schema() -> SchemaRef {
         Field::new("w_warehouse_id", DataType::Utf8View, true),
         Field::new("w_warehouse_name", DataType::Utf8View, true),
         Field::new("w_warehouse_sq_ft", DataType::Int32, true),
-        Field::new("w_street_number", DataType::Int32, true),
+        Field::new("w_street_number", DataType::Utf8View, true),
         Field::new("w_street_name", DataType::Utf8View, true),
         Field::new("w_street_type", DataType::Utf8View, true),
         Field::new("w_suite_number", DataType::Utf8View, true),
@@ -146,6 +146,6 @@ fn make_schema() -> SchemaRef {
         Field::new("w_state", DataType::Utf8View, true),
         Field::new("w_zip", DataType::Utf8View, true),
         Field::new("w_country", DataType::Utf8View, true),
-        Field::new("w_gmt_offset", DataType::Int32, true),
+        Field::new("w_gmt_offset", DataType::Decimal128(5, 2), true),
     ]))
 }

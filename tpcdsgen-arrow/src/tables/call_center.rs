@@ -233,7 +233,7 @@ fn make_schema() -> SchemaRef {
         Field::new("cc_division_name", DataType::Utf8View, true),
         Field::new("cc_company", DataType::Int32, true),
         Field::new("cc_company_name", DataType::Utf8View, true),
-        Field::new("cc_street_number", DataType::Int32, true),
+        Field::new("cc_street_number", DataType::Utf8View, true),
         Field::new("cc_street_name", DataType::Utf8View, true),
         Field::new("cc_street_type", DataType::Utf8View, true),
         Field::new("cc_suite_number", DataType::Utf8View, true),
@@ -242,7 +242,7 @@ fn make_schema() -> SchemaRef {
         Field::new("cc_state", DataType::Utf8View, true),
         Field::new("cc_zip", DataType::Utf8View, true),
         Field::new("cc_country", DataType::Utf8View, true),
-        Field::new("cc_gmt_offset", DataType::Int32, true),
+        Field::new("cc_gmt_offset", DataType::Decimal128(5, 2), true),
         Field::new("cc_tax_percentage", DataType::Decimal128(5, 2), true),
     ]))
 }

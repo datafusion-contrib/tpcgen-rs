@@ -215,7 +215,7 @@ fn make_schema() -> SchemaRef {
         Field::new("s_division_name", DataType::Utf8View, true),
         Field::new("s_company_id", DataType::Int32, true),
         Field::new("s_company_name", DataType::Utf8View, true),
-        Field::new("s_street_number", DataType::Int32, true),
+        Field::new("s_street_number", DataType::Utf8View, true),
         Field::new("s_street_name", DataType::Utf8View, true),
         Field::new("s_street_type", DataType::Utf8View, true),
         Field::new("s_suite_number", DataType::Utf8View, true),
@@ -224,7 +224,7 @@ fn make_schema() -> SchemaRef {
         Field::new("s_state", DataType::Utf8View, true),
         Field::new("s_zip", DataType::Utf8View, true),
         Field::new("s_country", DataType::Utf8View, true),
-        Field::new("s_gmt_offset", DataType::Int32, true),
+        Field::new("s_gmt_offset", DataType::Decimal128(5, 2), true),
         Field::new("s_tax_precentage", DataType::Decimal128(5, 2), true),
     ]))
 }
