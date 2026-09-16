@@ -16,26 +16,6 @@ pub fn decimal_to_i128(d: Decimal) -> i128 {
     d.get_number() as i128
 }
 
-#[deprecated(note = "use a fixed TPC-DS decimal array helper")]
-pub fn decimal128_array_from_iter<I>(values: I) -> Decimal128Array
-where
-    I: Iterator<Item = Decimal>,
-{
-    Decimal128Array::from_iter_values(values.map(decimal_to_i128))
-        .with_precision_and_scale(38, 2)
-        .unwrap()
-}
-
-#[deprecated(note = "use a fixed TPC-DS decimal array helper")]
-pub fn decimal128_array_from_opt_iter<I>(values: I) -> Decimal128Array
-where
-    I: Iterator<Item = Option<Decimal>>,
-{
-    Decimal128Array::from_iter(values.map(|value| value.map(decimal_to_i128)))
-        .with_precision_and_scale(38, 2)
-        .unwrap()
-}
-
 /// Convert a TPC-DS Date to an Arrow Date32 (days since Unix epoch 1970-01-01).
 ///
 /// TPC-DS Date is stored as a Julian day number internally. Julian day 2440588
