@@ -80,14 +80,13 @@ jobs:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --locked --no-deps --workspace
 
-  # PR CI and merge queue runs smoke-test one representative wheel per OS type.
-  # Pushes to the main branch and manually triggered runs build all supported wheels.
-  # Every run also builds both CLIs' sdists without uploading artifacts.
+  # The merge queue and manual runs build the full wheel matrix and both CLIs'
+  # source distributions. Pull requests and post-merge pushes skip packaging.
   build-packages:
+    if: ${{ github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
-      smoke: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
 
   # Provide one stable status check for branch rules and the merge queue.
   rust-checks:
@@ -108,10 +107,16 @@ jobs:
           WORKSPACE_TEST_RESULT: ${{ needs.test-workspace.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           PACKAGES_RESULT: ${{ needs.build-packages.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -e
           test "$LINT_RESULT" = success
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
           test "$DOCS_RESULT" = success
-          test "$PACKAGES_RESULT" = success
+          # Merge queue and manual runs require success; PRs and post-merge pushes can skip this check.
+          if [ "$PACKAGES_RESULT" = skipped ]; then
+            test "$EVENT_NAME" = pull_request || test "$EVENT_NAME" = push
+          else
+            test "$PACKAGES_RESULT" = success
+          fi

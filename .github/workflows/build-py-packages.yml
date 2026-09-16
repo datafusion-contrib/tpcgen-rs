@@ -13,26 +13,19 @@ on:
         required: false
         default: all
         type: string
-      smoke:
-        description: "Build representative wheels instead of the full matrix"
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   wheels:
-    if: ${{ !inputs.smoke }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       matrix:
         include:
           # Linux manylinux
-          - &manylinux-x86_64-wheel
-            runner: ubuntu-22.04
+          - runner: ubuntu-22.04
             target: x86_64
             manylinux: auto
             os: linux
@@ -54,8 +47,7 @@ jobs:
             os: linux
 
           # Linux musllinux
-          - &musllinux-x86_64-wheel
-            runner: ubuntu-22.04
+          - runner: ubuntu-22.04
             target: x86_64
             manylinux: musllinux_1_2
             os: musllinux
@@ -73,8 +65,7 @@ jobs:
             os: musllinux
 
           # Windows
-          - &windows-x64-wheel
-            runner: windows-latest
+          - runner: windows-latest
             target: x64
             os: windows
           - runner: windows-latest
@@ -82,16 +73,14 @@ jobs:
             os: windows
 
           # macOS
-          - &macos-aarch64-wheel
-            runner: macos-14
+          - runner: macos-14
             target: aarch64
             os: macos
           - runner: macos-15-intel
             target: x86_64
             os: macos
 
-    # Reuse these steps so smoke and full builds behave identically.
-    steps: &build-wheel-steps
+    steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Build tpchgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
@@ -121,20 +110,6 @@ jobs:
         with:
           name: wheels-tpcgen-cli-${{ matrix.os }}-${{ matrix.target }}
           path: tpcgen-cli/dist
-
-  # One representative target per packaging environment.
-  wheels-smoke:
-    if: ${{ inputs.smoke }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    strategy:
-      matrix:
-        include:
-          - *manylinux-x86_64-wheel
-          - *musllinux-x86_64-wheel
-          - *windows-x64-wheel
-          - *macos-aarch64-wheel
-    steps: *build-wheel-steps
 
   sdist:
     runs-on: ubuntu-latest
