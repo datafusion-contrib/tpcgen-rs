@@ -82,6 +82,49 @@ impl IntoIterator for TpcdsGenerationPlan {
 /// (119-165 MiB); smaller tables were measured in full. Sizes are approximate:
 /// cardinality, row-group size, and column encodings affect encoding efficiency.
 ///
+/// To remeasure the estimates, first generate scale-factor-100 Parquet files
+/// with approximately 128 MiB row groups:
+/// ```shell
+/// cargo run --release --bin tpcgen-cli -- tpcds parquet \
+///   --scale-factor 100 \
+///   --row-group-bytes 134217728 \
+///   --output-dir /tmp/tpcds-sf100
+/// cd /tmp/tpcds-sf100
+/// ```
+///
+/// Then divide each file's total uncompressed Parquet size by its source-row
+/// count. Sales generators emit multiple output rows per source row, and return
+/// tables use the source rows of their paired sales table, so use distinct
+/// order or ticket numbers from the sales file for both:
+/// ```shell
+/// for table in call_center catalog_page catalog_returns catalog_sales customer customer_address \
+///   customer_demographics date_dim dbgen_version household_demographics income_band inventory \
+///   item promotion reason ship_mode store store_returns store_sales time_dim warehouse web_page \
+///   web_returns web_sales web_site; do
+///   case "$table" in
+///     catalog_sales|catalog_returns)
+///       source_rows="(select count(distinct cs_order_number) from 'catalog_sales.parquet')"
+///       ;;
+///     store_sales|store_returns)
+///       source_rows="(select count(distinct ss_ticket_number) from 'store_sales.parquet')"
+///       ;;
+///     web_sales|web_returns)
+///       source_rows="(select count(distinct ws_order_number) from 'web_sales.parquet')"
+///       ;;
+///     *)
+///       source_rows="(select count(*) from '$table.parquet')"
+///       ;;
+///   esac
+///
+///   datafusion-cli -q -c "
+///     select
+///       '$table' as table_name,
+///       cast(sum(total_uncompressed_size) as double) /
+///         cast($source_rows as double) as bytes_per_source_row
+///     from parquet_metadata('$table.parquet')"
+/// done
+/// ```
+///
 /// The estimates are the sum of Parquet metadata's
 /// `total_uncompressed_size` divided by the exact source-row range used to
 /// generate the group. Sales and returns must both use their paired sales
