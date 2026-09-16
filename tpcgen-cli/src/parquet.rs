@@ -1,12 +1,12 @@
 //! Shared Parquet output helpers.
 
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{Schema, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
-use parquet::basic::{Compression, Encoding};
+use parquet::basic::{Compression, Encoding, Type as PhysicalType};
 use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAULT_COERCE_TYPES};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
@@ -54,23 +54,87 @@ pub(crate) fn reject_unsupported_encoding(encoding: Encoding) -> io::Result<()> 
     }
 }
 
+/// Checks that `encoding` can encode a column of Parquet `physical_type`.
+///
+/// Mirrors the checks the parquet crate's encoders make when they are
+/// built or receive values. Those checks panic instead of returning an
+/// error, so a bad pair would otherwise only fail once its table starts
+/// generating. <https://github.com/apache/arrow-rs/issues/10964> asks for
+/// this as a public parquet API; replace this function with it once it
+/// lands.
+pub(crate) fn check_encoding_supports_type(
+    column: &str,
+    encoding: Encoding,
+    physical_type: PhysicalType,
+) -> io::Result<()> {
+    reject_unsupported_encoding(encoding)?;
+    let supported: &[PhysicalType] = match encoding {
+        Encoding::PLAIN => return Ok(()),
+        Encoding::RLE => &[PhysicalType::BOOLEAN],
+        Encoding::DELTA_BINARY_PACKED => &[PhysicalType::INT32, PhysicalType::INT64],
+        Encoding::DELTA_LENGTH_BYTE_ARRAY => &[PhysicalType::BYTE_ARRAY],
+        Encoding::DELTA_BYTE_ARRAY => {
+            &[PhysicalType::BYTE_ARRAY, PhysicalType::FIXED_LEN_BYTE_ARRAY]
+        }
+        Encoding::BYTE_STREAM_SPLIT => &[
+            PhysicalType::FLOAT,
+            PhysicalType::DOUBLE,
+            PhysicalType::INT32,
+            PhysicalType::INT64,
+            PhysicalType::FIXED_LEN_BYTE_ARRAY,
+        ],
+        other => {
+            return Err(io::Error::other(format!(
+                "encoding {other} is not supported for Parquet writing"
+            )))
+        }
+    };
+    if supported.contains(&physical_type) {
+        return Ok(());
+    }
+    let supported = supported
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
+    Err(io::Error::other(format!(
+        "encoding {encoding} cannot encode column '{column}' of type {physical_type}; {encoding} supports {supported}"
+    )))
+}
+
+/// Returns the Parquet physical type the writer uses for `column` of
+/// `schema`, or `None` if `schema` has no such column.
+pub(crate) fn column_physical_type(schema: &Schema, column: &str) -> Option<PhysicalType> {
+    parquet_schema(schema)
+        .columns()
+        .iter()
+        .find(|d| d.name() == column)
+        .map(|d| d.physical_type())
+}
+
+/// Converts `schema` to the Parquet schema the writer uses for it.
+///
+/// Nothing here sets `coerce_types`, so this uses the default constant
+/// instead of building a `WriterProperties` just to read it back.
+fn parquet_schema(schema: &Schema) -> SchemaDescPtr {
+    Arc::new(
+        ArrowSchemaConverter::new()
+            .with_coerce_types(DEFAULT_COERCE_TYPES)
+            .convert(schema)
+            .unwrap(),
+    )
+}
+
 /// Applies `encodings` to `builder`.
 ///
-/// Does not check an encoding against the column's physical type (RLE
-/// needs a boolean column, for example). The parquet writer checks this
-/// itself, but panics instead of returning an error. Not yet filed
-/// upstream in apache/arrow-rs.
-///
-/// So a bad match only fails once its table starts generating, unlike an
-/// unknown column or a rejected encoding. In a multi-table run, another
-/// table can finish first.
+/// Every pair must name a column of `parquet_schema` and an encoding
+/// that can encode it (see [`check_encoding_supports_type`]).
 fn apply_column_encodings(
     mut builder: WriterPropertiesBuilder,
     parquet_schema: &SchemaDescPtr,
     encodings: &[(String, Encoding)],
 ) -> io::Result<WriterPropertiesBuilder> {
     for (col, enc) in encodings {
-        reject_unsupported_encoding(*enc)?;
         let Some(descr) = parquet_schema
             .columns()
             .iter()
@@ -80,6 +144,7 @@ fn apply_column_encodings(
                 "unknown column '{col}' for --column-encoding"
             )));
         };
+        check_encoding_supports_type(col, *enc, descr.physical_type())?;
         let path = descr.path().clone();
         builder = builder
             .set_column_encoding(path.clone(), *enc)
@@ -118,15 +183,8 @@ where
     let schema = first_iter.schema();
 
     // Compute the parquet schema first. apply_column_encodings needs it to
-    // map column names to a ColumnPath and check they exist. Nothing here
-    // sets coerce_types, so use the default constant instead of building a
-    // WriterProperties just to read it back.
-    let parquet_schema = Arc::new(
-        ArrowSchemaConverter::new()
-            .with_coerce_types(DEFAULT_COERCE_TYPES)
-            .convert(&schema)
-            .unwrap(),
-    );
+    // map column names to a ColumnPath and check their physical types.
+    let parquet_schema = parquet_schema(&schema);
 
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
     if let Some(encodings) = column_encodings {
@@ -391,21 +449,77 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn encoding_incompatible_with_column_type_errors_instead_of_crashing() {
-        // We do not check the encoding against the column type here (see
-        // `apply_column_encodings`). The parquet writer panics on a bad
-        // match instead. We only check that the panic comes back as an
-        // `Err`, not the exact message.
-        //
+    async fn encoding_incompatible_with_column_type_errors_before_writing() {
         // r_regionkey is INT64, not BOOLEAN. RLE needs a boolean column.
+        // The parquet writer would panic on this pair, so it must be
+        // rejected before the writer is built.
         let output_dir = tempfile::tempdir().unwrap();
         let output_path = output_dir.path().join("regionkey_rle.parquet");
-        assert!(write_region(
+        let err = write_region(
             Some(&[("r_regionkey".to_string(), Encoding::RLE)]),
-            &output_path
+            &output_path,
         )
         .await
-        .is_err());
+        .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("encoding RLE cannot encode column 'r_regionkey' of type INT64"),
+            "{err}"
+        );
+        assert_eq!(std::fs::metadata(&output_path).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn check_encoding_supports_type_follows_the_parquet_encoders() {
+        use PhysicalType::*;
+        let all = [
+            BOOLEAN,
+            INT32,
+            INT64,
+            INT96,
+            FLOAT,
+            DOUBLE,
+            BYTE_ARRAY,
+            FIXED_LEN_BYTE_ARRAY,
+        ];
+        let expected: &[(Encoding, &[PhysicalType])] = &[
+            (Encoding::PLAIN, &all),
+            (Encoding::RLE, &[BOOLEAN]),
+            (Encoding::DELTA_BINARY_PACKED, &[INT32, INT64]),
+            (Encoding::DELTA_LENGTH_BYTE_ARRAY, &[BYTE_ARRAY]),
+            (
+                Encoding::DELTA_BYTE_ARRAY,
+                &[BYTE_ARRAY, FIXED_LEN_BYTE_ARRAY],
+            ),
+            (
+                Encoding::BYTE_STREAM_SPLIT,
+                &[FLOAT, DOUBLE, INT32, INT64, FIXED_LEN_BYTE_ARRAY],
+            ),
+        ];
+        for (encoding, supported) in expected {
+            for physical_type in all {
+                let result = check_encoding_supports_type("c", *encoding, physical_type);
+                assert_eq!(
+                    result.is_ok(),
+                    supported.contains(&physical_type),
+                    "{encoding} on {physical_type}: {result:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn column_physical_type_follows_the_writer() {
+        let schema = RegionArrow::schema_ref();
+        assert_eq!(
+            column_physical_type(&schema, "r_regionkey"),
+            Some(PhysicalType::INT64)
+        );
+        assert_eq!(
+            column_physical_type(&schema, "r_name"),
+            Some(PhysicalType::BYTE_ARRAY)
+        );
+        assert_eq!(column_physical_type(&schema, "not_a_column"), None);
     }
 
     #[tokio::test]
