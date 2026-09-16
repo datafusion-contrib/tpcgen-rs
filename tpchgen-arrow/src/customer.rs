@@ -50,6 +50,11 @@ pub struct CustomerArrow {
 }
 
 impl CustomerArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&CUSTOMER_SCHEMA)
+    }
+
     pub fn new(generator: CustomerGenerator<'static>) -> Self {
         Self {
             inner: generator.iter(),
@@ -66,7 +71,7 @@ impl CustomerArrow {
 
 impl RecordBatchReader for CustomerArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&CUSTOMER_SCHEMA)
+        Self::schema_ref()
     }
 }
 

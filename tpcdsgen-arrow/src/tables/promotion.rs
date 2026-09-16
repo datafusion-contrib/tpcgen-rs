@@ -17,6 +17,11 @@ pub struct PromotionArrow {
 }
 
 impl PromotionArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Promotion);
         Self {
@@ -50,7 +55,7 @@ impl PromotionArrow {
 
 impl RecordBatchReader for PromotionArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 

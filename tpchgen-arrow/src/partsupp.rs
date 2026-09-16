@@ -50,6 +50,11 @@ pub struct PartSuppArrow {
 }
 
 impl PartSuppArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&PARTSUPP_SCHEMA)
+    }
+
     pub fn new(generator: PartSuppGenerator<'static>) -> Self {
         Self {
             inner: generator.iter(),
@@ -66,7 +71,7 @@ impl PartSuppArrow {
 
 impl RecordBatchReader for PartSuppArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&PARTSUPP_SCHEMA)
+        Self::schema_ref()
     }
 }
 

@@ -11,6 +11,21 @@ use tempfile::tempdir;
 use tpchgen::generators::OrderGenerator;
 use tpchgen_arrow::OrderArrow;
 
+#[test]
+fn test_tpcgen_cli_tpch_unknown_table_error_lists_valid_tables() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet", "--tables", "region,store_sales"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains(
+            "unknown table 'store_sales'. Expected one of: region, nation, supplier, customer, part, partsupp, orders, lineitem\n",
+        ));
+}
+
 /// Test the TPC-H command forms for the `tpcgen-cli` binary.
 #[test]
 fn test_tpcgen_cli_tpch_command_forms() {

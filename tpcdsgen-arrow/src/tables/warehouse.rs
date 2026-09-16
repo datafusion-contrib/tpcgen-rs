@@ -14,6 +14,11 @@ pub struct WarehouseArrow {
 }
 
 impl WarehouseArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Warehouse);
         Self {
@@ -47,7 +52,7 @@ impl WarehouseArrow {
 
 impl RecordBatchReader for WarehouseArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 

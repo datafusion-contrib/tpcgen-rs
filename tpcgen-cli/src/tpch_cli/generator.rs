@@ -109,17 +109,22 @@ impl FromStr for Table {
     /// not support this since it just adds unnecessary complexity and confusion so we
     /// only support the exclusive abbreviations.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "n" | "nation" => Ok(Table::Nation),
-            "r" | "region" => Ok(Table::Region),
-            "s" | "supplier" => Ok(Table::Supplier),
-            "P" | "part" => Ok(Table::Part),
-            "S" | "partsupp" => Ok(Table::Partsupp),
-            "c" | "customer" => Ok(Table::Customer),
-            "O" | "orders" => Ok(Table::Orders),
-            "L" | "lineitem" => Ok(Table::Lineitem),
-            _ => Err("Invalid table name {s}"),
+        for (alias, table) in [
+            ("n", Table::Nation),
+            ("r", Table::Region),
+            ("s", Table::Supplier),
+            ("P", Table::Part),
+            ("S", Table::Partsupp),
+            ("c", Table::Customer),
+            ("O", Table::Orders),
+            ("L", Table::Lineitem),
+        ] {
+            if s == alias || s.eq_ignore_ascii_case(table.name()) {
+                return Ok(table);
+            }
         }
+
+        Err("Invalid table name {s}")
     }
 }
 

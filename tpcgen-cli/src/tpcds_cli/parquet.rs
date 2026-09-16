@@ -100,7 +100,7 @@ fn column_encodings_for_table(
 pub(super) struct Parquet {
     output_dir: PathBuf,
     compression: Compression,
-    row_group_bytes: usize,
+    row_group_bytes: i64,
     num_threads: usize,
     column_encodings: Option<Vec<(String, Encoding)>>,
 }
@@ -109,7 +109,7 @@ impl Parquet {
     pub(super) fn new(
         output_dir: PathBuf,
         compression: Compression,
-        row_group_bytes: usize,
+        row_group_bytes: i64,
         num_threads: usize,
         column_encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {

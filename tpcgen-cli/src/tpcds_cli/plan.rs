@@ -27,7 +27,7 @@ pub(super) struct TpcdsGenerationPlan {
 impl TpcdsGenerationPlan {
     /// Compute the row group layout for `table` given the target
     /// `row_group_bytes`.
-    pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: usize) -> Self {
+    pub(super) fn new(table: Table, scaling: &Scaling, row_group_bytes: i64) -> Self {
         let source_rows = scaling.get_row_count(table.source_table());
         let estimated_bytes =
             (source_rows as f64 * estimated_bytes_per_source_row(table)).ceil() as u64;
@@ -168,9 +168,9 @@ fn estimated_bytes_per_source_row(table: Table) -> f64 {
 mod tests {
     use super::*;
 
-    const DEFAULT_ROW_GROUP_BYTES: usize = 7 * 1024 * 1024;
+    const DEFAULT_ROW_GROUP_BYTES: i64 = 7 * 1024 * 1024;
 
-    fn plan(table: Table, scale_factor: f64, row_group_bytes: usize) -> TpcdsGenerationPlan {
+    fn plan(table: Table, scale_factor: f64, row_group_bytes: i64) -> TpcdsGenerationPlan {
         TpcdsGenerationPlan::new(table, &Scaling::new(scale_factor), row_group_bytes)
     }
 
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn maximum_target_keeps_one_row_group() {
-        let plan = plan(Table::StoreSales, 1.0, usize::MAX);
+        let plan = plan(Table::StoreSales, 1.0, i64::MAX);
         assert_eq!(plan.row_group_count(), 1);
         assert_covers(&plan, 240_000);
     }

@@ -14,6 +14,11 @@ pub struct HouseholdDemographicsArrow {
 }
 
 impl HouseholdDemographicsArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session
             .get_scaling()
@@ -49,7 +54,7 @@ impl HouseholdDemographicsArrow {
 
 impl RecordBatchReader for HouseholdDemographicsArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 

@@ -2,6 +2,7 @@ use super::{
     Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
@@ -238,7 +239,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Target row-group size in bytes
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better
@@ -250,7 +251,11 @@ struct ParquetArgs {
     /// groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
-    #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
+    #[arg(
+        long,
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
+        value_parser = parse_row_group_bytes
+    )]
     row_group_bytes: i64,
 
     /// Per-column Parquet encodings (overrides writer defaults).
@@ -317,11 +322,25 @@ impl TypedValueParser for TableValueParser {
         _: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, clap::Error> {
+        let to_err = |msg: String| {
+            clap::Error::raw(clap::error::ErrorKind::InvalidValue, format!("{msg}\n")).with_cmd(cmd)
+        };
+
         let value = value
             .to_str()
-            .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))?;
-        Table::from_str(value)
-            .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))
+            .ok_or_else(|| to_err("table names must be valid UTF-8".to_string()))?;
+
+        Table::from_str(value).map_err(|_| {
+            let expected = self
+                .possible_values()
+                .expect("table parser defines possible values")
+                .map(|table| table.get_name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            to_err(format!(
+                "unknown table '{value}'. Expected one of: {expected}"
+            ))
+        })
     }
 
     fn possible_values(
