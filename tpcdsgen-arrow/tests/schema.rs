@@ -5,7 +5,7 @@
 //! The CSV headers are covered transitively: `reparse.rs` re-parses CSV output
 //! with header validation enabled against these same Arrow schemas.
 
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{DataType, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
 use tpcdsgen::config::Session;
 use tpcdsgen_arrow::{
@@ -599,5 +599,28 @@ fn tpcds_schemas_use_canonical_column_names() {
     for (table, schema, expected) in canonical_schemas(&session) {
         let actual: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
         assert_eq!(actual, expected, "column names for table {table}");
+    }
+}
+
+#[test]
+fn tpcds_identifier_columns_use_int64() {
+    let session = Session::default();
+    for (table, schema, _) in canonical_schemas(&session) {
+        for field in schema.fields() {
+            let is_identifier = field.name().ends_with("_sk")
+                || matches!(
+                    field.name().as_str(),
+                    "cs_order_number" | "ss_ticket_number" | "ws_order_number"
+                );
+            if is_identifier {
+                assert_eq!(
+                    field.data_type(),
+                    &DataType::Int64,
+                    "identifier {}.{} must match Trino BIGINT",
+                    table,
+                    field.name()
+                );
+            }
+        }
     }
 }

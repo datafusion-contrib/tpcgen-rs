@@ -78,8 +78,8 @@ impl Iterator for CustomerArrow {
         let mut c_cdemo_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut c_hdemo_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut c_addr_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut c_shipto_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_sales_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut c_shipto_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut c_sales_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut c_salutation: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut c_first_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut c_last_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -90,7 +90,7 @@ impl Iterator for CustomerArrow {
         let mut c_birth_country: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut c_login: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut c_email: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut c_last_review: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut c_last_review: Vec<Option<i64>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
@@ -99,8 +99,8 @@ impl Iterator for CustomerArrow {
             c_cdemo_sk.push(sk_opt(nbm, 2, r.get_c_current_cdemo_sk()));
             c_hdemo_sk.push(sk_opt(nbm, 3, r.get_c_current_hdemo_sk()));
             c_addr_sk.push(sk_opt(nbm, 4, r.get_c_current_addr_sk()));
-            c_shipto_date.push(opt(nbm, 5, r.get_c_first_shipto_date_id()));
-            c_sales_date.push(opt(nbm, 6, r.get_c_first_sales_date_id()));
+            c_shipto_date.push(opt(nbm, 5, i64::from(r.get_c_first_shipto_date_id())));
+            c_sales_date.push(opt(nbm, 6, i64::from(r.get_c_first_sales_date_id())));
             c_salutation.push(opt(nbm, 7, r.get_c_salutation().to_owned()));
             c_first_name.push(opt(nbm, 8, r.get_c_first_name().to_owned()));
             c_last_name.push(opt(nbm, 9, r.get_c_last_name().to_owned()));
@@ -115,7 +115,7 @@ impl Iterator for CustomerArrow {
             c_birth_country.push(opt(nbm, 14, r.get_c_birth_country().to_owned()));
             c_login.push(None); // always null per TPC-DS spec
             c_email.push(opt(nbm, 16, r.get_c_email_address().to_owned()));
-            c_last_review.push(opt(nbm, 17, r.get_c_last_review_date()));
+            c_last_review.push(opt(nbm, 17, i64::from(r.get_c_last_review_date())));
         }
 
         let batch = RecordBatch::try_new(
@@ -128,8 +128,8 @@ impl Iterator for CustomerArrow {
                 Arc::new(Int64Array::from(c_cdemo_sk)),
                 Arc::new(Int64Array::from(c_hdemo_sk)),
                 Arc::new(Int64Array::from(c_addr_sk)),
-                Arc::new(Int32Array::from(c_shipto_date)),
-                Arc::new(Int32Array::from(c_sales_date)),
+                Arc::new(Int64Array::from(c_shipto_date)),
+                Arc::new(Int64Array::from(c_sales_date)),
                 Arc::new(string_view_array_from_opt_iter(
                     c_salutation.iter().map(|s| s.as_deref()),
                 )),
@@ -154,7 +154,7 @@ impl Iterator for CustomerArrow {
                 Arc::new(string_view_array_from_opt_iter(
                     c_email.iter().map(|s| s.as_deref()),
                 )),
-                Arc::new(Int32Array::from(c_last_review)),
+                Arc::new(Int64Array::from(c_last_review)),
             ],
         );
         Some(batch)
@@ -170,8 +170,8 @@ fn make_schema() -> SchemaRef {
         Field::new("c_current_cdemo_sk", DataType::Int64, true),
         Field::new("c_current_hdemo_sk", DataType::Int64, true),
         Field::new("c_current_addr_sk", DataType::Int64, true),
-        Field::new("c_first_shipto_date_sk", DataType::Int32, true),
-        Field::new("c_first_sales_date_sk", DataType::Int32, true),
+        Field::new("c_first_shipto_date_sk", DataType::Int64, true),
+        Field::new("c_first_sales_date_sk", DataType::Int64, true),
         Field::new("c_salutation", DataType::Utf8View, true),
         Field::new("c_first_name", DataType::Utf8View, true),
         Field::new("c_last_name", DataType::Utf8View, true),
@@ -182,6 +182,6 @@ fn make_schema() -> SchemaRef {
         Field::new("c_birth_country", DataType::Utf8View, true),
         Field::new("c_login", DataType::Utf8View, true),
         Field::new("c_email_address", DataType::Utf8View, true),
-        Field::new("c_last_review_date_sk", DataType::Int32, true),
+        Field::new("c_last_review_date_sk", DataType::Int64, true),
     ]))
 }
