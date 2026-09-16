@@ -325,14 +325,6 @@ impl TpchGenerator {
             ]
         };
 
-        // Warm up the distributions and text pool now, not on the first
-        // table.
-        let start = Instant::now();
-        Distributions::static_default();
-        TextPool::get_or_init_default();
-        let elapsed = start.elapsed();
-        info!("Created static distributions and text pools in {elapsed:?}");
-
         // Reject a --column-encoding column that matches no selected table
         // (a typo) before any work starts. column_encodings_for_table
         // (below) skips a column that only matches some tables, so that
@@ -359,6 +351,14 @@ impl TpchGenerator {
             output_plan_generator.generate_plans(table, config.part, config.parts)?;
         }
         let output_plans = output_plan_generator.build();
+
+        // Force the creation of the distributions and text pool so it doesn't
+        // get charged to the first table.
+        let start = Instant::now();
+        Distributions::static_default();
+        TextPool::get_or_init_default();
+        let elapsed = start.elapsed();
+        info!("Created static distributions and text pools in {elapsed:?}");
 
         let runner = PlanRunner::new(output_plans, config.num_threads)
             .with_progress_tracker(progress_tracker);
