@@ -114,7 +114,7 @@ jobs:
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
           test "$DOCS_RESULT" = success
-          # Merge queue and manual runs require success; PRs and post-merge pushes can skip this check.
+          # Only PRs and post-merge pushes may skip the build-packages job.
           if [ "$PACKAGES_RESULT" = skipped ]; then
             test "$EVENT_NAME" = pull_request || test "$EVENT_NAME" = push
           else
