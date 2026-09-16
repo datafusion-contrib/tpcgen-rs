@@ -1,8 +1,7 @@
 //! Verifies canonical TPC-DS column names, ordering, data types, and nullability.
 
-use arrow::datatypes::{DataType, SchemaRef, TimeUnit};
+use arrow::datatypes::{DataType, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
-use std::collections::BTreeSet;
 use tpcdsgen::config::{Scaling, Session, Table};
 use tpcdsgen::csv::csv_header;
 use tpcdsgen_arrow::{
@@ -13,35 +12,9 @@ use tpcdsgen_arrow::{
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
-fn schema_fingerprint(schema: &SchemaRef) -> u64 {
-    let descriptor = schema
-        .fields()
-        .iter()
-        .map(|field| {
-            let data_type = match field.data_type() {
-                DataType::Int32 | DataType::Int64 => "integer".to_string(),
-                DataType::Utf8View => "string".to_string(),
-                DataType::Date32 => "date".to_string(),
-                DataType::Time32(TimeUnit::Second) => "time".to_string(),
-                DataType::Decimal128(precision, scale) => {
-                    format!("decimal({precision},{scale})")
-                }
-                data_type => panic!("unsupported TPC-DS Arrow type: {data_type}"),
-            };
-            let nullability = if field.is_nullable() {
-                "nullable"
-            } else {
-                "required"
-            };
-            format!("{}:{data_type}:{nullability}", field.name())
-        })
-        .collect::<Vec<_>>()
-        .join(",");
-
-    descriptor.bytes().fold(0xcbf29ce484222325, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
-    })
-}
+#[path = "schema/expected.rs"]
+mod expected;
+use expected::expected_schema;
 
 fn table_schemas(session: &Session) -> Vec<(Table, SchemaRef)> {
     vec![
@@ -706,47 +679,10 @@ fn canonical_schemas(session: &Session) -> Vec<(&'static str, SchemaRef, &'stati
 
 #[test]
 fn schemas_match_expected_columns_and_canonical_types() {
-    let expected = [
-        ("dbgen_version", 4, 0x6997614743317b61),
-        ("customer_address", 13, 0x3ee32ab1c4b84f75),
-        ("customer_demographics", 9, 0x081d435d116f96eb),
-        ("date_dim", 28, 0x0ccaa61a6b82beb9),
-        ("warehouse", 14, 0xfddd442664ff5df5),
-        ("ship_mode", 6, 0x8b98c2661c942a22),
-        ("time_dim", 10, 0x95f53373375ebfb8),
-        ("reason", 3, 0x34ce10a37a6e0b10),
-        ("income_band", 3, 0xbf4692a260910723),
-        ("item", 22, 0x402b6fe0f746f141),
-        ("store", 29, 0xe3bc1d5f6de25aa7),
-        ("call_center", 31, 0x5382dbc7050ac76f),
-        ("customer", 18, 0x8a6c5a1ace467874),
-        ("web_site", 26, 0xa13f4fe04fc201c8),
-        ("store_returns", 20, 0x16fb0323450fd25d),
-        ("household_demographics", 5, 0xfe50aa17e8b90df2),
-        ("web_page", 14, 0x68f749360f62cfc5),
-        ("promotion", 19, 0x014f46fbc2444ab2),
-        ("catalog_page", 9, 0x5ce26c04939b7a7c),
-        ("inventory", 4, 0x4b606ddb03b624d1),
-        ("catalog_returns", 27, 0xc9eeed5980d11fa3),
-        ("web_returns", 24, 0x660a2030b37af161),
-        ("web_sales", 34, 0x427a46604c1e75d8),
-        ("catalog_sales", 34, 0x31169f631b8f1e43),
-        ("store_sales", 23, 0x9d46b5a676f193ba),
-    ];
     let session = Session::default();
-    let mut visited = BTreeSet::new();
-    let mut mismatches = Vec::new();
 
     for (table, schema) in table_schemas(&session) {
         let table_name = table.get_name();
-        assert!(
-            visited.insert(table_name),
-            "duplicate schema for {table_name}"
-        );
-        let (_, expected_columns, expected_fingerprint) = expected
-            .iter()
-            .find(|(name, _, _)| *name == table_name)
-            .expect("canonical C-kit table");
         let arrow_header = schema
             .fields()
             .iter()
@@ -754,24 +690,13 @@ fn schemas_match_expected_columns_and_canonical_types() {
             .collect::<Vec<_>>()
             .join(",");
 
-        assert_eq!(schema.fields().len(), *expected_columns, "{table_name}");
-        let actual_fingerprint = schema_fingerprint(&schema);
-        if actual_fingerprint != *expected_fingerprint {
-            mismatches.push((table_name, actual_fingerprint, *expected_fingerprint));
-        }
+        assert_eq!(schema.as_ref(), &expected_schema(table), "{table_name}");
         assert_eq!(
             csv_header(table, ',').expect("CSV header"),
             arrow_header,
             "{table_name}"
         );
     }
-
-    let expected_tables = expected
-        .iter()
-        .map(|(name, _, _)| *name)
-        .collect::<BTreeSet<_>>();
-    assert_eq!(visited, expected_tables);
-    assert!(mismatches.is_empty(), "{mismatches:#x?}");
 }
 
 #[test]
