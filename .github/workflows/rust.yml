@@ -114,9 +114,9 @@ jobs:
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
           test "$DOCS_RESULT" = success
-          # Only PRs and post-merge pushes may skip the build-packages job.
-          if [ "$PACKAGES_RESULT" = skipped ]; then
-            test "$EVENT_NAME" = pull_request || test "$EVENT_NAME" = push
-          else
+          # build-packages runs only for merge queue and manual workflows.
+          if [ "$EVENT_NAME" = merge_group ] || [ "$EVENT_NAME" = workflow_dispatch ]; then
             test "$PACKAGES_RESULT" = success
+          else
+            test "$PACKAGES_RESULT" = skipped
           fi
