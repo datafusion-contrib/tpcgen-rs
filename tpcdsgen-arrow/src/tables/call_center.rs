@@ -1,9 +1,9 @@
 use crate::conversions::{
-    address_columns, decimal_to_i128, integer_sk_opt, is_null, julian_to_date32, opt,
-    string_view_array_from_opt_iter,
+    address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, is_null,
+    julian_to_date32, opt, string_view_array_from_opt_iter,
 };
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Date32Array, Decimal128Array, Int32Array, RecordBatch};
+use arrow::array::{Date32Array, Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -147,9 +147,7 @@ impl Iterator for CallCenterArrow {
             gmt_offset,
         ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
 
-        let tax_arr = Decimal128Array::from(cc_tax_pct)
-            .with_precision_and_scale(38, 2)
-            .unwrap();
+        let tax_arr = decimal128_5_2_array(cc_tax_pct);
 
         let batch = RecordBatch::try_new(
             self.schema(),
@@ -245,6 +243,6 @@ fn make_schema() -> SchemaRef {
         Field::new("cc_zip", DataType::Utf8View, true),
         Field::new("cc_country", DataType::Utf8View, true),
         Field::new("cc_gmt_offset", DataType::Int32, true),
-        Field::new("cc_tax_percentage", DataType::Decimal128(38, 2), true),
+        Field::new("cc_tax_percentage", DataType::Decimal128(5, 2), true),
     ]))
 }

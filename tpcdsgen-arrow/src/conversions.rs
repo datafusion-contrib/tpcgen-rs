@@ -35,27 +35,24 @@ pub fn julian_to_date32(julian_days: i64) -> Option<i32> {
     }
 }
 
-/// Build a Decimal128Array from an iterator of TPC-DS Decimals (non-nullable).
-/// Uses precision=38, scale=2.
-pub fn decimal128_array_from_iter<I>(values: I) -> Decimal128Array
-where
-    I: Iterator<Item = Decimal>,
-{
-    let values = values.map(decimal_to_i128);
-    Decimal128Array::from_iter_values(values)
-        .with_precision_and_scale(38, 2)
+/// Build a TPC-DS DECIMAL(5,2) array from unscaled integer values.
+pub fn decimal128_5_2_array(values: impl IntoIterator<Item = Option<i128>>) -> Decimal128Array {
+    Decimal128Array::from_iter(values)
+        .with_precision_and_scale(5, 2)
         .unwrap()
 }
 
-/// Build a Decimal128Array from an iterator of optional TPC-DS Decimals (nullable).
-/// Uses precision=38, scale=2.
-pub fn decimal128_array_from_opt_iter<I>(values: I) -> Decimal128Array
-where
-    I: Iterator<Item = Option<Decimal>>,
-{
-    let values: Vec<Option<i128>> = values.map(|d| d.map(decimal_to_i128)).collect();
-    Decimal128Array::from(values)
-        .with_precision_and_scale(38, 2)
+/// Build a TPC-DS DECIMAL(7,2) array from unscaled integer values.
+pub fn decimal128_7_2_array(values: impl IntoIterator<Item = Option<i128>>) -> Decimal128Array {
+    Decimal128Array::from_iter(values)
+        .with_precision_and_scale(7, 2)
+        .unwrap()
+}
+
+/// Build a TPC-DS DECIMAL(15,2) array from unscaled integer values.
+pub fn decimal128_15_2_array(values: impl IntoIterator<Item = Option<i128>>) -> Decimal128Array {
+    Decimal128Array::from_iter(values)
+        .with_precision_and_scale(15, 2)
         .unwrap()
 }
 
@@ -288,6 +285,7 @@ mod tests {
         assert_eq!(bool_to_yn(true), "Y");
         assert_eq!(bool_to_yn(false), "N");
     }
+
     #[test]
     fn test_integer_opt_boundaries() {
         assert_eq!(integer_opt(0, 0, i64::from(i32::MIN)), Some(i32::MIN));
