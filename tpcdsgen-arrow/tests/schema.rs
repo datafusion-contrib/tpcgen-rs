@@ -737,6 +737,7 @@ fn integer_widths_match_lakebench_v4() {
 #[test]
 fn sf100000_integer_domains_fit_i32() {
     let scaling = Scaling::new(100000.0);
+    let max_i32 = u64::try_from(i32::MAX).expect("i32::MAX fits in u64");
     let integer_key_tables = [
         Table::CallCenter,
         Table::CatalogPage,
@@ -759,7 +760,7 @@ fn sf100000_integer_domains_fit_i32() {
 
     for table in integer_key_tables {
         assert!(
-            scaling.get_row_count(table) <= i64::from(i32::MAX),
+            scaling.get_row_count(table) <= max_i32,
             "{} exceeds the Arrow Int32 key domain at SF100000",
             table.get_name()
         );
@@ -767,7 +768,7 @@ fn sf100000_integer_domains_fit_i32() {
 
     for table in [Table::StoreSales, Table::CatalogSales, Table::WebSales] {
         assert!(
-            scaling.get_row_count(table) > i64::from(i32::MAX),
+            scaling.get_row_count(table) > max_i32,
             "{} order identifiers require Arrow Int64 at SF100000",
             table.get_name()
         );

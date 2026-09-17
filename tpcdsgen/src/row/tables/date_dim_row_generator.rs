@@ -41,11 +41,13 @@ impl DateDimRowGenerator {
 impl RowGenerator for DateDimRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         _session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> crate::error::Result<RowGeneratorResult> {
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
         // Create null bitmap - DateDim has very few nulls
         let null_bit_map = 0i64;
 
@@ -54,8 +56,8 @@ impl RowGenerator for DateDimRowGenerator {
         let base_julian = base_date.to_julian_days();
 
         // Each row represents one day, starting from base date
-        let d_date_sk = row_number + base_julian as i64;
-        let d_date_id = make_business_key(d_date_sk);
+        let d_date_sk = row_number_i64 + base_julian as i64;
+        let d_date_id = make_business_key(u64::try_from(d_date_sk).expect("date key fits in u64"));
         let date = Date::from_julian_days(d_date_sk as i32);
 
         // Extract date components
@@ -65,7 +67,7 @@ impl RowGenerator for DateDimRowGenerator {
         let d_dom = date.day();
 
         // Calculate sequence numbers (assumes table starts on year boundary)
-        let d_week_seq = ((row_number + 6) / 7) as i32;
+        let d_week_seq = row_number.div_ceil(7) as i32;
         let d_month_seq = (d_year - 1900) * 12 + d_moy - 1;
         // Note: Java has a bug where it uses dMoy/3 instead of (dMoy-1)/3
         // This incorrectly puts March in Q2. We replicate this bug for compatibility.
@@ -164,7 +166,7 @@ impl RowGenerator for DateDimRowGenerator {
         self.base.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.base
             .skip_rows_until_starting_row_number(starting_row_number);
     }
