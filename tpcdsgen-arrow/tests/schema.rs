@@ -4,8 +4,7 @@
 //! with header validation enabled against these same Arrow schemas.
 
 use arrow::datatypes::SchemaRef;
-use arrow::record_batch::RecordBatchReader;
-use tpcdsgen::config::{Scaling, Session, Table};
+use tpcdsgen::config::{Scaling, Table};
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
@@ -18,95 +17,45 @@ use tpcdsgen_arrow::{
 mod expected;
 use expected::expected_schema;
 
-fn table_schemas(session: &Session) -> Vec<(Table, SchemaRef)> {
+fn table_schemas() -> Vec<(Table, SchemaRef)> {
     vec![
-        (
-            Table::DbgenVersion,
-            DbgenVersionArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::CustomerAddress,
-            CustomerAddressArrow::new(session.clone()).schema(),
-        ),
+        (Table::DbgenVersion, DbgenVersionArrow::schema_ref()),
+        (Table::CustomerAddress, CustomerAddressArrow::schema_ref()),
         (
             Table::CustomerDemographics,
-            CustomerDemographicsArrow::new(session.clone()).schema(),
+            CustomerDemographicsArrow::schema_ref(),
         ),
-        (Table::DateDim, DateDimArrow::new(session.clone()).schema()),
-        (
-            Table::Warehouse,
-            WarehouseArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::ShipMode,
-            ShipModeArrow::new(session.clone()).schema(),
-        ),
-        (Table::TimeDim, TimeDimArrow::new(session.clone()).schema()),
-        (Table::Reason, ReasonArrow::new(session.clone()).schema()),
-        (
-            Table::IncomeBand,
-            IncomeBandArrow::new(session.clone()).schema(),
-        ),
-        (Table::Item, ItemArrow::new(session.clone()).schema()),
-        (Table::Store, StoreArrow::new(session.clone()).schema()),
-        (
-            Table::CallCenter,
-            CallCenterArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::Customer,
-            CustomerArrow::new(session.clone()).schema(),
-        ),
-        (Table::WebSite, WebSiteArrow::new(session.clone()).schema()),
-        (
-            Table::StoreReturns,
-            StoreReturnsArrow::new(session.clone()).schema(),
-        ),
+        (Table::DateDim, DateDimArrow::schema_ref()),
+        (Table::Warehouse, WarehouseArrow::schema_ref()),
+        (Table::ShipMode, ShipModeArrow::schema_ref()),
+        (Table::TimeDim, TimeDimArrow::schema_ref()),
+        (Table::Reason, ReasonArrow::schema_ref()),
+        (Table::IncomeBand, IncomeBandArrow::schema_ref()),
+        (Table::Item, ItemArrow::schema_ref()),
+        (Table::Store, StoreArrow::schema_ref()),
+        (Table::CallCenter, CallCenterArrow::schema_ref()),
+        (Table::Customer, CustomerArrow::schema_ref()),
+        (Table::WebSite, WebSiteArrow::schema_ref()),
+        (Table::StoreReturns, StoreReturnsArrow::schema_ref()),
         (
             Table::HouseholdDemographics,
-            HouseholdDemographicsArrow::new(session.clone()).schema(),
+            HouseholdDemographicsArrow::schema_ref(),
         ),
-        (Table::WebPage, WebPageArrow::new(session.clone()).schema()),
-        (
-            Table::Promotion,
-            PromotionArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::CatalogPage,
-            CatalogPageArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::Inventory,
-            InventoryArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::CatalogReturns,
-            CatalogReturnsArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::WebReturns,
-            WebReturnsArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::WebSales,
-            WebSalesArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::CatalogSales,
-            CatalogSalesArrow::new(session.clone()).schema(),
-        ),
-        (
-            Table::StoreSales,
-            StoreSalesArrow::new(session.clone()).schema(),
-        ),
+        (Table::WebPage, WebPageArrow::schema_ref()),
+        (Table::Promotion, PromotionArrow::schema_ref()),
+        (Table::CatalogPage, CatalogPageArrow::schema_ref()),
+        (Table::Inventory, InventoryArrow::schema_ref()),
+        (Table::CatalogReturns, CatalogReturnsArrow::schema_ref()),
+        (Table::WebReturns, WebReturnsArrow::schema_ref()),
+        (Table::WebSales, WebSalesArrow::schema_ref()),
+        (Table::CatalogSales, CatalogSalesArrow::schema_ref()),
+        (Table::StoreSales, StoreSalesArrow::schema_ref()),
     ]
 }
 
 #[test]
 fn schemas_match_expected_columns_and_canonical_types() {
-    let session = Session::default();
-
-    for (table, schema) in table_schemas(&session) {
+    for (table, schema) in table_schemas() {
         let table_name = table.get_name();
         assert_eq!(schema.as_ref(), &expected_schema(table), "{table_name}");
     }
