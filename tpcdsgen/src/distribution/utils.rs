@@ -55,7 +55,7 @@ impl WeightsBuilder {
 
 /// Pick a random value from values list based on weights (DistributionUtils.pickRandomValue)
 ///
-/// Weights must be nondecreasing cumulative weights.
+/// Weights must be nondecreasing.
 pub fn pick_random_value<'a, T>(
     values: &'a [T],
     weights: &[i32],
@@ -100,7 +100,7 @@ pub fn get_value_for_index_mod_size<T>(index: i64, values: &[T]) -> &T {
 
 /// Pick random index from weights (DistributionUtils.pickRandomIndex)
 ///
-/// Weights must be nondecreasing cumulative weights.
+/// Weights must be nondecreasing.
 pub fn pick_random_index(weights: &[i32], stream: &mut dyn RandomNumberStream) -> Result<usize> {
     use crate::random::RandomValueGenerator;
 
