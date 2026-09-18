@@ -1,4 +1,7 @@
 //! Verifies canonical TPC-DS column names, ordering, data types, and nullability.
+//!
+//! CSV headers are covered transitively: `reparse.rs` re-parses CSV output
+//! with header validation enabled against these same Arrow schemas.
 
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
