@@ -38,6 +38,15 @@ impl RowGeneratorResult {
     }
 }
 
+impl IntoIterator for RowGeneratorResult {
+    type Item = GeneratedRow;
+    type IntoIter = std::vec::IntoIter<GeneratedRow>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.into_iter()
+    }
+}
+
 /// RowGenerator trait matching the Java RowGenerator interface
 pub trait RowGenerator: Send + Sync {
     /// Generate a row and its child rows (generateRowAndChildRows).
@@ -80,7 +89,7 @@ mod tests {
         ];
         let result = RowGeneratorResult::new_with_multiple(rows, false);
 
-        assert_eq!(result.get_rows().len(), 2);
         assert!(!result.should_end_row());
+        assert_eq!(result.into_iter().count(), 2);
     }
 }
