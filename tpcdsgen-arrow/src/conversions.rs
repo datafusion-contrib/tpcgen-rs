@@ -176,7 +176,7 @@ pub fn integer_sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i32> {
 /// Expand an [`Address`] into 10 individual column arrays (street_number, street_name,
 /// street_type, suite_number, city, county, state, zip, country, gmt_offset).
 ///
-/// Returns `([StringViewArray; 9], Decimal128Array)`.
+/// Returns the 10 arrays as a flat tuple in the order listed above.
 pub fn address_columns<'a>(
     rows: impl Iterator<Item = (&'a Address, i64, u32)> + 'a,
 ) -> (
