@@ -91,10 +91,9 @@ impl<G: RowGenerator> Iterator for RowIter<G> {
                 .generator
                 .generate_row_and_child_rows(self.current_row, &self.session, None, None)
                 .expect("row gen");
-            for row in result.get_rows() {
-                self.pending.push_back(row.clone());
-            }
-            if result.should_end_row() {
+            let (rows, should_end_row) = result.into_parts();
+            self.pending.extend(rows);
+            if should_end_row {
                 self.generator.consume_remaining_seeds_for_row();
                 self.current_row += 1;
             }

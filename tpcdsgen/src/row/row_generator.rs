@@ -36,6 +36,11 @@ impl RowGeneratorResult {
     pub fn should_end_row(&self) -> bool {
         self.should_end_row
     }
+
+    /// Consume the result and return its generated rows and end flag
+    pub fn into_parts(self) -> (Vec<GeneratedRow>, bool) {
+        (self.rows, self.should_end_row)
+    }
 }
 
 /// RowGenerator trait matching the Java RowGenerator interface
@@ -79,8 +84,9 @@ mod tests {
             GeneratedRow::from(CallCenterRow::builder().build()),
         ];
         let result = RowGeneratorResult::new_with_multiple(rows, false);
+        let (rows, should_end_row) = result.into_parts();
 
-        assert_eq!(result.get_rows().len(), 2);
-        assert!(!result.should_end_row());
+        assert_eq!(rows.len(), 2);
+        assert!(!should_end_row);
     }
 }
