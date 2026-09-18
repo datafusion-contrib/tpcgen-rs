@@ -155,12 +155,13 @@ where
             let result = gen
                 .generate_row_and_child_rows(source_row, &SESSION, None, None)
                 .expect("row gen");
-            for row in result.get_rows() {
+            let (rows, should_end_row) = result.into_parts();
+            for row in &rows {
                 if select(row) {
                     format.write_row(row, &mut data);
                 }
             }
-            if result.should_end_row() {
+            if should_end_row {
                 gen.consume_remaining_seeds_for_row();
                 source_row += 1;
             }

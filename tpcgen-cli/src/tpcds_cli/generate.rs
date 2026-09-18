@@ -245,7 +245,7 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
 
     while row_number <= source_row_count {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-        let rows = result.get_rows();
+        let (rows, should_end_row) = result.into_parts();
 
         if !rows.is_empty() {
             sales_writer.write_row(&rows[0])?;
@@ -258,7 +258,7 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
             returns_progress.increment(1);
         }
 
-        if result.should_end_row() {
+        if should_end_row {
             generator.consume_remaining_seeds_for_row();
             row_number += 1;
             sales_progress.increment(1);
