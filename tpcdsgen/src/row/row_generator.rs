@@ -36,14 +36,10 @@ impl RowGeneratorResult {
     pub fn should_end_row(&self) -> bool {
         self.should_end_row
     }
-}
 
-impl IntoIterator for RowGeneratorResult {
-    type Item = GeneratedRow;
-    type IntoIter = std::vec::IntoIter<GeneratedRow>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.rows.into_iter()
+    /// Consume the result and return its generated rows and end flag
+    pub fn into_parts(self) -> (Vec<GeneratedRow>, bool) {
+        (self.rows, self.should_end_row)
     }
 }
 
@@ -88,8 +84,9 @@ mod tests {
             GeneratedRow::from(CallCenterRow::builder().build()),
         ];
         let result = RowGeneratorResult::new_with_multiple(rows, false);
+        let (rows, should_end_row) = result.into_parts();
 
-        assert!(!result.should_end_row());
-        assert_eq!(result.into_iter().count(), 2);
+        assert_eq!(rows.len(), 2);
+        assert!(!should_end_row);
     }
 }
