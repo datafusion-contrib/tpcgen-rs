@@ -24,6 +24,8 @@ pub mod parquet;
 mod plan;
 mod progress;
 
+use progress::share_across_parts;
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 enum OutputFormat {
@@ -159,6 +161,14 @@ pub struct CommonArgs {
     #[arg(long, default_value_t = CompatMode::Trino)]
     compat: CompatMode,
 
+    /// Number of part(itions) to generate. If not specified creates a single file per table
+    #[arg(short, long)]
+    parts: Option<i32>,
+
+    /// Which part(ition) to generate (1-based). If not specified, generates all parts
+    #[arg(long)]
+    part: Option<i32>,
+
     /// Verbose output
     ///
     /// When specified, sets the log level to `info` and ignores the `RUST_LOG`
@@ -258,27 +268,38 @@ impl CommonArgs {
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
 
+        let parts = self.part_list()?;
+
         std::fs::create_dir_all(&self.output_dir)?;
 
         match output_format {
             // Parquet generates all tables in one call so that multiple
             // tables can be generated concurrently
             OutputFormat::Parquet(output) => {
-                let mut table_sessions = Vec::with_capacity(tables.len());
-                for table in tables {
-                    let session = self.to_session(Some(table.get_name().to_string()))?;
-                    table_sessions.push((table, session));
+                let mut table_sessions = Vec::with_capacity(tables.len() * parts.len());
+                for table in &tables {
+                    for &part in &parts {
+                        let session = self.to_session(Some(table.get_name().to_string()), part)?;
+                        table_sessions.push((*table, session));
+                    }
                 }
                 output
                     .generate_tables(table_sessions, progress.clone())
                     .await?;
             }
             OutputFormat::Dat(output) => {
-                let mut table_sessions = Vec::with_capacity(tables.len());
-                for table in tables {
-                    let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let progress = output.register_table(table, &session, progress.clone());
-                    table_sessions.push((table, session, progress));
+                let mut table_sessions = Vec::with_capacity(tables.len() * parts.len());
+                for table in &tables {
+                    let sessions = parts
+                        .iter()
+                        .map(|&part| self.to_session(Some(table.get_name().to_string()), part))
+                        .collect::<Result<Vec<_>>>()?;
+                    // One bar per table, shared across all its parts.
+                    let table_progress = output.register_table(*table, &sessions, progress.clone());
+                    let part_progress = share_across_parts(table_progress, sessions.len());
+                    for (session, progress) in sessions.into_iter().zip(part_progress) {
+                        table_sessions.push((*table, session, progress));
+                    }
                 }
                 progress.start();
                 for (table, session, progress) in table_sessions {
@@ -286,11 +307,18 @@ impl CommonArgs {
                 }
             }
             OutputFormat::Csv(output) => {
-                let mut table_sessions = Vec::with_capacity(tables.len());
-                for table in tables {
-                    let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let progress = output.register_table(table, &session, progress.clone());
-                    table_sessions.push((table, session, progress));
+                let mut table_sessions = Vec::with_capacity(tables.len() * parts.len());
+                for table in &tables {
+                    let sessions = parts
+                        .iter()
+                        .map(|&part| self.to_session(Some(table.get_name().to_string()), part))
+                        .collect::<Result<Vec<_>>>()?;
+                    // One bar per table, shared across all its parts.
+                    let table_progress = output.register_table(*table, &sessions, progress.clone());
+                    let part_progress = share_across_parts(table_progress, sessions.len());
+                    for (session, progress) in sessions.into_iter().zip(part_progress) {
+                        table_sessions.push((*table, session, progress));
+                    }
                 }
                 progress.start();
                 for (table, session, progress) in table_sessions {
@@ -349,7 +377,57 @@ impl CommonArgs {
         Ok(tables)
     }
 
-    fn to_session(&self, table: Option<String>) -> Result<Session> {
+    /// Return the list of 1-based part numbers to generate, or `[None]` when
+    /// no `--part`/`--parts` were given (a single, unnumbered file per
+    /// table).
+    ///
+    /// Mirrors `tpchgen-cli`'s `--parts`/`--part` semantics: `--parts` alone
+    /// generates every part as a separate file, `--part` requires `--parts`
+    /// to be set alongside it and restricts generation to just that part.
+    ///
+    /// The combination is fully validated here, before any output directory is
+    /// created, so an invalid selection such as `--parts 3 --part 4` leaves no
+    /// directories behind.
+    fn part_list(&self) -> Result<Vec<Option<i32>>> {
+        let Some(parts) = self.parts else {
+            if self.part.is_some() {
+                return Err(TpcdsError::new(
+                    "The --part option requires the --parts option to be set",
+                )
+                .into());
+            } else {
+                return Ok(vec![None]);
+            }
+        };
+
+        if parts < 1 {
+            return Err(TpcdsError::new(&format!(
+                "Invalid --parts value '{parts}'. Expected a number greater than zero"
+            ))
+            .into());
+        }
+
+        let Some(part) = self.part else {
+            return Ok((1..=parts).map(Some).collect());
+        };
+
+        if part < 1 {
+            return Err(TpcdsError::new(&format!(
+                "Invalid --part value '{part}'. Expected a number greater than zero"
+            ))
+            .into());
+        }
+        if part > parts {
+            return Err(TpcdsError::new(&format!(
+                "Invalid --part value '{part}'. Expected at most the value of --parts ({parts})"
+            ))
+            .into());
+        }
+
+        Ok(vec![Some(part)])
+    }
+
+    fn to_session(&self, table: Option<String>, part: Option<i32>) -> Result<Session> {
         let table = table.as_deref().map(parse_table).transpose()?;
 
         // store the command line arguments used to create this
@@ -358,6 +436,9 @@ impl CommonArgs {
         let mut builder = SessionBuilder::new()
             .with_scale_factor(self.scale_factor)
             .with_compat_mode(self.compat)
+            .with_chunk_number(part.unwrap_or(1))
+            .with_total_chunks(self.parts.unwrap_or(1))
+            .with_partitioned(self.parts.is_some())
             .with_command_line_arguments(command_line_arguments);
 
         if let Some(table) = table {
@@ -498,6 +579,8 @@ mod tests {
             output_dir: PathBuf::new(),
             tables: Some(tables),
             compat: CompatMode::Trino,
+            parts: None,
+            part: None,
             verbose: false,
             quiet: false,
             progress_bars_enabled: false,
@@ -587,6 +670,86 @@ mod tests {
                 Table::CatalogSales,
                 Table::WebSales,
             ]
+        );
+    }
+
+    fn args_with_parts(parts: Option<i32>, part: Option<i32>) -> CommonArgs {
+        let mut args = args_with_tables(vec![Table::Reason]);
+        args.parts = parts;
+        args.part = part;
+        args
+    }
+
+    #[test]
+    fn part_list_defaults_to_single_unnumbered_file() {
+        assert_eq!(args_with_parts(None, None).part_list().unwrap(), vec![None]);
+    }
+
+    #[test]
+    fn part_list_expands_parts_alone_into_every_part() {
+        assert_eq!(
+            args_with_parts(Some(3), None).part_list().unwrap(),
+            vec![Some(1), Some(2), Some(3)]
+        );
+    }
+
+    #[test]
+    fn part_list_with_part_and_parts_generates_just_that_part() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(2)).part_list().unwrap(),
+            vec![Some(2)]
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_part_without_parts() {
+        let err = args_with_parts(None, Some(2)).part_list().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "The --part option requires the --parts option to be set"
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_non_positive_parts() {
+        assert!(args_with_parts(Some(0), None).part_list().is_err());
+        assert!(args_with_parts(Some(-1), None).part_list().is_err());
+        assert_eq!(
+            args_with_parts(Some(0), Some(1))
+                .part_list()
+                .unwrap_err()
+                .to_string(),
+            "Invalid --parts value '0'. Expected a number greater than zero"
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_non_positive_part() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(0))
+                .part_list()
+                .unwrap_err()
+                .to_string(),
+            "Invalid --part value '0'. Expected a number greater than zero"
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_part_greater_than_parts() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(4))
+                .part_list()
+                .unwrap_err()
+                .to_string(),
+            "Invalid --part value '4'. Expected at most the value of --parts (3)"
+        );
+    }
+
+    #[test]
+    fn part_list_accepts_last_part() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(3)).part_list().unwrap(),
+            vec![Some(3)]
         );
     }
 }

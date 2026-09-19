@@ -9,11 +9,41 @@
 use super::progress::TableProgress;
 use log::info;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+/// Return the output path for `table`'s file, following `tpchgen-cli`'s
+/// `--parts`/`--part` naming convention:
+///
+/// When `--parts` was not requested creates a single `<table>.<ext>` file, otherwise
+/// written into a subdirectory like `<table>/<table>.<chunk>.<ext>`.
+///
+/// Note that `--parts 1` is also written to a subdirectory.
+///
+/// This function creates the per-table subdirectory as needed.
+pub(super) fn output_path(
+    output_dir: &Path,
+    table: Table,
+    ext: &str,
+    session: &Session,
+) -> io::Result<PathBuf> {
+    // sub directory `<table>/<table>.<chunk>.<ext>`
+    if session.is_partitioned() {
+        let dir = output_dir.join(table.get_name());
+        std::fs::create_dir_all(&dir)?;
+        Ok(dir.join(format!(
+            "{}.{}.{ext}",
+            table.get_name(),
+            session.get_chunk_number()
+        )))
+    } else {
+        // single `<table>.<ext>` file
+        Ok(output_dir.join(format!("{}.{ext}", table.get_name())))
+    }
+}
 
 /// The output file for one table.
 pub(super) trait TableWriter {
@@ -179,14 +209,21 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
     let TableProgress::Single(progress) = progress else {
         unreachable!("simple table must have one progress handle")
     };
+    let row_range = session.get_source_row_range(table);
+    if row_range.is_empty() && session.is_partitioned() {
+        progress.complete();
+        return Ok(());
+    }
+
     let mut generator = G::create();
-    let row_count = session.get_scaling().get_row_count(table);
+    generator.skip_rows_until_starting_row_number(*row_range.start());
 
     let mut writer = output.create_writer(table, session)?;
 
     info!("Generating {}...", table.get_name());
 
-    for row_number in 1..=row_count {
+    let mut generated_rows = 0u64;
+    for row_number in row_range {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
 
         for row in result.get_rows() {
@@ -195,6 +232,7 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
 
         generator.consume_remaining_seeds_for_row();
         progress.increment(1);
+        generated_rows += 1;
     }
 
     let path = writer.finish()?;
@@ -202,7 +240,7 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
     info!(
         "Generated {}: {} rows -> {}",
         table.get_name(),
-        row_count,
+        generated_rows,
         path.display()
     );
 
@@ -227,8 +265,17 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
     else {
         unreachable!("sales table must have sales and returns progress handles")
     };
+    let source_row_range = session.get_source_row_range(sales_table);
+    // See `generate_simple`: only a partitioned table skips its empty chunks.
+    if source_row_range.is_empty() && session.is_partitioned() {
+        sales_progress.complete();
+        returns_progress.complete();
+        return Ok(());
+    }
+
     let mut generator = G::create();
-    let source_row_count = session.get_scaling().get_row_count(sales_table);
+    generator.skip_rows_until_starting_row_number(*source_row_range.start());
+    let last_row_number = *source_row_range.end();
 
     let mut sales_writer = output.create_writer(sales_table, session)?;
     let mut returns_writer = output.create_writer(returns_table, session)?;
@@ -241,9 +288,9 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
 
     let mut sales_count = 0u64;
     let mut returns_count = 0u64;
-    let mut row_number = 1u64;
+    let mut row_number = *source_row_range.start();
 
-    while row_number <= source_row_count {
+    while row_number <= last_row_number {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
         let rows = result.get_rows();
 
