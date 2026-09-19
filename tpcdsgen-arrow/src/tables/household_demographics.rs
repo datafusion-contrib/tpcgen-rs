@@ -77,7 +77,7 @@ impl Iterator for HouseholdDemographicsArrow {
 
         let mut demo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut income_band_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut buy_potential: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut buy_potential: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut dep_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut vehicle_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
@@ -85,7 +85,7 @@ impl Iterator for HouseholdDemographicsArrow {
             let nbm = r.null_bit_map();
             demo_sk.push(integer_sk_opt(nbm, 0, r.get_hd_demo_sk()));
             income_band_sk.push(integer_sk_opt(nbm, 1, r.get_hd_income_band_sk()));
-            buy_potential.push(opt(nbm, 2, r.get_hd_buy_potential().to_owned()));
+            buy_potential.push(opt(nbm, 2, r.get_hd_buy_potential()));
             dep_count.push(opt(nbm, 3, r.get_hd_dep_count()));
             vehicle_count.push(opt(nbm, 4, r.get_hd_vehicle_count()));
         }
@@ -96,7 +96,7 @@ impl Iterator for HouseholdDemographicsArrow {
                 Arc::new(Int32Array::from(demo_sk)),
                 Arc::new(Int32Array::from(income_band_sk)),
                 Arc::new(string_view_array_from_opt_iter(
-                    buy_potential.iter().map(|s| s.as_deref()),
+                    buy_potential.iter().copied(),
                 )),
                 Arc::new(Int32Array::from(dep_count)),
                 Arc::new(Int32Array::from(vehicle_count)),

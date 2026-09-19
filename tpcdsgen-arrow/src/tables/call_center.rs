@@ -77,25 +77,25 @@ impl Iterator for CallCenterArrow {
         }
 
         let mut cc_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cc_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_closed_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_open_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut cc_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cc_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cc_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_hours: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_hours: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut cc_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cc_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_market_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_market_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_market_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_market_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut cc_market_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut cc_market_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cc_division_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_division_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_division_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cc_company: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_company_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
             Vec::with_capacity(rows.len());
         let mut cc_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -103,7 +103,7 @@ impl Iterator for CallCenterArrow {
         for r in &rows {
             let nbm = r.get_null_bit_map();
             cc_sk.push(integer_sk_opt(nbm, 0, r.get_cc_call_center_sk()));
-            cc_id.push(opt(nbm, 1, r.get_cc_call_center_id().to_owned()));
+            cc_id.push(opt(nbm, 1, r.get_cc_call_center_id()));
             cc_rec_start.push(if is_null(nbm, 2) {
                 None
             } else {
@@ -116,20 +116,20 @@ impl Iterator for CallCenterArrow {
             });
             cc_closed_date.push(integer_sk_opt(nbm, 4, r.get_cc_closed_date_id()));
             cc_open_date.push(integer_sk_opt(nbm, 5, r.get_cc_open_date_id()));
-            cc_name.push(opt(nbm, 6, r.get_cc_name().to_owned()));
-            cc_class.push(opt(nbm, 7, r.get_cc_class().to_owned()));
+            cc_name.push(opt(nbm, 6, r.get_cc_name()));
+            cc_class.push(opt(nbm, 7, r.get_cc_class()));
             cc_employees.push(opt(nbm, 8, r.get_cc_employees()));
             cc_sq_ft.push(opt(nbm, 9, r.get_cc_sq_ft()));
-            cc_hours.push(opt(nbm, 10, r.get_cc_hours().to_owned()));
-            cc_manager.push(opt(nbm, 11, r.get_cc_manager().to_owned()));
+            cc_hours.push(opt(nbm, 10, r.get_cc_hours()));
+            cc_manager.push(opt(nbm, 11, r.get_cc_manager()));
             cc_market_id.push(opt(nbm, 12, r.get_cc_market_id()));
-            cc_market_class.push(opt(nbm, 13, r.get_cc_market_class().to_owned()));
-            cc_market_desc.push(opt(nbm, 14, r.get_cc_market_desc().to_owned()));
-            cc_market_manager.push(opt(nbm, 15, r.get_cc_market_manager().to_owned()));
+            cc_market_class.push(opt(nbm, 13, r.get_cc_market_class()));
+            cc_market_desc.push(opt(nbm, 14, r.get_cc_market_desc()));
+            cc_market_manager.push(opt(nbm, 15, r.get_cc_market_manager()));
             cc_division_id.push(opt(nbm, 16, r.get_cc_division_id()));
-            cc_division_name.push(opt(nbm, 17, r.get_cc_division_name().to_owned()));
+            cc_division_name.push(opt(nbm, 17, r.get_cc_division_name()));
             cc_company.push(opt(nbm, 18, r.get_cc_company()));
-            cc_company_name.push(opt(nbm, 19, r.get_cc_company_name().to_owned()));
+            cc_company_name.push(opt(nbm, 19, r.get_cc_company_name()));
             addr_rows.push((r.get_cc_address().clone(), nbm, 20));
             cc_tax_pct.push(opt(nbm, 30, decimal_to_i128(*r.get_cc_tax_percentage())));
         }
@@ -153,44 +153,34 @@ impl Iterator for CallCenterArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(cc_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cc_id.iter().copied())),
                 Arc::new(Date32Array::from(cc_rec_start)),
                 Arc::new(Date32Array::from(cc_rec_end)),
                 Arc::new(Int32Array::from(cc_closed_date)),
                 Arc::new(Int32Array::from(cc_open_date)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_name.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_class.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cc_name.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(cc_class.iter().copied())),
                 Arc::new(Int32Array::from(cc_employees)),
                 Arc::new(Int32Array::from(cc_sq_ft)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_hours.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_manager.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cc_hours.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(cc_manager.iter().copied())),
                 Arc::new(Int32Array::from(cc_market_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    cc_market_class.iter().map(|s| s.as_deref()),
+                    cc_market_class.iter().copied(),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    cc_market_desc.iter().map(|s| s.as_deref()),
+                    cc_market_desc.iter().copied(),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    cc_market_manager.iter().map(|s| s.as_deref()),
+                    cc_market_manager.iter().copied(),
                 )),
                 Arc::new(Int32Array::from(cc_division_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    cc_division_name.iter().map(|s| s.as_deref()),
+                    cc_division_name.iter().copied(),
                 )),
                 Arc::new(Int32Array::from(cc_company)),
                 Arc::new(string_view_array_from_opt_iter(
-                    cc_company_name.iter().map(|s| s.as_deref()),
+                    cc_company_name.iter().copied(),
                 )),
                 Arc::new(street_number),
                 Arc::new(street_name),

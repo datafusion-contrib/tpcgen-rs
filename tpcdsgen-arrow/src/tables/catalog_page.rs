@@ -74,50 +74,42 @@ impl Iterator for CatalogPageArrow {
         }
 
         let mut cp_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cp_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cp_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cp_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_dept: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cp_dept: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut cp_num: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cp_page_num: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cp_type: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cp_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut cp_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             cp_sk.push(integer_sk_opt(nbm, 0, r.get_cp_catalog_page_sk()));
-            cp_id.push(opt(nbm, 1, r.get_cp_catalog_page_id().to_owned()));
+            cp_id.push(opt(nbm, 1, r.get_cp_catalog_page_id()));
             cp_start.push(integer_sk_opt(nbm, 2, r.get_cp_start_date_id()));
             cp_end.push(integer_sk_opt(nbm, 3, r.get_cp_end_date_id()));
             // CpPromoId occupies global bit 4 but is not in the output schema,
             // so output columns shift: CpDepartment=bit5, ..., CpType=bit9.
-            cp_dept.push(opt(nbm, 5, r.get_cp_department().to_owned()));
+            cp_dept.push(opt(nbm, 5, r.get_cp_department()));
             cp_num.push(opt(nbm, 6, r.get_cp_catalog_number()));
             cp_page_num.push(opt(nbm, 7, r.get_cp_catalog_page_number()));
-            cp_desc.push(opt(nbm, 8, r.get_cp_description().to_owned()));
-            cp_type.push(opt(nbm, 9, r.get_cp_type().to_owned()));
+            cp_desc.push(opt(nbm, 8, r.get_cp_description()));
+            cp_type.push(opt(nbm, 9, r.get_cp_type()));
         }
 
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(cp_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cp_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cp_id.iter().copied())),
                 Arc::new(Int32Array::from(cp_start)),
                 Arc::new(Int32Array::from(cp_end)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cp_dept.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cp_dept.iter().copied())),
                 Arc::new(Int32Array::from(cp_num)),
                 Arc::new(Int32Array::from(cp_page_num)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cp_desc.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    cp_type.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cp_desc.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(cp_type.iter().copied())),
             ],
         );
         Some(batch)

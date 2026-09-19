@@ -76,15 +76,15 @@ impl Iterator for WebPageArrow {
         }
 
         let mut wp_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut wp_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut wp_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_creation_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_access_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_autogen: Vec<Option<&'static str>> = Vec::with_capacity(rows.len());
         let mut wp_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_url: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut wp_type: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut wp_url: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut wp_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut wp_char_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_link_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut wp_image_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -93,15 +93,15 @@ impl Iterator for WebPageArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             wp_sk.push(integer_sk_opt(nbm, 0, r.get_wp_page_sk()));
-            wp_id.push(opt(nbm, 1, r.get_wp_page_id().to_owned()));
+            wp_id.push(opt(nbm, 1, r.get_wp_page_id()));
             wp_rec_start.push(julian_to_date32(r.get_wp_rec_start_date_id()));
             wp_rec_end.push(julian_to_date32(r.get_wp_rec_end_date_id()));
             wp_creation_date.push(integer_sk_opt(nbm, 4, r.get_wp_creation_date_sk()));
             wp_access_date.push(integer_sk_opt(nbm, 5, r.get_wp_access_date_sk()));
             wp_autogen.push(opt(nbm, 6, bool_to_yn(r.get_wp_autogen_flag())));
             wp_customer.push(integer_sk_opt(nbm, 7, r.get_wp_customer_sk()));
-            wp_url.push(opt(nbm, 8, r.get_wp_url().to_owned()));
-            wp_type.push(opt(nbm, 9, r.get_wp_type().to_owned()));
+            wp_url.push(opt(nbm, 8, r.get_wp_url()));
+            wp_type.push(opt(nbm, 9, r.get_wp_type()));
             wp_char_count.push(opt(nbm, 10, r.get_wp_char_count()));
             wp_link_count.push(opt(nbm, 11, r.get_wp_link_count()));
             wp_image_count.push(opt(nbm, 12, r.get_wp_image_count()));
@@ -112,21 +112,15 @@ impl Iterator for WebPageArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(wp_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    wp_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(wp_id.iter().copied())),
                 Arc::new(Date32Array::from(wp_rec_start)),
                 Arc::new(Date32Array::from(wp_rec_end)),
                 Arc::new(Int32Array::from(wp_creation_date)),
                 Arc::new(Int32Array::from(wp_access_date)),
                 Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
                 Arc::new(Int32Array::from(wp_customer)),
-                Arc::new(string_view_array_from_opt_iter(
-                    wp_url.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    wp_type.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(wp_url.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(wp_type.iter().copied())),
                 Arc::new(Int32Array::from(wp_char_count)),
                 Arc::new(Int32Array::from(wp_link_count)),
                 Arc::new(Int32Array::from(wp_image_count)),

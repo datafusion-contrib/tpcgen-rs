@@ -77,7 +77,7 @@ impl Iterator for CustomerAddressArrow {
         }
 
         let mut ca_addr_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ca_addr_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut ca_addr_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut street_number: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut street_name_b = StringViewBuilder::new();
         let mut street_type_b = StringViewBuilder::new();
@@ -88,13 +88,13 @@ impl Iterator for CustomerAddressArrow {
         let mut zip_b = StringViewBuilder::new();
         let mut country_b = StringViewBuilder::new();
         let mut gmt_offset: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut location_type: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut location_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             let a = r.get_ca_address();
             ca_addr_sk.push(integer_sk_opt(nbm, 0, r.get_ca_addr_sk()));
-            ca_addr_id.push(opt(nbm, 1, r.get_ca_addr_id().to_owned()));
+            ca_addr_id.push(opt(nbm, 1, r.get_ca_addr_id()));
             street_number.push(if is_null(nbm, 2) {
                 None
             } else {
@@ -144,16 +144,14 @@ impl Iterator for CustomerAddressArrow {
             } else {
                 Some(a.get_gmt_offset())
             });
-            location_type.push(opt(nbm, 12, r.get_ca_location_type().to_owned()));
+            location_type.push(opt(nbm, 12, r.get_ca_location_type()));
         }
 
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(ca_addr_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    ca_addr_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(ca_addr_id.iter().copied())),
                 Arc::new(string_view_array_from_string_opt_iter(
                     street_number.into_iter(),
                 )),
@@ -167,7 +165,7 @@ impl Iterator for CustomerAddressArrow {
                 Arc::new(country_b.finish()),
                 Arc::new(gmt_offset_decimal128_array(gmt_offset)),
                 Arc::new(string_view_array_from_opt_iter(
-                    location_type.iter().map(|s| s.as_deref()),
+                    location_type.iter().copied(),
                 )),
             ],
         );

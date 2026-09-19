@@ -76,7 +76,7 @@ impl Iterator for DateDimArrow {
         }
 
         let mut d_date_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut d_date_id: Vec<String> = Vec::with_capacity(rows.len());
+        let mut d_date_id: Vec<&str> = Vec::with_capacity(rows.len());
         let mut d_date: Vec<i32> = Vec::with_capacity(rows.len());
         let mut d_month_seq: Vec<i32> = Vec::with_capacity(rows.len());
         let mut d_week_seq: Vec<i32> = Vec::with_capacity(rows.len());
@@ -89,8 +89,8 @@ impl Iterator for DateDimArrow {
         let mut d_fy_year: Vec<i32> = Vec::with_capacity(rows.len());
         let mut d_fy_quarter_seq: Vec<i32> = Vec::with_capacity(rows.len());
         let mut d_fy_week_seq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_day_name: Vec<String> = Vec::with_capacity(rows.len());
-        let mut d_quarter_name: Vec<String> = Vec::with_capacity(rows.len());
+        let mut d_day_name: Vec<&str> = Vec::with_capacity(rows.len());
+        let mut d_quarter_name: Vec<&str> = Vec::with_capacity(rows.len());
         let mut d_holiday: Vec<&'static str> = Vec::with_capacity(rows.len());
         let mut d_weekend: Vec<&'static str> = Vec::with_capacity(rows.len());
         let mut d_following_holiday: Vec<&'static str> = Vec::with_capacity(rows.len());
@@ -107,7 +107,7 @@ impl Iterator for DateDimArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             d_date_sk.push(integer_sk_opt(nbm, 0, r.d_date_sk));
-            d_date_id.push(r.d_date_id.clone());
+            d_date_id.push(r.d_date_id.as_str());
             d_date.push(date_to_date32(&r.d_date));
             d_month_seq.push(r.d_month_seq);
             d_week_seq.push(r.d_week_seq);
@@ -120,8 +120,8 @@ impl Iterator for DateDimArrow {
             d_fy_year.push(r.d_fy_year);
             d_fy_quarter_seq.push(r.d_fy_quarter_seq);
             d_fy_week_seq.push(r.d_fy_week_seq);
-            d_day_name.push(r.d_day_name.clone());
-            d_quarter_name.push(r.d_quarter_name.clone());
+            d_day_name.push(r.d_day_name.as_str());
+            d_quarter_name.push(r.d_quarter_name.as_str());
             d_holiday.push(bool_to_yn(r.d_holiday));
             d_weekend.push(bool_to_yn(r.d_weekend));
             d_following_holiday.push(bool_to_yn(r.d_following_holiday));

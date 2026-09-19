@@ -74,34 +74,34 @@ impl Iterator for TimeDimArrow {
         }
 
         let mut t_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut t_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut t_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut t_hour: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut t_minute: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut t_second: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_am_pm: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut t_shift: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut t_sub_shift: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut t_meal_time: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut t_am_pm: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut t_shift: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut t_sub_shift: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut t_meal_time: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             t_sk.push(integer_sk_opt(nbm, 0, r.t_time_sk));
-            t_id.push(opt(nbm, 1, r.t_time_id.clone()));
+            t_id.push(opt(nbm, 1, r.t_time_id.as_str()));
             t_time.push(opt(nbm, 2, r.t_time));
             t_hour.push(opt(nbm, 3, r.t_hour));
             t_minute.push(opt(nbm, 4, r.t_minute));
             t_second.push(opt(nbm, 5, r.t_second));
-            t_am_pm.push(opt(nbm, 6, r.t_am_pm.clone()));
-            t_shift.push(opt(nbm, 7, r.t_shift.clone()));
-            t_sub_shift.push(opt(nbm, 8, r.t_sub_shift.clone()));
+            t_am_pm.push(opt(nbm, 6, r.t_am_pm.as_str()));
+            t_shift.push(opt(nbm, 7, r.t_shift.as_str()));
+            t_sub_shift.push(opt(nbm, 8, r.t_sub_shift.as_str()));
             // t_meal_time is an empty string (not null) for hours with no meal,
             // but the pipe-delimited format can't distinguish empty from null,
             // so we map empty -> None to match the .dat file convention.
             t_meal_time.push(if r.t_meal_time.is_empty() {
                 None
             } else {
-                Some(r.t_meal_time.clone())
+                Some(r.t_meal_time.as_str())
             });
         }
 
@@ -109,25 +109,15 @@ impl Iterator for TimeDimArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(t_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    t_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(t_id.iter().copied())),
                 Arc::new(Int32Array::from(t_time)),
                 Arc::new(Int32Array::from(t_hour)),
                 Arc::new(Int32Array::from(t_minute)),
                 Arc::new(Int32Array::from(t_second)),
-                Arc::new(string_view_array_from_opt_iter(
-                    t_am_pm.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    t_shift.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    t_sub_shift.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    t_meal_time.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(t_am_pm.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(t_shift.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(t_sub_shift.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(t_meal_time.iter().copied())),
             ],
         );
         Some(batch)
