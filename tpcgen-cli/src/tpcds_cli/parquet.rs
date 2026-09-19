@@ -144,57 +144,53 @@ impl Parquet {
             validate_column_encodings(&selected_tables, encodings)?;
         }
 
-        // Plan each table and pre-register the row group totals so trackers
-        // can size their bars before the first increment.
-        let planned: Vec<(Table, Session, TpcdsGenerationPlan)> = table_sessions
-            .into_iter()
-            .filter_map(|(table, session)| {
-                let row_range = session.get_source_row_range(table);
-                if row_range.is_empty() && session.is_partitioned() {
-                    return None;
-                }
-                let plan =
-                    TpcdsGenerationPlan::new_for_range(table, self.row_group_bytes, row_range);
-                Some((table, session, plan))
-            })
-            .collect();
-
-        // Sum each table's row groups over its parts, keeping the tables in
-        // the order they were requested: registration order is display order,
-        // so iterating a HashMap here would shuffle the bars on every run.
-        let mut table_order: Vec<Table> = Vec::new();
-        let mut totals: HashMap<Table, u64> = HashMap::new();
-        for (table, _, plan) in &planned {
-            let total = totals.entry(*table).or_insert_with(|| {
-                table_order.push(*table);
-                0
-            });
-            *total += plan.row_group_count() as u64;
+        // Group all sessions that contribute to the same table progress bar.
+        let mut sessions_by_table: HashMap<Table, Vec<Session>> = HashMap::new();
+        for (table, session) in table_sessions {
+            sessions_by_table.entry(table).or_default().push(session);
         }
-        let mut handles: HashMap<Table, std::vec::IntoIter<ProgressHandle>> = table_order
-            .into_iter()
-            .map(|table| {
-                let total = totals[&table];
-                let num_parts = planned.iter().filter(|(t, _, _)| *t == table).count();
-                let handle = progress.clone().register(table.get_name(), total);
-                (
-                    table,
-                    share_handle_across_parts(handle, num_parts).into_iter(),
-                )
-            })
-            .collect();
 
-        let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = planned
-            .into_iter()
-            .map(|(table, session, plan)| {
-                let progress = handles
-                    .get_mut(&table)
-                    .expect("table registered above")
-                    .next()
-                    .expect("one handle per planned part");
-                (table, session, plan, progress)
-            })
-            .collect();
+        // Prepare each table before scheduling: plan its nonempty sessions and
+        // register one shared progress bar sized to their combined row groups.
+        let mut prepared = Vec::new();
+        for (table, sessions) in sessions_by_table {
+            let planned: Vec<(Session, TpcdsGenerationPlan)> = sessions
+                .into_iter()
+                .filter_map(|session| {
+                    let row_range = session.get_source_row_range(table);
+                    if row_range.is_empty() && session.is_partitioned() {
+                        return None;
+                    }
+                    let plan =
+                        TpcdsGenerationPlan::new_for_range(table, self.row_group_bytes, row_range);
+                    Some((session, plan))
+                })
+                .collect();
+
+            if planned.is_empty() {
+                continue;
+            }
+
+            let total_row_groups = planned
+                .iter()
+                .map(|(_, plan)| plan.row_group_count() as u64)
+                .sum();
+            let table_progress = progress
+                .clone()
+                .register(table.get_name(), total_row_groups);
+            prepared.push((table, planned, table_progress));
+        }
+
+        // Fan the table progress out so every session reports to the same bar,
+        // then pair each session with its progress to build schedulable work.
+        let mut work = Vec::new();
+        for (table, planned, table_progress) in prepared {
+            let part_progress = share_handle_across_parts(table_progress, planned.len());
+            for ((session, plan), progress) in planned.into_iter().zip(part_progress) {
+                work.push((table, session, plan, progress));
+            }
+        }
+
         progress.start();
 
         // Schedule the largest tables (most row groups) first for the best
