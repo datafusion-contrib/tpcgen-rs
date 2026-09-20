@@ -1,4 +1,4 @@
-//! Statistics reporter for data generation, shared by TPC-H and TPC-DS.
+//! Statistics reporter for data generation
 
 use log::{debug, info};
 use std::time::Instant;
