@@ -71,8 +71,9 @@ impl TpcdsGenerationPlan {
         Self { ranges }
     }
 
-    /// Return the number of row groups this plan will generate
-    pub(super) fn row_group_count(&self) -> usize {
+    /// Return the number of chunks (for Parquet, row groups) this plan will
+    /// generate
+    pub(super) fn chunk_count(&self) -> usize {
         self.ranges.len()
     }
 }
@@ -213,7 +214,7 @@ mod tests {
     fn store_sales_sf1_default() {
         let plan = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
         // ~132 MiB estimated output in 7 MiB row groups over 240k source rows
-        assert_eq!(plan.row_group_count(), 19);
+        assert_eq!(plan.chunk_count(), 19);
         assert_covers(&plan, 240_000);
     }
 
@@ -221,7 +222,7 @@ mod tests {
     fn narrow_tables_keep_fractional_byte_estimates() {
         let plan = plan(Table::Inventory, 100.0, 128 * 1024 * 1024);
         // Rounding 3.45 bytes/source row to an integer would produce 9 or 12 groups.
-        assert_eq!(plan.row_group_count(), 11);
+        assert_eq!(plan.chunk_count(), 11);
         assert_covers(&plan, Scaling::new(100.0).get_row_count(Table::Inventory));
     }
 
@@ -229,7 +230,7 @@ mod tests {
     fn exact_target_multiples_do_not_add_a_row_group() {
         for (target, expected) in [(46_368, 1), (23_184, 2), (23_183, 3)] {
             let plan = plan(Table::HouseholdDemographics, 1.0, target);
-            assert_eq!(plan.row_group_count(), expected);
+            assert_eq!(plan.chunk_count(), expected);
             assert_covers(&plan, 7200);
         }
     }
@@ -237,7 +238,7 @@ mod tests {
     #[test]
     fn maximum_target_keeps_one_row_group() {
         let plan = plan(Table::StoreSales, 1.0, i64::MAX);
-        assert_eq!(plan.row_group_count(), 1);
+        assert_eq!(plan.chunk_count(), 1);
         assert_covers(&plan, 240_000);
     }
 
@@ -246,7 +247,7 @@ mod tests {
         let plan = plan(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES);
         // store_returns is generated from the 240k store_sales source rows
         // (its own scaling row count is 0)
-        assert_eq!(plan.row_group_count(), 3);
+        assert_eq!(plan.chunk_count(), 3);
         assert_covers(&plan, 240_000);
     }
 
@@ -254,7 +255,7 @@ mod tests {
     fn smaller_row_groups_make_more_row_groups() {
         let default = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
         let small = plan(Table::StoreSales, 1.0, 1024 * 1024);
-        assert!(small.row_group_count() > default.row_group_count());
+        assert!(small.chunk_count() > default.chunk_count());
         assert_covers(&small, 240_000);
     }
 
@@ -262,8 +263,8 @@ mod tests {
     fn row_group_count_is_capped() {
         let plan = plan(Table::StoreSales, 3000.0, 1024);
         // ceiling division can leave the count just under the cap
-        assert!(plan.row_group_count() <= MAX_ROW_GROUPS as usize);
-        assert!(plan.row_group_count() > (MAX_ROW_GROUPS - 2) as usize);
+        assert!(plan.chunk_count() <= MAX_ROW_GROUPS as usize);
+        assert!(plan.chunk_count() > (MAX_ROW_GROUPS - 2) as usize);
         let source_rows = Scaling::new(3000.0).get_row_count(Table::StoreSales);
         assert_covers(&plan, source_rows);
     }
@@ -272,7 +273,7 @@ mod tests {
     fn row_groups_never_exceed_source_rows() {
         // 35 source rows in 1 byte row groups still yields at most 35 groups
         let plan = plan(Table::Reason, 1.0, 1);
-        assert_eq!(plan.row_group_count(), 35);
+        assert_eq!(plan.chunk_count(), 35);
         assert_covers(&plan, 35);
     }
 
@@ -287,7 +288,7 @@ mod tests {
     #[test]
     fn empty_table_gets_one_empty_range() {
         let plan = plan(Table::Reason, 0.0, DEFAULT_ROW_GROUP_BYTES);
-        assert_eq!(plan.row_group_count(), 1);
+        assert_eq!(plan.chunk_count(), 1);
         assert!(plan.ranges[0].is_empty());
     }
 }

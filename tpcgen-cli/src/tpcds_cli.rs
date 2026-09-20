@@ -23,6 +23,7 @@ mod generate;
 pub mod parquet;
 mod plan;
 mod progress;
+mod runner;
 
 use progress::share_across_parts;
 

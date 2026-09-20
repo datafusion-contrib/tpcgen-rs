@@ -2,15 +2,13 @@
 
 use super::generate::output_path;
 use super::plan::TpcdsGenerationPlan;
-use super::progress::share_handle_across_parts;
+use super::runner::{plan_tables, run_plans, PlannedTable};
 use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
-use crate::worker_queue::WorkerQueue;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::{Compression, Encoding};
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
@@ -121,14 +119,11 @@ impl Parquet {
 
     /// Generate the given TPC-DS tables as Parquet files.
     ///
-    /// Tables are generated concurrently: each table's plan gets as many
-    /// threads as it has row groups, within the overall `num_threads`
-    /// budget (see [`WorkerQueue`]). Scheduling the largest tables first
-    /// keeps all cores busy while the trailing row groups of each table
-    /// are encoded, instead of waiting for one table at a time.
-    ///
-    /// A table split across `--parts` gets one bar for all its parts
-    /// combined, not one bar per part
+    /// Planning, progress registration and scheduling are done by
+    /// [`super::runner`]: each table is split into row groups that are
+    /// encoded concurrently within the `num_threads` budget, and a table
+    /// split across `--parts` gets one bar for all its parts combined, not
+    /// one bar per part.
     pub(super) async fn generate_tables(
         &self,
         table_sessions: Vec<(Table, Session)>,
@@ -144,83 +139,26 @@ impl Parquet {
             validate_column_encodings(&selected_tables, encodings)?;
         }
 
-        // Group all sessions that contribute to the same table progress bar.
-        let mut sessions_by_table: HashMap<Table, Vec<Session>> = HashMap::new();
-        for (table, session) in table_sessions {
-            sessions_by_table.entry(table).or_default().push(session);
-        }
-
-        // Prepare each table before scheduling: plan its nonempty sessions and
-        // register one shared progress bar sized to their combined row groups.
-        let mut prepared = Vec::new();
-        for (table, sessions) in sessions_by_table {
-            let planned: Vec<(Session, TpcdsGenerationPlan)> = sessions
-                .into_iter()
-                .filter_map(|session| {
-                    let row_range = session.get_source_row_range(table);
-                    if row_range.is_empty() && session.is_partitioned() {
-                        return None;
-                    }
-                    let plan =
-                        TpcdsGenerationPlan::new_for_range(table, self.row_group_bytes, row_range);
-                    Some((session, plan))
-                })
-                .collect();
-
-            if planned.is_empty() {
-                continue;
-            }
-
-            let total_row_groups = planned
-                .iter()
-                .map(|(_, plan)| plan.row_group_count() as u64)
-                .sum();
-            let table_progress = progress
-                .clone()
-                .register(table.get_name(), total_row_groups);
-            prepared.push((table, planned, table_progress));
-        }
-
-        // Fan the table progress out so every session reports to the same bar,
-        // then pair each session with its progress to build schedulable work.
-        let mut work = Vec::new();
-        for (table, planned, table_progress) in prepared {
-            let part_progress = share_handle_across_parts(table_progress, planned.len());
-            for ((session, plan), progress) in planned.into_iter().zip(part_progress) {
-                work.push((table, session, plan, progress));
-            }
-        }
-
+        let work = plan_tables(table_sessions, self.row_group_bytes, &progress);
         progress.start();
 
-        // Schedule the largest tables (most row groups) first for the best
-        // thread utilization (the list is popped from the back)
-        work.sort_by_key(|(_, _, plan, _)| plan.row_group_count());
-
-        let mut queue = WorkerQueue::new(self.num_threads);
-        while let Some((table, session, plan, progress)) = work.pop() {
-            let this = self.clone();
-            queue
-                .schedule(plan.row_group_count(), move |num_threads| async move {
-                    this.generate_table(table, session, plan, num_threads, progress)
-                        .await?;
-                    Ok(num_threads)
-                })
-                .await?;
-        }
-        queue.join_all().await
+        let this = self.clone();
+        run_plans(work, self.num_threads, move |planned, num_threads| {
+            let this = this.clone();
+            async move { this.generate_table(planned, num_threads).await }
+        })
+        .await
     }
 
-    /// Generate one TPC-DS table as a Parquet file using `num_threads`
-    /// threads.
-    async fn generate_table(
-        &self,
-        table: Table,
-        session: Session,
-        plan: TpcdsGenerationPlan,
-        num_threads: usize,
-        progress: ProgressHandle,
-    ) -> io::Result<()> {
+    /// Generate one planned table (one `--parts` chunk of one table) as a
+    /// Parquet file using `num_threads` threads.
+    async fn generate_table(&self, planned: PlannedTable, num_threads: usize) -> io::Result<()> {
+        let PlannedTable {
+            table,
+            session,
+            plan,
+            progress,
+        } = planned;
         match table {
             Table::CallCenter => {
                 self.write_table(
