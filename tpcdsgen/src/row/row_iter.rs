@@ -154,8 +154,7 @@ mod tests {
         }
     }
 
-    /// An empty range produces nothing, which is how a `--parts` chunk with no
-    /// rows is handled.
+    /// An empty range produces nothing
     #[test]
     fn an_empty_range_produces_no_rows() {
         let session = session(1.0);
