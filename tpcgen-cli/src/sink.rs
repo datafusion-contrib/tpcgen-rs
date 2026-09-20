@@ -1,10 +1,4 @@
 //! [`WriterSink`]: a [`Sink`] that writes buffers to a [`Write`].
-//!
-//! Shared by the TPC-H and TPC-DS text (TBL/CSV/DAT) outputs, which all
-//! generate buffers in parallel with [`generate_in_chunks`] and hand them to
-//! a single writer task.
-//!
-//! [`generate_in_chunks`]: crate::generate::generate_in_chunks
 
 use crate::generate::Sink;
 use crate::parquet::IntoSize;

@@ -141,15 +141,12 @@ where
     writer_task.await.expect("writer task panicked")
 }
 
-/// Generate `sources` into the file at `path`, using up to `num_threads`
-/// threads.
+/// Generate files from an iterator of [`Source`]es into the file at `path`,
+/// using up to `num_threads` threads.
 ///
 /// Data is written to a temporary `.inprogress` file that is renamed to `path`
 /// once every chunk has been written, so a partially written file is never
 /// left behind under the final name.
-///
-/// This is how every text output (TPC-H TBL/CSV and TPC-DS DAT/CSV) writes a
-/// file.
 pub async fn generate_file<I>(
     path: &Path,
     sources: I,
