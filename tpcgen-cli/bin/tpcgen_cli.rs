@@ -53,7 +53,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// TPC-H data
-    #[command(long_about = r#"
+    // `display_name` so `tpcgen-cli tpch --version` reports the crate's name
+    // and version rather than clap's derived `tpcgen-cli-tpch`.
+    #[command(
+        display_name = "tpcgen-cli",
+        long_about = r#"
 Generate TPC-H data
 
 By default each table is written to a single file named
@@ -80,10 +84,13 @@ tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tp
 # Generate scale factor one, seeing debug output:
 
 RUST_LOG=debug tpcgen-cli tpch -s 1 --output-dir=/tmp/tpch
-"#)]
+"#
+    )]
     Tpch(TpchCli),
     /// TPC-DS data
-    #[command(long_about = r#"
+    #[command(
+        display_name = "tpcgen-cli",
+        long_about = r#"
 Generate TPC-DS data
 
 By default each table is written to a single file named
@@ -110,7 +117,8 @@ tpcgen-cli tpcds parquet -s 100 --tables=store_sales --parts=10 --output-dir=/tm
 # Match the C `dsdgen` reference implementation instead of the Java/Trino one:
 
 tpcgen-cli tpcds -s 1 --compat c --output-dir=/tmp/tpcds
-"#)]
+"#
+    )]
     Tpcds(TpcdsCli),
 }
 

@@ -19,11 +19,34 @@ to crates.io and PyPI. It is a thin wrapper around this crate, so
 
 ## Install
 
-[Install Rust](https://www.rust-lang.org/tools/install) and then install
-`tpcgen-cli` from the repository:
+> **Note:** `tpcgen-cli` has not been released yet: it is not on PyPI, and
+> crates.io only has a pre-release. The `uvx`, `pip`, and `cargo install
+> tpcgen-cli` commands below start working with the v4.0.0 release, tracked in
+> [#307]. Until then, install from a checkout of this repository (see
+> [Install via Rust](#install-via-rust)), or use [`tpchgen-cli`] if you only
+> need TPC-H data.
+
+[#307]: https://github.com/datafusion-contrib/tpcgen-rs/issues/307
+
+### Try with `uvx`
 
 ```shell
-cargo install --locked --git https://github.com/datafusion-contrib/tpcgen-rs tpcgen-cli
+uvx tpcgen-cli tpcds parquet -s 1 --output-dir /tmp/tpcds
+```
+
+### Install with `pip`
+
+```shell
+python -m pip install tpcgen-cli
+```
+
+### Install via Rust
+
+[Install Rust](https://www.rust-lang.org/tools/install) and compile:
+
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+RUSTFLAGS='-C target-cpu=native' cargo install --locked tpcgen-cli
 ```
 
 Or, from a checkout of this repository:
@@ -31,10 +54,6 @@ Or, from a checkout of this repository:
 ```shell
 RUSTFLAGS='-C target-cpu=native' cargo install --locked --path tpcgen-cli
 ```
-
-> **Note:** `tpcgen-cli` is not published to PyPI yet, so `pip install
-> tpcgen-cli` and `uvx tpcgen-cli` are not available. Use `cargo install` as
-> above, or [`tpchgen-cli`] if you need TPC-H data from a Python package.
 
 ## Usage
 
