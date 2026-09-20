@@ -13,9 +13,8 @@ use std::collections::VecDeque;
 ///
 /// Paired fact-table generators return multiple rows per source row, and
 /// [`RowGeneratorResult::should_end_row`] signals when to advance the row
-/// counter. For example, `store_sales` also generates rows for `store_returns`
-/// tables, so callers that want only one of them filter on
-/// [`GeneratedRow::table`].
+/// counter. For example, `store_sales` also generates rows for `store_returns`.
+/// Use [`GeneratedRow::table`] to filter the output to a single table if desired.
 ///
 /// It is also possible to restrict the iterator to a range of source rows with
 /// [`Self::set_source_row_range`].
@@ -116,8 +115,7 @@ mod tests {
     }
 
     /// Splitting a table into source row ranges must produce exactly the same
-    /// rows as generating it in one pass. This is what makes it possible to
-    /// generate the ranges independently, on separate threads.
+    /// rows as generating it in one pass.
     #[test]
     fn source_row_ranges_concatenate_to_the_unranged_output() {
         let session = session(1.0);
@@ -134,8 +132,7 @@ mod tests {
     }
 
     /// The sales generators emit rows for two tables, so a caller that wants
-    /// only one of them filters on [`GeneratedRow::table`]. Both halves have
-    /// to survive being generated from a range of source rows.
+    /// only one of them filters on [`GeneratedRow::table`].
     #[test]
     fn a_sales_generator_emits_both_of_its_tables_over_a_range() {
         let session = session(0.01);
