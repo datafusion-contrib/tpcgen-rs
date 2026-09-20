@@ -1,5 +1,5 @@
 //! Implementations of [`Source`] for generating data in TBL format
-use super::generate::Source;
+use crate::generate::Source;
 use std::io::Write;
 use tpchgen::csv::{
     CustomerCsv, LineItemCsv, NationCsv, OrderCsv, PartCsv, PartSuppCsv, RegionCsv, SupplierCsv,

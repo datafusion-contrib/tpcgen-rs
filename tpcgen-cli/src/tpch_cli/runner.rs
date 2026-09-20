@@ -1,17 +1,17 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
+use crate::generate::{generate_file, generate_in_chunks, Source};
 use crate::parquet::generate_parquet;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
+use crate::sink::WriterSink;
 use crate::temp_path::inprogress_path;
 use crate::tpch_cli::csv::*;
-use crate::tpch_cli::generate::generate_in_chunks;
-use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::generator::column_encodings_for_table;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
-use crate::tpch_cli::{OutputFormat, Table, WriterSink};
+use crate::tpch_cli::{OutputFormat, Table};
 use crate::worker_queue::WorkerQueue;
 use arrow::record_batch::RecordBatchReader;
 use log::{debug, info};
@@ -153,10 +153,10 @@ async fn write_file<I>(
 where
     I: Iterator<Item: Source> + 'static,
 {
-    // Since generate_in_chunks already buffers, there is no need to buffer
-    // again (aka don't use BufWriter here)
     match plan.output_location() {
         OutputLocation::Stdout => {
+            // Since generate_in_chunks already buffers, there is no need to
+            // buffer again (aka don't use BufWriter here)
             let sink = WriterSink::new(io::stdout());
             generate_in_chunks(sink, sources, num_threads, progress).await
         }
@@ -164,20 +164,7 @@ where
             if maybe_skip_existing(path, &plan, &progress) {
                 return Ok(());
             }
-            // write to a temp file and then rename to avoid partial files
-            let temp_path = inprogress_path(path);
-            let file = std::fs::File::create(&temp_path).map_err(|err| {
-                io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
-            })?;
-            let sink = WriterSink::new(file);
-            generate_in_chunks(sink, sources, num_threads, progress).await?;
-            // rename the temp file to the final path
-            std::fs::rename(&temp_path, path).map_err(|e| {
-                io::Error::other(format!(
-                    "Failed to rename {temp_path:?} to {path:?} file: {e}"
-                ))
-            })?;
-            Ok(())
+            generate_file(path, sources, num_threads, progress).await
         }
     }
 }

@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::progress::ProgressHandle;
-use crate::tpch_cli::statistics::WriteStatistics;
+use crate::statistics::WriteStatistics;
 
 pub trait IntoSize {
     /// Convert the object into a size

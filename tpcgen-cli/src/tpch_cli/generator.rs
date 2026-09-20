@@ -1,17 +1,12 @@
-use super::generate::Sink;
 use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
-use super::statistics::WriteStatistics;
-use crate::parquet::IntoSize;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
 use arrow::datatypes::SchemaRef;
 use log::info;
 use std::fmt::Display;
-use std::fs::File;
 use std::io;
-use std::io::{BufWriter, Stdout, Write};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -21,48 +16,6 @@ use tpchgen_arrow::{
     CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
     SupplierArrow,
 };
-
-/// Wrapper around a buffer writer that counts the number of buffers and bytes written
-pub struct WriterSink<W: Write> {
-    statistics: WriteStatistics,
-    inner: W,
-}
-
-impl<W: Write> WriterSink<W> {
-    pub fn new(inner: W) -> Self {
-        Self {
-            inner,
-            statistics: WriteStatistics::new("buffers"),
-        }
-    }
-}
-
-impl<W: Write + Send> Sink for WriterSink<W> {
-    fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error> {
-        self.statistics.increment_chunks(1);
-        self.statistics.increment_bytes(buffer.len());
-        self.inner.write_all(buffer)
-    }
-
-    fn flush(mut self) -> Result<(), io::Error> {
-        self.inner.flush()
-    }
-}
-
-impl IntoSize for BufWriter<Stdout> {
-    fn into_size(self) -> Result<usize, io::Error> {
-        // we can't get the size of stdout, so just return 0
-        Ok(0)
-    }
-}
-
-impl IntoSize for BufWriter<File> {
-    fn into_size(self) -> Result<usize, io::Error> {
-        let file = self.into_inner()?;
-        let metadata = file.metadata()?;
-        Ok(metadata.len() as usize)
-    }
-}
 
 /// TPC-H table types
 ///
