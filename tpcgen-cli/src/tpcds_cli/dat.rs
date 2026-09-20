@@ -12,19 +12,19 @@
  * limitations under the License.
  */
 
-//! TPC-DS Data Generator - Rust Implementation
+//! TPC-DS DAT output.
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use super::generate::{generate_table, output_path, TableOutput, TableWriter};
-use super::progress::register_table;
-use crate::progress::{ProgressHandle, ProgressTracker};
-use std::fs::File;
+use super::generate::{generate_table, RowFormat};
+use super::plan::ChunkFormat;
+use super::runner::{plan_tables, run_plans};
+use crate::progress::ProgressTracker;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tpcdsgen::config::{Session, Table};
+use tpcdsgen::config::{CompatMode, Session, Table};
 use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::DatWriter;
 use tpcdsgen::row::GeneratedRow;
@@ -32,17 +32,22 @@ use tpcdsgen::row::GeneratedRow;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// DAT output generator.
-///
-/// Output is always the reference DAT format: `|`-separated fields with a
-/// trailing separator, one row per line, written to `<table>.dat` files via
-/// each row type's `Display` impl.
 #[derive(Debug, Clone)]
 pub(super) struct Dat {
+    /// Where to write the output
     output_dir: PathBuf,
+    /// Which reference implementation to match.
+    compat_mode: CompatMode,
+    /// Target size of each generated buffer
+    chunk_size_bytes: i64,
 }
 
 impl Dat {
-    pub(super) fn new(output_dir: PathBuf) -> Result<Self> {
+    pub(super) fn new(
+        output_dir: PathBuf,
+        compat_mode: CompatMode,
+        chunk_size_bytes: i64,
+    ) -> Result<Self> {
         if output_dir.as_os_str().is_empty() {
             return Err(InvalidOptionError::with_message(
                 "directory",
@@ -51,51 +56,64 @@ impl Dat {
             )
             .into());
         }
-        Ok(Self { output_dir })
+        Ok(Self {
+            output_dir,
+            compat_mode,
+            chunk_size_bytes,
+        })
     }
 
-    pub(super) fn register_table(
+    /// Generate the given TPC-DS tables as DAT files.
+    pub(super) async fn generate_tables(
         &self,
-        table: Table,
-        sessions: &[Session],
+        table_sessions: Vec<(Table, Session)>,
+        num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
-    ) -> ProgressHandle {
-        register_table(table, sessions, progress)
-    }
+    ) -> io::Result<()> {
+        let work = plan_tables(
+            table_sessions,
+            self.chunk_size_bytes,
+            ChunkFormat::Dat,
+            &progress,
+        );
+        progress.start();
 
-    pub(super) fn generate_table(
-        &self,
-        table: Table,
-        session: &Session,
-        progress: ProgressHandle,
-    ) -> Result<()> {
-        generate_table(self, table, session, progress)
-    }
-}
-
-impl TableOutput for Dat {
-    type Writer = DatTableWriter;
-
-    fn create_writer(&self, table: Table, session: &Session) -> Result<Self::Writer> {
-        let path = output_path(&self.output_dir, table, "dat", session)?;
-        let writer = DatWriter::new(File::create(&path)?, session.get_compat_mode());
-        Ok(DatTableWriter { writer, path })
+        let this = self.clone();
+        run_plans(work, num_threads, move |planned, num_threads| {
+            let format = this.clone();
+            let output_dir = this.output_dir.clone();
+            async move { generate_table(format, output_dir, planned, num_threads).await }
+        })
+        .await
     }
 }
 
-/// One DAT output file. Rows are written straight to `<table>.dat`.
-pub(super) struct DatTableWriter {
-    writer: DatWriter<File>,
-    path: PathBuf,
-}
+impl RowFormat for Dat {
+    const EXTENSION: &'static str = "dat";
 
-impl TableWriter for DatTableWriter {
-    fn write_row(&mut self, row: &GeneratedRow) -> io::Result<()> {
-        self.writer.write_display_row(row)
+    /// DAT output has no header.
+    fn write_header(&self, _table: Table, buffer: Vec<u8>) -> Vec<u8> {
+        buffer
     }
 
-    fn finish(mut self) -> Result<PathBuf> {
-        self.writer.flush()?;
-        Ok(self.path)
+    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
+    where
+        I: Iterator<Item = GeneratedRow>,
+    {
+        let mut writer = DatWriter::new(&mut buffer, self.compat_mode);
+        for row in rows {
+            // Writing to memory cannot fail, and every generated value is
+            // representable in the output encoding (the distributions the
+            // values come from are themselves ISO-8859-1).
+            writer
+                .write_display_row(&row)
+                .expect("DAT rows are always writable to memory");
+        }
+        writer
+            .flush()
+            .expect("DAT rows are always writable to memory");
+        drop(writer);
+
+        buffer
     }
 }

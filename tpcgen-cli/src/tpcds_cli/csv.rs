@@ -15,117 +15,93 @@
 //!   `--delimiter` is only safe for delimiters that no unquoted column
 //!   contains (`,`, `|`, tab, `;`).
 
-use crate::progress::ProgressHandle;
 use crate::progress::ProgressTracker;
-use crate::temp_path::inprogress_path;
-use crate::tpcds_cli::generate::{generate_table, output_path, TableOutput, TableWriter};
-use crate::tpcds_cli::progress::register_table;
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use crate::tpcds_cli::generate::{generate_table, RowFormat};
+use crate::tpcds_cli::plan::ChunkFormat;
+use crate::tpcds_cli::runner::{plan_tables, run_plans};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
 use tpcdsgen::row::GeneratedRow;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
 /// CSV output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Csv {
     output_dir: PathBuf,
     delimiter: char,
+    chunk_size_bytes: i64,
 }
 
 impl Csv {
-    pub(super) fn new(output_dir: PathBuf, delimiter: char) -> Self {
+    pub(super) fn new(output_dir: PathBuf, delimiter: char, chunk_size_bytes: i64) -> Self {
         Self {
             output_dir,
             delimiter,
+            chunk_size_bytes,
         }
     }
 
-    pub(super) fn register_table(
+    /// Generate the given TPC-DS tables as CSV files.
+    pub(super) async fn generate_tables(
         &self,
-        table: Table,
-        sessions: &[Session],
+        table_sessions: Vec<(Table, Session)>,
+        num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
-    ) -> ProgressHandle {
-        register_table(table, sessions, progress)
-    }
+    ) -> io::Result<()> {
+        // Check every header up front: a CSV file is not valid without one,
+        // and `write_header` cannot report an error once generation starts.
+        for (table, _) in &table_sessions {
+            if csv_header(*table, self.delimiter).is_none() {
+                return Err(io::Error::other(format!(
+                    "table {} has no CSV output",
+                    table.get_name()
+                )));
+            }
+        }
 
-    /// Generate one TPC-DS table as a CSV file.
-    pub(super) fn generate_table(
-        &self,
-        table: Table,
-        session: &Session,
-        progress: ProgressHandle,
-    ) -> Result<()> {
-        generate_table(self, table, session, progress)
-    }
-}
+        let work = plan_tables(
+            table_sessions,
+            self.chunk_size_bytes,
+            ChunkFormat::Csv,
+            &progress,
+        );
+        progress.start();
 
-impl TableOutput for Csv {
-    type Writer = CsvTableFile;
-
-    /// Create the CSV file for `table` (written to a temporary `.inprogress`
-    /// path until finished) and write the header line.
-    fn create_writer(&self, table: Table, session: &Session) -> Result<Self::Writer> {
-        let path = output_path(&self.output_dir, table, "csv", session)?;
-        let header = csv_header(table, self.delimiter)
-            .ok_or_else(|| format!("table {} has no CSV output", table.get_name()))?;
-        CsvTableFile::create(path, &header, self.delimiter)
-    }
-}
-
-/// One in-progress CSV output file: rows are written to `<table>.csv.inprogress`,
-/// which is renamed to `<table>.csv` on `finish`.
-pub(super) struct CsvTableFile {
-    writer: BufWriter<File>,
-    temp_path: PathBuf,
-    path: PathBuf,
-    delimiter: char,
-}
-
-impl CsvTableFile {
-    fn create(path: PathBuf, header: &str, delimiter: char) -> Result<Self> {
-        let temp_path = inprogress_path(&path);
-        let file = File::create(&temp_path)
-            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        let mut writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        writeln!(writer, "{header}")?;
-        Ok(Self {
-            writer,
-            temp_path,
-            path,
-            delimiter,
+        let this = self.clone();
+        run_plans(work, num_threads, move |planned, num_threads| {
+            let format = this.clone();
+            let output_dir = this.output_dir.clone();
+            async move { generate_table(format, output_dir, planned, num_threads).await }
         })
+        .await
     }
 }
 
-impl TableWriter for CsvTableFile {
-    fn write_row(&mut self, row: &GeneratedRow) -> io::Result<()> {
-        writeln!(
-            self.writer,
-            "{}",
-            GeneratedRowCsv::with_delimiter(row, self.delimiter)
-        )
+impl RowFormat for Csv {
+    const EXTENSION: &'static str = "csv";
+
+    fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
+        // Checked by `generate_tables` before any generation starts.
+        let header = csv_header(table, self.delimiter)
+            .unwrap_or_else(|| panic!("table {} has no CSV output", table.get_name()));
+        writeln!(buffer, "{header}").expect("writing to memory cannot fail");
+        buffer
     }
 
-    /// Flush and rename the temporary file into place, returning the final path.
-    fn finish(self) -> Result<PathBuf> {
-        // Close the file before renaming: Windows can refuse to rename a file
-        // that is still open.
-        let file = self.writer.into_inner().map_err(|err| {
-            io::Error::other(format!("Failed to write {:?}: {err}", self.temp_path))
-        })?;
-        drop(file);
-        std::fs::rename(&self.temp_path, &self.path).map_err(|err| {
-            io::Error::other(format!(
-                "Failed to rename {:?} to {:?} file: {err}",
-                self.temp_path, self.path
-            ))
-        })?;
-        Ok(self.path)
+    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
+    where
+        I: Iterator<Item = GeneratedRow>,
+    {
+        for row in rows {
+            writeln!(
+                buffer,
+                "{}",
+                GeneratedRowCsv::with_delimiter(&row, self.delimiter)
+            )
+            .expect("writing to memory cannot fail");
+        }
+        buffer
     }
 }
