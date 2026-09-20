@@ -6,15 +6,19 @@ use std::collections::VecDeque;
 
 /// Adapts a [`RowGenerator`] into a streaming [`Iterator`] of [`GeneratedRow`]s.
 ///
-/// Handles both simple generators (one row per call, `should_end_row` always
-/// true) and paired fact-table generators (multiple calls per source row,
-/// `should_end_row` signals when to advance the row counter). The latter emit
-/// rows for two tables (for example `store_sales` and `store_returns`), so
-/// callers that want only one of them filter on [`GeneratedRow::table`].
+/// # Simple generators vs Paired fact-table generators
 ///
-/// Restricting the iterator to a range of source rows with
-/// [`Self::set_source_row_range`] is what makes parallel generation possible:
-/// each range can be generated independently, on its own thread.
+/// Simple generators make one row per call and
+/// [`RowGeneratorResult::should_end_row`] returns true.
+///
+/// Paired fact-table generators return multiple rows per source row, and
+/// [`RowGeneratorResult::should_end_row`] signals when to advance the row
+/// counter. For example, `store_sales` also generates rows for `store_returns`
+/// tables, so callers that want only one of them filter on
+/// [`GeneratedRow::table`].
+///
+/// It is also possible to restrict the iterator to a range of source rows with
+/// [`Self::set_source_row_range`].
 pub struct RowIter<G: RowGenerator> {
     generator: G,
     session: Session,

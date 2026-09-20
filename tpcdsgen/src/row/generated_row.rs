@@ -65,8 +65,8 @@ pub enum GeneratedRow {
 impl GeneratedRow {
     /// The table this row belongs to.
     ///
-    /// The sales generators emit rows for two tables (sales and returns), so
-    /// callers generating a single table filter their rows on this.
+    /// The sales generators emit rows for two tables (sales and returns); This
+    /// function can be used to filter for rows from only one table.
     pub fn table(&self) -> Table {
         match self {
             GeneratedRow::CallCenter(_) => Table::CallCenter,
