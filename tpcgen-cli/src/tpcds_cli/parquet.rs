@@ -118,12 +118,6 @@ impl Parquet {
     }
 
     /// Generate the given TPC-DS tables as Parquet files.
-    ///
-    /// Planning, progress registration and scheduling are done by
-    /// [`super::runner`]: each table is split into row groups that are
-    /// encoded concurrently within the `num_threads` budget, and a table
-    /// split across `--parts` gets one bar for all its parts combined, not
-    /// one bar per part.
     pub(super) async fn generate_tables(
         &self,
         table_sessions: Vec<(Table, Session)>,

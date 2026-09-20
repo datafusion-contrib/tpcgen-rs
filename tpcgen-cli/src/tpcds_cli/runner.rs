@@ -1,11 +1,5 @@
 //! Planning and scheduling TPC-DS table generation.
 //!
-//! Generating a TPC-DS table means splitting it into chunks of source rows and
-//! generating those chunks in parallel, within an overall thread budget. What
-//! a chunk *is* depends on the output format -- for Parquet it is one row
-//! group -- but the planning, the progress registration and the scheduling
-//! around it do not, so they live here rather than in any one output.
-//!
 //! This mirrors [`crate::tpch_cli::runner`], which does the same job for the
 //! TPC-H outputs.
 
@@ -19,30 +13,24 @@ use std::io;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 
-/// One unit of schedulable work: the chunks of one table for one `--parts`
-/// chunk, together with the progress handle they report to.
+/// One unit of schedulable work: the chunks of one table, together with the
+/// progress handle they report to.
 #[derive(Debug)]
 pub(super) struct PlannedTable {
     /// The table to write
     pub(super) table: Table,
-    /// The session describing the scale factor, compat mode and `--parts`
-    /// chunk this output covers
+    /// The session for this chunk
     pub(super) session: Session,
-    /// How this output's source rows are split into chunks
+    /// How the source rows are split into chunks
     pub(super) plan: TpcdsGenerationPlan,
-    /// Advanced once per written chunk
+    /// Progress reporter
     pub(super) progress: ProgressHandle,
 }
 
 /// Plan every requested `(table, session)` and register the progress bars.
-///
-/// A table split across `--parts` gets one bar for all of its parts combined,
-/// not one bar per part. Empty `--parts` chunks are dropped: dsdgen generates
-/// a table below its 1M source row threshold entirely in chunk 1, so the
-/// later chunks have no rows and no file to write.
 pub(super) fn plan_tables(
     table_sessions: Vec<(Table, Session)>,
-    chunk_bytes: i64,
+    chunk_size_bytes: i64,
     progress: &Arc<dyn ProgressTracker>,
 ) -> Vec<PlannedTable> {
     // Group all sessions that contribute to the same table progress bar.
@@ -62,7 +50,7 @@ pub(super) fn plan_tables(
                 if row_range.is_empty() && session.is_partitioned() {
                     return None;
                 }
-                let plan = TpcdsGenerationPlan::new_for_range(table, chunk_bytes, row_range);
+                let plan = TpcdsGenerationPlan::new_for_range(table, chunk_size_bytes, row_range);
                 Some((session, plan))
             })
             .collect();
@@ -96,14 +84,7 @@ pub(super) fn plan_tables(
     work
 }
 
-/// Generate every [`PlannedTable`] by calling `generate`, running within an
-/// overall budget of `num_threads` threads.
-///
-/// Tables are generated concurrently: each table's plan gets as many threads
-/// as it has chunks, within the overall budget (see [`WorkerQueue`]).
-/// Scheduling the largest tables first keeps all cores busy while the trailing
-/// chunks of each table are written, instead of waiting for one table at a
-/// time.
+/// Generate every [`PlannedTable`] using `num_threads` threads.
 pub(super) async fn run_plans<F, Fut>(
     mut work: Vec<PlannedTable>,
     num_threads: usize,
@@ -172,7 +153,7 @@ mod tests {
             .unwrap()
     }
 
-    const CHUNK_BYTES: i64 = 7 * 1024 * 1024;
+    const CHUNK_SIZE_BYTES: i64 = 7 * 1024 * 1024;
 
     /// dsdgen generates a table below 1M source rows entirely in chunk 1, so
     /// splitting across parts only does anything above that threshold.
@@ -186,7 +167,7 @@ mod tests {
             .map(|part| (Table::StoreSales, chunk(PARTITIONABLE_SCALE, part, 4)))
             .collect();
 
-        let work = plan_tables(sessions, CHUNK_BYTES, &progress);
+        let work = plan_tables(sessions, CHUNK_SIZE_BYTES, &progress);
 
         let registered = tracker.registered.lock().unwrap();
         assert_eq!(registered.len(), 1, "expected a single store_sales bar");
@@ -203,14 +184,14 @@ mod tests {
 
         let one = plan_tables(
             vec![(Table::StoreSales, whole(PARTITIONABLE_SCALE))],
-            CHUNK_BYTES,
+            CHUNK_SIZE_BYTES,
             &progress,
         );
         let four = plan_tables(
             (1..=4)
                 .map(|part| (Table::StoreSales, chunk(PARTITIONABLE_SCALE, part, 4)))
                 .collect(),
-            CHUNK_BYTES,
+            CHUNK_SIZE_BYTES,
             &progress,
         );
 
@@ -235,7 +216,7 @@ mod tests {
             .map(|part| (Table::Reason, chunk(1.0, part, 4)))
             .collect();
 
-        let work = plan_tables(sessions, CHUNK_BYTES, &progress);
+        let work = plan_tables(sessions, CHUNK_SIZE_BYTES, &progress);
 
         assert_eq!(work.len(), 1);
         assert_eq!(work[0].session.get_chunk_number(), 1);
@@ -251,7 +232,7 @@ mod tests {
                 (Table::ShipMode, whole(1.0)),
                 (Table::Store, whole(1.0)),
             ],
-            CHUNK_BYTES,
+            CHUNK_SIZE_BYTES,
             &progress,
         );
         assert_eq!(work.len(), 3);
