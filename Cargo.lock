@@ -1652,6 +1652,7 @@ version = "3.0.0"
 dependencies = [
  "assert_cmd",
  "clap",
+ "predicates",
  "tempfile",
  "tokio",
  "tpcgen-cli",

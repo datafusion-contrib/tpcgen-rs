@@ -15,7 +15,7 @@ use tpcdsgen::row::*;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// Return the output path for `table`'s file, following `tpchgen-cli`'s
+/// Return the output path for `table`'s file, following `tpcgen-cli tpch`'s
 /// `--parts`/`--part` naming convention:
 ///
 /// When `--parts` was not requested creates a single `<table>.<ext>` file, otherwise

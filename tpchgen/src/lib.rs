@@ -48,9 +48,11 @@
 //! on other Rust crates. It is focused entirely on the core
 //! generation logic.
 //!
-//! If you want an easy way to generate the TPC-H dataset for usage with external
-//! see the [`tpchgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli)
-//! tool instead.
+//! If you want an easy way to generate the TPC-H dataset for use with external
+//! tools, see the
+//! [`tpcgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli)
+//! command line tool instead (or the TPC-H only
+//! [`tpchgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli)).
 pub mod csv;
 pub mod dates;
 pub mod decimal;

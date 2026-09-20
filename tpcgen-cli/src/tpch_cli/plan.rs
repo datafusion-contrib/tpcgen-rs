@@ -11,7 +11,8 @@ use tpchgen::generators::{
 /// A list of generator "parts" (data generator chunks, not TPCH parts) for a
 /// single output file.
 ///
-/// Controls the parallelization and layout of Parquet files in `tpchgen-cli`.
+/// Controls the parallelization and layout of Parquet files written by the
+/// TPC-H CLI (`tpcgen-cli tpch`, and the compatibility `tpchgen-cli` binary).
 ///
 /// # Background
 ///
@@ -31,9 +32,9 @@ use tpchgen::generators::{
 /// 2. They scale. So for example, parts `0..10` with a `part_count` of 50
 ///    will generate the same data as parts `1` with a `part_count` of 5.
 ///
-/// # Implication for tpchgen-cli
+/// # Implication for the CLI
 ///
-/// For `tbl` and `csv` files, tpchgen-cli generates `num-threads` parts in
+/// For `tbl` and `csv` files, the CLI generates `num-threads` parts in
 /// parallel.
 ///
 /// For Parquet files, the output file has one row group for each "part".

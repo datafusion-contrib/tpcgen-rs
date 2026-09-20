@@ -1310,7 +1310,7 @@ fn test_tpcgen_cli_tpcds_dat_parts_outputs_directory() {
 
     assert!(
         temp_dir.path().join("reason/reason.1.dat").is_file(),
-        "--parts 1 should nest like tpchgen-cli"
+        "--parts 1 should nest like tpcgen-cli tpch"
     );
     assert!(
         !temp_dir.path().join("reason.dat").exists(),

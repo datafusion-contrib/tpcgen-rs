@@ -28,6 +28,21 @@ tpcgen-cli tpch csv -s 1 --output-dir=/tmp/tpch
 # TPC-H Apache Parquet data:
 
 tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
+
+# TPC-DS DAT data:
+
+tpcgen-cli tpcds -s 1 --output-dir=/tmp/tpcds
+
+# TPC-DS CSV data:
+
+tpcgen-cli tpcds csv -s 1 --output-dir=/tmp/tpcds
+
+# TPC-DS Apache Parquet data:
+
+tpcgen-cli tpcds parquet -s 100 --tables=store_sales --parts=10 --output-dir=/tmp/tpcds
+
+See `tpcgen-cli tpch --help` and `tpcgen-cli tpcds --help` for the full set of
+options for each benchmark.
 "#
 )]
 struct Cli {
@@ -38,8 +53,64 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// TPC-H data
+    #[command(long_about = r#"
+Generate TPC-H data
+
+By default each table is written to a single file named
+<output_dir>/<table>.<format>
+
+If the `--parts` option is specified, each table is written to a subdirectory in
+multiple files named <output_dir>/<table>/<table>.<part>.<format>
+
+Examples
+
+# Generate all tables at scale factor 1 (1GB) in TBL format (the default):
+
+tpcgen-cli tpch -s 1 --output-dir=/tmp/tpch
+
+# Generate all tables in CSV format, with a tab delimiter:
+
+tpcgen-cli tpch csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
+
+# Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
+# /tmp/tpch/lineitem:
+
+tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
+
+# Generate scale factor one, seeing debug output:
+
+RUST_LOG=debug tpcgen-cli tpch -s 1 --output-dir=/tmp/tpch
+"#)]
     Tpch(TpchCli),
     /// TPC-DS data
+    #[command(long_about = r#"
+Generate TPC-DS data
+
+By default each table is written to a single file named
+<output_dir>/<table>.<format>
+
+If the `--parts` option is specified, each table is written to a subdirectory in
+multiple files named <output_dir>/<table>/<table>.<part>.<format>
+
+Examples
+
+# Generate all tables at scale factor 1 (1GB) in DAT format (the default):
+
+tpcgen-cli tpcds -s 1 --output-dir=/tmp/tpcds
+
+# Generate all tables in CSV format, with a tab delimiter:
+
+tpcgen-cli tpcds csv -s 1 --delimiter='\t' --output-dir=/tmp/tpcds
+
+# Generate the store_sales table at scale factor 100 in 10 Apache Parquet files
+# to /tmp/tpcds/store_sales:
+
+tpcgen-cli tpcds parquet -s 100 --tables=store_sales --parts=10 --output-dir=/tmp/tpcds
+
+# Match the C `dsdgen` reference implementation instead of the Java/Trino one:
+
+tpcgen-cli tpcds -s 1 --compat c --output-dir=/tmp/tpcds
+"#)]
     Tpcds(TpcdsCli),
 }
 
