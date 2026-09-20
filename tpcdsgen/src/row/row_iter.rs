@@ -18,6 +18,8 @@ use std::collections::VecDeque;
 ///
 /// It is also possible to restrict the iterator to a range of source rows with
 /// [`Self::set_source_row_range`].
+///
+/// [`RowGeneratorResult::should_end_row`]: crate::row::RowGeneratorResult::should_end_row
 pub struct RowIter<G: RowGenerator> {
     generator: G,
     session: Session,
