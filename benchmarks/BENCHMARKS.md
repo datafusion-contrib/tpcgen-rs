@@ -25,9 +25,9 @@ tpchgen-cli parquet -s 100 --stdout | pv -arb > /dev/null
 
 ![Parquet Generation Performance](../parquet-performance.png)
 
-See [tpchgen-rs performance Spreadsheet] for more details.
+See [tpcgen-rs performance Spreadsheet] for more details.
 
-[tpchgen-rs performance Spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=0#gid=0
+[tpcgen-rs performance Spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=0#gid=0
 
 [Apache Parquet](https://parquet.apache.org/) is a columnar storage file format
 that is optimized for use with big data processing frameworks. It is widely used
@@ -245,13 +245,11 @@ dd if=/dev/zero of=/data/test1.img bs=1G count=10 oflag=dsync
 # 10737418240 bytes (11 GB, 10 GiB) copied, 13.179 s, 815 MB/s
 ```
 
-## install `tpchgen-rs`
+## install `tpcgen-rs`
 ```shell
 cd /data
-git clone git@github.com:clflushopt/tpchgen-rs.git
-cd tpchgen-rs
-cargo install --path tpchgen-cli
+git clone git@github.com:datafusion-contrib/tpcgen-rs.git
+cd tpcgen-rs
+cargo install --locked --path tpchgen-cli
 ```
-
-
 

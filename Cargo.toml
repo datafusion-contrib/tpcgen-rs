@@ -7,10 +7,10 @@ resolver = "2"
 [workspace.package]
 authors = ["clflushopt", "alamb"]
 edition = "2021"
-homepage = "https://github.com/clflushopt/tpchgen-rs"
+homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/clflushopt/tpchgen-rs"
+repository = "https://github.com/datafusion-contrib/tpcgen-rs"
 version = "3.0.0"
 
 [workspace.dependencies]

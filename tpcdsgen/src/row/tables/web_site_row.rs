@@ -20,23 +20,23 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub struct WebSiteRow {
     null_bit_map: i64,
-    web_site_sk: i64,
-    web_site_id: String,
-    web_rec_start_date_id: i64,
-    web_rec_end_date_id: i64,
-    web_name: String,
-    web_open_date: i64,
-    web_close_date: i64,
-    web_class: String,
-    web_manager: String,
-    web_market_id: i32,
-    web_market_class: String,
-    web_market_desc: String,
-    web_market_manager: String,
-    web_company_id: i32,
-    web_company_name: String,
-    web_address: Address,
-    web_tax_percentage: Decimal,
+    pub(crate) web_site_sk: i64,
+    pub(crate) web_site_id: String,
+    pub(crate) web_rec_start_date_id: i64,
+    pub(crate) web_rec_end_date_id: i64,
+    pub(crate) web_name: String,
+    pub(crate) web_open_date: i64,
+    pub(crate) web_close_date: i64,
+    pub(crate) web_class: String,
+    pub(crate) web_manager: String,
+    pub(crate) web_market_id: i32,
+    pub(crate) web_market_class: String,
+    pub(crate) web_market_desc: String,
+    pub(crate) web_market_manager: String,
+    pub(crate) web_company_id: i32,
+    pub(crate) web_company_name: String,
+    pub(crate) web_address: Address,
+    pub(crate) web_tax_percentage: Decimal,
 }
 
 impl WebSiteRow {
@@ -136,7 +136,7 @@ impl WebSiteRow {
         &self.web_tax_percentage
     }
 
-    fn is_null_at(&self, column: WebSiteGeneratorColumn) -> bool {
+    pub(crate) fn is_null_at(&self, column: WebSiteGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - WebSiteGeneratorColumn::WebSiteSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
@@ -166,18 +166,22 @@ impl WebSiteRow {
 impl WebSiteRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is -1.
-    fn key_field(&self, key: i64, column: WebSiteGeneratorColumn) -> DatField<i64> {
+    pub(crate) fn key_field(&self, key: i64, column: WebSiteGeneratorColumn) -> DatField<i64> {
         DatField::new(key, key == -1 || self.is_null_at(column))
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column: WebSiteGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: WebSiteGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null_at(column))
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
     /// julian day is negative.
-    fn date_field(&self, julian_days: i64, column: WebSiteGeneratorColumn) -> DatField<Date> {
+    pub(crate) fn date_field(
+        &self,
+        julian_days: i64,
+        column: WebSiteGeneratorColumn,
+    ) -> DatField<Date> {
         DatField::from(
             (!(self.is_null_at(column) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),

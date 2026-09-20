@@ -1,11 +1,14 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
+use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
-use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+use crate::tpch_cli::{Compression, Encoding, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
+use std::collections::HashSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
 use std::io::IsTerminal;
@@ -16,19 +19,21 @@ use tpcdsgen::error::TpcdsError;
 
 pub mod csv;
 pub mod dat;
+mod generate;
 pub mod parquet;
 mod plan;
+mod progress;
+mod runner;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-const DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES: usize = DEFAULT_PARQUET_ROW_GROUP_BYTES as usize;
-
-/// Target size of the in memory buffers DAT output is generated into.
+/// Target size of the in memory buffers the DAT and CSV outputs are generated
+/// into.
 ///
-/// Buffers are the unit of parallelism for DAT generation, so this trades off
+/// Buffers are the unit of parallelism for text generation, so this trades off
 /// scheduling granularity against peak memory use (roughly this many bytes per
 /// thread).
-const DEFAULT_DAT_CHUNK_BYTES: usize = 8 * 1024 * 1024;
+const DEFAULT_TEXT_CHUNK_BYTES: i64 = 8 * 1024 * 1024;
 
 enum OutputFormat {
     Dat(dat::Dat),
@@ -85,6 +90,15 @@ struct CsvArgs {
     /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
     #[arg(long, default_value = ",", value_parser = parse_delimiter)]
     delimiter: char,
+
+    /// The number of threads for parallel generation, defaults to the number of CPUs
+    #[arg(
+        short,
+        long,
+        default_value_t = num_cpus::get(),
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
+    )]
+    num_threads: usize,
 }
 
 #[derive(Args)]
@@ -108,7 +122,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Approximate target row-group size in uncompressed bytes
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better
@@ -122,10 +136,10 @@ struct ParquetArgs {
     /// Typical values range from 10MB to 100MB.
     #[arg(
         long,
-        default_value_t = DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
         value_parser = parse_row_group_bytes
     )]
-    row_group_bytes: usize,
+    row_group_bytes: i64,
 
     /// The number of threads for parallel generation, defaults to the number of CPUs
     #[arg(
@@ -135,11 +149,28 @@ struct ParquetArgs {
         value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
     )]
     num_threads: usize,
+
+    /// Per-column Parquet encodings (overrides writer defaults).
+    ///
+    /// Format: `COLUMN=ENCODING[,COLUMN=ENCODING...]`
+    ///
+    /// Example: `r_reason_desc=DELTA_LENGTH_BYTE_ARRAY`
+    ///
+    /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
+    /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each
+    /// encoding must also be valid for the target column's Parquet physical
+    /// type (e.g. RLE only applies to boolean columns).
+    ///
+    /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
+    /// dictionary encoding is the writer default and cannot be requested
+    /// through this flag, and BIT_PACKED is not supported for writing.
+    #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
+    column_encoding: Option<Vec<(String, Encoding)>>,
 }
 
 #[derive(Args)]
 pub struct CommonArgs {
-    /// Scale factor to create
+    /// Scale factor to create (supported range: 0 through 100000, inclusive)
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
 
@@ -154,6 +185,14 @@ pub struct CommonArgs {
     /// Reference implementation to match (default: trino)
     #[arg(long, default_value_t = CompatMode::Trino)]
     compat: CompatMode,
+
+    /// Number of part(itions) to generate. If not specified creates a single file per table
+    #[arg(short, long)]
+    parts: Option<i32>,
+
+    /// Which part(ition) to generate (1-based). If not specified, generates all parts
+    #[arg(long)]
+    part: Option<i32>,
 
     /// Verbose output
     ///
@@ -192,14 +231,19 @@ impl DatArgs {
 
 impl CsvArgs {
     async fn run(self) -> Result<()> {
-        self.common.run_csv(self.delimiter).await
+        self.common.run_csv(self.delimiter, self.num_threads).await
     }
 }
 
 impl ParquetArgs {
     async fn run(self) -> Result<()> {
         self.common
-            .run_parquet(self.compression, self.row_group_bytes, self.num_threads)
+            .run_parquet(
+                self.compression,
+                self.row_group_bytes,
+                self.num_threads,
+                self.column_encoding,
+            )
             .await
     }
 }
@@ -208,81 +252,76 @@ impl CommonArgs {
     async fn run_dat(self, num_threads: usize) -> Result<()> {
         let output = dat::Dat::new(
             self.output_dir.clone(),
-            DEFAULT_DAT_CHUNK_BYTES,
-            num_threads,
+            self.compat,
+            DEFAULT_TEXT_CHUNK_BYTES,
         )?;
-        self.run_output(OutputFormat::Dat(output)).await
+        self.run_output(OutputFormat::Dat(output), num_threads)
+            .await
     }
 
     async fn run_parquet(
         self,
         compression: Compression,
-        row_group_bytes: usize,
+        row_group_bytes: i64,
         num_threads: usize,
+        column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
             self.output_dir.clone(),
             compression,
             row_group_bytes,
-            num_threads,
+            column_encoding,
         );
-        self.run_output(OutputFormat::Parquet(output)).await
+        self.run_output(OutputFormat::Parquet(output), num_threads)
+            .await
     }
 
-    async fn run_csv(self, delimiter: char) -> Result<()> {
-        let output = csv::Csv::new(self.output_dir.clone(), delimiter);
-        self.run_output(OutputFormat::Csv(output)).await
+    async fn run_csv(self, delimiter: char, num_threads: usize) -> Result<()> {
+        let output = csv::Csv::new(self.output_dir.clone(), delimiter, DEFAULT_TEXT_CHUNK_BYTES);
+        self.run_output(OutputFormat::Csv(output), num_threads)
+            .await
     }
 
-    async fn run_output(self, output_format: OutputFormat) -> Result<()> {
-        let tables = self.tables()?;
-        self.run_output_with_tables(output_format, tables).await
-    }
-
-    async fn run_output_with_tables(
-        self,
-        output_format: OutputFormat,
-        tables: Vec<Table>,
-    ) -> Result<()> {
+    /// Generate every requested table, in every requested part, as
+    /// `output_format`.
+    ///
+    /// All three formats are driven the same way: each `(table, part)` pair
+    /// becomes a [`Session`] describing the source rows it covers, and the
+    /// output splits those rows into chunks it generates in parallel.
+    async fn run_output(self, output_format: OutputFormat, num_threads: usize) -> Result<()> {
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
 
+        let tables = self.tables()?;
+        let parts = self.part_list()?;
+
         std::fs::create_dir_all(&self.output_dir)?;
 
-        // Parquet and DAT generate all tables in one call so that multiple
-        // tables can be generated concurrently
-        let table_sessions = |tables: Vec<Table>| -> Result<Vec<(Table, Session)>> {
-            tables
-                .into_iter()
-                .map(|table| {
-                    let session = self.to_session(Some(table.get_name().to_string()))?;
-                    Ok((table, session))
-                })
-                .collect()
-        };
+        // Every output generates all of its tables in one call so that
+        // multiple tables can be generated concurrently
+        let mut table_sessions = Vec::with_capacity(tables.len() * parts.len());
+        for table in &tables {
+            for &part in &parts {
+                let session = self.to_session(Some(table.get_name().to_string()), part)?;
+                table_sessions.push((*table, session));
+            }
+        }
 
         match output_format {
-            OutputFormat::Parquet(output) => {
-                output
-                    .generate_tables(table_sessions(tables)?, progress.clone())
-                    .await?;
-            }
             OutputFormat::Dat(output) => {
                 output
-                    .generate_tables(table_sessions(tables)?, progress.clone())
+                    .generate_tables(table_sessions, num_threads, progress.clone())
                     .await?;
             }
             OutputFormat::Csv(output) => {
-                let mut table_sessions = Vec::with_capacity(tables.len());
-                for table in tables {
-                    let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let progress = output.register_table(table, &session, progress.clone());
-                    table_sessions.push((table, session, progress));
-                }
-                progress.start();
-                for (table, session, progress) in table_sessions {
-                    output.generate_table(table, session, progress)?;
-                }
+                output
+                    .generate_tables(table_sessions, num_threads, progress.clone())
+                    .await?;
+            }
+            OutputFormat::Parquet(output) => {
+                output
+                    .generate_tables(table_sessions, num_threads, progress.clone())
+                    .await?;
             }
         }
 
@@ -308,13 +347,65 @@ impl CommonArgs {
 
     /// Return the tables that should be generated.
     fn tables(&self) -> Result<Vec<Table>> {
-        match &self.tables {
-            Some(tables) => Ok(tables.clone()),
-            None => Ok(Table::main_tables()),
-        }
+        let tables = self.tables.clone().unwrap_or_else(Table::main_tables);
+        let mut seen = HashSet::new();
+        Ok(tables
+            .into_iter()
+            .filter(|table| seen.insert(*table))
+            .collect())
     }
 
-    fn to_session(&self, table: Option<String>) -> Result<Session> {
+    /// Return the list of 1-based part numbers to generate, or `[None]` when
+    /// no `--part`/`--parts` were given (a single, unnumbered file per
+    /// table).
+    ///
+    /// Mirrors `tpchgen-cli`'s `--parts`/`--part` semantics: `--parts` alone
+    /// generates every part as a separate file, `--part` requires `--parts`
+    /// to be set alongside it and restricts generation to just that part.
+    ///
+    /// The combination is fully validated here, before any output directory is
+    /// created, so an invalid selection such as `--parts 3 --part 4` leaves no
+    /// directories behind.
+    fn part_list(&self) -> Result<Vec<Option<i32>>> {
+        let Some(parts) = self.parts else {
+            if self.part.is_some() {
+                return Err(TpcdsError::new(
+                    "The --part option requires the --parts option to be set",
+                )
+                .into());
+            } else {
+                return Ok(vec![None]);
+            }
+        };
+
+        if parts < 1 {
+            return Err(TpcdsError::new(&format!(
+                "Invalid --parts value '{parts}'. Expected a number greater than zero"
+            ))
+            .into());
+        }
+
+        let Some(part) = self.part else {
+            return Ok((1..=parts).map(Some).collect());
+        };
+
+        if part < 1 {
+            return Err(TpcdsError::new(&format!(
+                "Invalid --part value '{part}'. Expected a number greater than zero"
+            ))
+            .into());
+        }
+        if part > parts {
+            return Err(TpcdsError::new(&format!(
+                "Invalid --part value '{part}'. Expected at most the value of --parts ({parts})"
+            ))
+            .into());
+        }
+
+        Ok(vec![Some(part)])
+    }
+
+    fn to_session(&self, table: Option<String>, part: Option<i32>) -> Result<Session> {
         let table = table.as_deref().map(parse_table).transpose()?;
 
         // store the command line arguments used to create this
@@ -323,6 +414,9 @@ impl CommonArgs {
         let mut builder = SessionBuilder::new()
             .with_scale_factor(self.scale_factor)
             .with_compat_mode(self.compat)
+            .with_chunk_number(part.unwrap_or(1))
+            .with_total_chunks(self.parts.unwrap_or(1))
+            .with_partitioned(self.parts.is_some())
             .with_command_line_arguments(command_line_arguments);
 
         if let Some(table) = table {
@@ -453,18 +547,23 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
     Ok(parsed)
 }
 
-fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
-    let parsed = s.parse::<usize>().map_err(|e| e.to_string())?;
-    if parsed == 0 {
-        Err("must be greater than zero".to_string())
-    } else {
-        Ok(parsed)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
+        CommonArgs {
+            scale_factor: 1.0,
+            output_dir: PathBuf::new(),
+            tables: Some(tables),
+            compat: CompatMode::Trino,
+            parts: None,
+            part: None,
+            verbose: false,
+            quiet: false,
+            progress_bars_enabled: false,
+        }
+    }
 
     #[test]
     fn every_main_table_has_help_text() {
@@ -474,5 +573,121 @@ mod tests {
                 "{table} is missing a --help description"
             );
         }
+    }
+
+    #[test]
+    fn tables_deduplicates_repeated_selections_in_first_seen_order() {
+        let tables = args_with_tables(vec![
+            Table::Reason,
+            Table::Reason,
+            Table::ShipMode,
+            Table::Reason,
+            Table::ShipMode,
+        ])
+        .tables()
+        .unwrap();
+
+        assert_eq!(tables, vec![Table::Reason, Table::ShipMode]);
+    }
+
+    #[test]
+    fn tables_keeps_sales_and_returns_as_separate_outputs() {
+        // Every output has a direct generator for the returns tables, so a
+        // returns selection is its own file rather than a side effect of the
+        // sales table.
+        for (sales, returns) in [
+            (Table::CatalogSales, Table::CatalogReturns),
+            (Table::StoreSales, Table::StoreReturns),
+            (Table::WebSales, Table::WebReturns),
+        ] {
+            assert_eq!(
+                args_with_tables(vec![sales, returns]).tables().unwrap(),
+                vec![sales, returns]
+            );
+            assert_eq!(
+                args_with_tables(vec![returns]).tables().unwrap(),
+                vec![returns]
+            );
+        }
+    }
+
+    fn args_with_parts(parts: Option<i32>, part: Option<i32>) -> CommonArgs {
+        let mut args = args_with_tables(vec![Table::Reason]);
+        args.parts = parts;
+        args.part = part;
+        args
+    }
+
+    #[test]
+    fn part_list_defaults_to_single_unnumbered_file() {
+        assert_eq!(args_with_parts(None, None).part_list().unwrap(), vec![None]);
+    }
+
+    #[test]
+    fn part_list_expands_parts_alone_into_every_part() {
+        assert_eq!(
+            args_with_parts(Some(3), None).part_list().unwrap(),
+            vec![Some(1), Some(2), Some(3)]
+        );
+    }
+
+    #[test]
+    fn part_list_with_part_and_parts_generates_just_that_part() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(2)).part_list().unwrap(),
+            vec![Some(2)]
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_part_without_parts() {
+        let err = args_with_parts(None, Some(2)).part_list().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "The --part option requires the --parts option to be set"
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_non_positive_parts() {
+        assert!(args_with_parts(Some(0), None).part_list().is_err());
+        assert!(args_with_parts(Some(-1), None).part_list().is_err());
+        assert_eq!(
+            args_with_parts(Some(0), Some(1))
+                .part_list()
+                .unwrap_err()
+                .to_string(),
+            "Invalid --parts value '0'. Expected a number greater than zero"
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_non_positive_part() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(0))
+                .part_list()
+                .unwrap_err()
+                .to_string(),
+            "Invalid --part value '0'. Expected a number greater than zero"
+        );
+    }
+
+    #[test]
+    fn part_list_rejects_part_greater_than_parts() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(4))
+                .part_list()
+                .unwrap_err()
+                .to_string(),
+            "Invalid --part value '4'. Expected at most the value of --parts (3)"
+        );
+    }
+
+    #[test]
+    fn part_list_accepts_last_part() {
+        assert_eq!(
+            args_with_parts(Some(3), Some(3)).part_list().unwrap(),
+            vec![Some(3)]
+        );
     }
 }

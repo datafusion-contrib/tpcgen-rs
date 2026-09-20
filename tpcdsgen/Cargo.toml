@@ -2,7 +2,7 @@
 name = "tpcdsgen"
 authors = ["clflushopt", "alamb"]
 description = "TPC-DS data generation library."
-repository = "https://github.com/clflushopt/tpchgen-rs"
+repository = { workspace = true }
 version = "0.1.0"
 edition = "2021"
 license = { workspace = true }

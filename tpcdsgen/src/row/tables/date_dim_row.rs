@@ -136,7 +136,7 @@ impl DateDimRow {
     }
 
     /// Format a boolean value for output
-    fn format_boolean(value: bool) -> &'static str {
+    pub(crate) fn format_boolean(value: bool) -> &'static str {
         if value {
             "Y"
         } else {
@@ -147,7 +147,7 @@ impl DateDimRow {
 
 /// DAT field helper for this row's columns.
 impl DateDimRow {
-    fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
         DatField::new(value, self.is_field_null(column_index))
     }
 }

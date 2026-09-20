@@ -22,26 +22,26 @@ use std::fmt;
 /// Row structure for catalog_sales table
 #[derive(Debug, Clone)]
 pub struct CatalogSalesRow {
-    null_bit_map: i64,
-    cs_sold_date_sk: i64,
-    cs_sold_time_sk: i64,
-    cs_ship_date_sk: i64,
-    cs_bill_customer_sk: i64,
-    cs_bill_cdemo_sk: i64,
-    cs_bill_hdemo_sk: i64,
-    cs_bill_addr_sk: i64,
-    cs_ship_customer_sk: i64,
-    cs_ship_cdemo_sk: i64,
-    cs_ship_hdemo_sk: i64,
-    cs_ship_addr_sk: i64,
-    cs_call_center_sk: i64,
-    cs_catalog_page_sk: i64,
-    cs_ship_mode_sk: i64,
-    cs_warehouse_sk: i64,
-    cs_sold_item_sk: i64,
-    cs_promo_sk: i64,
-    cs_order_number: i64,
-    cs_pricing: Pricing,
+    pub(crate) null_bit_map: i64,
+    pub(crate) cs_sold_date_sk: i64,
+    pub(crate) cs_sold_time_sk: i64,
+    pub(crate) cs_ship_date_sk: i64,
+    pub(crate) cs_bill_customer_sk: i64,
+    pub(crate) cs_bill_cdemo_sk: i64,
+    pub(crate) cs_bill_hdemo_sk: i64,
+    pub(crate) cs_bill_addr_sk: i64,
+    pub(crate) cs_ship_customer_sk: i64,
+    pub(crate) cs_ship_cdemo_sk: i64,
+    pub(crate) cs_ship_hdemo_sk: i64,
+    pub(crate) cs_ship_addr_sk: i64,
+    pub(crate) cs_call_center_sk: i64,
+    pub(crate) cs_catalog_page_sk: i64,
+    pub(crate) cs_ship_mode_sk: i64,
+    pub(crate) cs_warehouse_sk: i64,
+    pub(crate) cs_sold_item_sk: i64,
+    pub(crate) cs_promo_sk: i64,
+    pub(crate) cs_order_number: i64,
+    pub(crate) cs_pricing: Pricing,
 }
 
 impl CatalogSalesRow {
@@ -182,12 +182,16 @@ impl CatalogSalesRow {
 
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is negative.
-    fn key_field(&self, value: i64, column: &CatalogSalesGeneratorColumn) -> DatField<i64> {
+    pub(crate) fn key_field(
+        &self,
+        value: i64,
+        column: &CatalogSalesGeneratorColumn,
+    ) -> DatField<i64> {
         DatField::new(value, self.is_null(column) || value < 0)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column: &CatalogSalesGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: &CatalogSalesGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 }

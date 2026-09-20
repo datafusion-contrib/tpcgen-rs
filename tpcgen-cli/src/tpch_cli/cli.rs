@@ -1,12 +1,15 @@
 use super::{
-    Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
+    Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
+use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
+use std::collections::HashSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
 use std::io::IsTerminal;
@@ -23,7 +26,7 @@ use std::sync::Arc;
     about = "TPC-H Data Generator",
     // --help output
     long_about = r#"
-TPCH Data Generator (https://github.com/clflushopt/tpchgen-rs)
+TPCH Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
 
 By default each table is written to a single file named <output_dir>/<table>.<format>
 
@@ -59,11 +62,8 @@ pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    // Top-level args are only used when no subcommand is given (legacy path).
-    // args_conflicts_with_subcommands prevents these from being silently ignored
-    // when a subcommand is present (e.g. `tpchgen-cli -s 10 parquet` is an error).
     #[command(flatten)]
-    args: TopLevelArgs,
+    args: CommonArgs,
 }
 
 #[derive(clap::Subcommand)]
@@ -78,7 +78,7 @@ enum Commands {
 
 #[derive(clap::Args)]
 struct CommonArgs {
-    /// Scale factor to create
+    /// Scale factor to create (supported range: 0 through 100000, inclusive)
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
 
@@ -134,6 +134,8 @@ impl CommonArgs {
     /// Initialize CLI logging/progress output and create a
     /// [`TpchGeneratorBuilder`] pre-configured with the common options.
     fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
+        let tables = self.tables();
+
         #[cfg(feature = "indicatif-progress")]
         let progress = self
             .should_show_progress_bars()
@@ -146,7 +148,7 @@ impl CommonArgs {
             .with_num_threads(self.num_threads)
             .with_stdout(self.stdout);
 
-        if let Some(tables) = self.tables {
+        if let Some(tables) = tables {
             builder = builder.with_tables(tables);
         }
         if let Some(parts) = self.parts {
@@ -173,6 +175,19 @@ impl CommonArgs {
         builder
     }
 
+    /// Return the selected tables without repeated values, preserving the
+    /// command-line order of their first occurrence.
+    fn tables(&self) -> Option<Vec<Table>> {
+        let mut seen = HashSet::new();
+        self.tables.as_ref().map(|tables| {
+            tables
+                .iter()
+                .copied()
+                .filter(|table| seen.insert(*table))
+                .collect()
+        })
+    }
+
     #[cfg(feature = "indicatif-progress")]
     fn should_show_progress_bars(&self) -> bool {
         // Show progress only on an interactive terminal and when no flag
@@ -180,26 +195,6 @@ impl CommonArgs {
         // interleaved with bar redraws on shared shells.
         self.progress_bars_enabled && !self.quiet && !self.stdout && io::stderr().is_terminal()
     }
-}
-
-#[derive(clap::Args)]
-struct TopLevelArgs {
-    #[command(flatten)]
-    common: CommonArgs,
-
-    /// Output format (deprecated: use subcommands `tbl`, `csv`, or `parquet` instead)
-    ///
-    /// The --format flag will be removed in v4.0.0.
-    #[arg(short, long, hide = true)]
-    format: Option<OutputFormat>,
-
-    /// Parquet block compression format (deprecated: use 'parquet' subcommand instead)
-    #[arg(short = 'c', long, hide = true)]
-    parquet_compression: Option<Compression>,
-
-    /// Target row group size in bytes (deprecated: use 'parquet' subcommand instead)
-    #[arg(long, hide = true)]
-    parquet_row_group_bytes: Option<i64>,
 }
 
 #[derive(clap::Args)]
@@ -244,7 +239,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Approximate target row-group size in uncompressed bytes
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better
@@ -256,8 +251,29 @@ struct ParquetArgs {
     /// groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
-    #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
+    #[arg(
+        long,
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
+        value_parser = parse_row_group_bytes
+    )]
     row_group_bytes: i64,
+
+    /// Per-column Parquet encodings (overrides writer defaults).
+    ///
+    /// Format: `COLUMN=ENCODING[,COLUMN=ENCODING...]`
+    ///
+    /// Example: `l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY`
+    ///
+    /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
+    /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each
+    /// encoding must also be valid for the target column's Parquet physical
+    /// type (e.g. RLE only applies to boolean columns).
+    ///
+    /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
+    /// dictionary encoding is the writer default and cannot be requested
+    /// through this flag, and BIT_PACKED is not supported for writing.
+    #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
+    column_encoding: Option<Vec<(String, Encoding)>>,
 }
 
 /// Parse a delimiter string, handling escape sequences.
@@ -306,11 +322,25 @@ impl TypedValueParser for TableValueParser {
         _: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, clap::Error> {
+        let to_err = |msg: String| {
+            clap::Error::raw(clap::error::ErrorKind::InvalidValue, format!("{msg}\n")).with_cmd(cmd)
+        };
+
         let value = value
             .to_str()
-            .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))?;
-        Table::from_str(value)
-            .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))
+            .ok_or_else(|| to_err("table names must be valid UTF-8".to_string()))?;
+
+        Table::from_str(value).map_err(|_| {
+            let expected = self
+                .possible_values()
+                .expect("table parser defines possible values")
+                .map(|table| table.get_name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            to_err(format!(
+                "unknown table '{value}'. Expected one of: {expected}"
+            ))
+        })
     }
 
     fn possible_values(
@@ -343,45 +373,13 @@ impl Cli {
         }
     }
 
+    /// Generate TBL output when no output-format subcommand is specified.
     async fn run_default(self) -> io::Result<()> {
-        // Warn about --format migration to subcommands (only when explicitly provided)
-        let (format, subcommand) = if let Some(format) = self.args.format {
-            let subcommand = match format {
-                OutputFormat::Parquet => "parquet",
-                OutputFormat::Csv => "csv",
-                OutputFormat::Tbl => "tbl",
-            };
-            (format, Some(subcommand))
-        } else {
-            (OutputFormat::Tbl, None)
-        };
-
-        let mut builder = self.args.common.builder(format);
-        if let Some(subcommand) = subcommand {
-            log::warn!(
-                "The --format flag will be removed in v4.0.0. Use `tpchgen-cli {subcommand}` instead."
-            );
-        }
-
-        if let Some(parquet_compression) = self.args.parquet_compression {
-            if format == OutputFormat::Parquet {
-                log::warn!("The --parquet-compression flag is deprecated. Use 'tpchgen-cli parquet --compression=...' instead");
-                builder = builder.with_parquet_compression(parquet_compression);
-            } else {
-                log::warn!("--parquet-compression ignored: output format is not parquet");
-            }
-        }
-
-        if let Some(parquet_row_group_bytes) = self.args.parquet_row_group_bytes {
-            if format == OutputFormat::Parquet {
-                log::warn!("The --parquet-row-group-bytes flag is deprecated. Use 'tpchgen-cli parquet --row-group-bytes=...' instead");
-                builder = builder.with_parquet_row_group_bytes(parquet_row_group_bytes);
-            } else {
-                log::warn!("--parquet-row-group-bytes ignored: output format is not parquet");
-            }
-        }
-
-        builder.build().generate().await
+        self.args
+            .builder(OutputFormat::Tbl)
+            .build()
+            .generate()
+            .await
     }
 }
 
@@ -412,8 +410,59 @@ impl ParquetArgs {
             .builder(OutputFormat::Parquet)
             .with_parquet_compression(self.compression)
             .with_parquet_row_group_bytes(self.row_group_bytes)
+            .with_parquet_column_encodings(self.column_encoding)
             .build()
             .generate()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
+        CommonArgs {
+            scale_factor: 1.0,
+            output_dir: PathBuf::new(),
+            tables: Some(tables),
+            parts: None,
+            part: None,
+            num_threads: 1,
+            verbose: false,
+            quiet: false,
+            stdout: false,
+            progress_bars_enabled: false,
+        }
+    }
+
+    #[test]
+    fn tables_deduplicates_repeated_selections_in_first_seen_order() {
+        let tables = args_with_tables(vec![
+            Table::Region,
+            Table::Region,
+            Table::Nation,
+            Table::Region,
+            Table::Nation,
+        ])
+        .tables();
+
+        assert_eq!(tables, Some(vec![Table::Region, Table::Nation]));
+    }
+
+    #[test]
+    fn tables_deduplicates_values_from_repeated_flags_and_aliases() {
+        let cli = Cli::try_parse_from([
+            "tpchgen", "tbl", "--tables", "region,r", "--tables", "nation", "--tables", "region",
+        ])
+        .unwrap();
+        let Some(Commands::Tbl(args)) = cli.command else {
+            panic!("expected tbl command")
+        };
+
+        assert_eq!(
+            args.common.tables(),
+            Some(vec![Table::Region, Table::Nation])
+        );
     }
 }

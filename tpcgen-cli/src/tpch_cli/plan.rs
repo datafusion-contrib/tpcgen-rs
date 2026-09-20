@@ -78,6 +78,12 @@ impl GenerationPlan {
         cli_part_count: Option<i32>,
         parquet_row_group_bytes: i64,
     ) -> Result<Self, String> {
+        if !(0.0..=100_000.0).contains(&scale_factor) {
+            return Err(format!(
+                "Invalid scale factor. Expected a number between 0 and 100000, inclusive, got {scale_factor}"
+            ));
+        }
+
         // If a single part is specified, split it into chunks to enable parallel generation.
         match (cli_part, cli_part_count) {
             (Some(_part), None) => Err(String::from(
@@ -657,6 +663,13 @@ mod tests {
                 .with_cli_part(1) // part 0 of 0 (invalid)
                 .with_cli_part_count(0)
                 .assert_err("Invalid --part_count. Expected a number greater than zero, got 0");
+        }
+
+        #[test]
+        fn unsupported_scale_factor() {
+            Test::new().with_scale_factor(100_001.0).assert_err(
+                "Invalid scale factor. Expected a number between 0 and 100000, inclusive, got 100001",
+            );
         }
     }
 

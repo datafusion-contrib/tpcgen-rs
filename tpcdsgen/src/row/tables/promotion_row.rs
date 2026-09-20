@@ -20,25 +20,25 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub struct PromotionRow {
     null_bit_map: i64,
-    p_promo_sk: i64,
-    p_promo_id: String,
-    p_start_date_id: i64,
-    p_end_date_id: i64,
-    p_item_sk: i64,
-    p_cost: Decimal,
-    p_response_target: i32,
-    p_promo_name: String,
-    p_channel_dmail: bool,
-    p_channel_email: bool,
-    p_channel_catalog: bool,
-    p_channel_tv: bool,
-    p_channel_radio: bool,
-    p_channel_press: bool,
-    p_channel_event: bool,
-    p_channel_demo: bool,
-    p_channel_details: String,
-    p_purpose: String,
-    p_discount_active: bool,
+    pub(crate) p_promo_sk: i64,
+    pub(crate) p_promo_id: String,
+    pub(crate) p_start_date_id: i64,
+    pub(crate) p_end_date_id: i64,
+    pub(crate) p_item_sk: i64,
+    pub(crate) p_cost: Decimal,
+    pub(crate) p_response_target: i32,
+    pub(crate) p_promo_name: String,
+    pub(crate) p_channel_dmail: bool,
+    pub(crate) p_channel_email: bool,
+    pub(crate) p_channel_catalog: bool,
+    pub(crate) p_channel_tv: bool,
+    pub(crate) p_channel_radio: bool,
+    pub(crate) p_channel_press: bool,
+    pub(crate) p_channel_event: bool,
+    pub(crate) p_channel_demo: bool,
+    pub(crate) p_channel_details: String,
+    pub(crate) p_purpose: String,
+    pub(crate) p_discount_active: bool,
 }
 
 impl PromotionRow {
@@ -89,7 +89,7 @@ impl PromotionRow {
         }
     }
 
-    fn is_null_at(&self, column: PromotionGeneratorColumn) -> bool {
+    pub(crate) fn is_null_at(&self, column: PromotionGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - PromotionGeneratorColumn::PPromoSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
@@ -179,12 +179,12 @@ impl PromotionRow {
 impl PromotionRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is -1.
-    fn key_field(&self, key: i64, column: PromotionGeneratorColumn) -> DatField<i64> {
+    pub(crate) fn key_field(&self, key: i64, column: PromotionGeneratorColumn) -> DatField<i64> {
         DatField::new(key, key == -1 || self.is_null_at(column))
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column: PromotionGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: PromotionGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null_at(column))
     }
 }

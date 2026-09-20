@@ -102,7 +102,7 @@ main() {
     log_info "========================================="
 
     log_info "Building Rust generator..."
-    (cd "$PROJECT_ROOT" && cargo build --release -p tpcgen-cli --quiet)
+    (cd "$PROJECT_ROOT" && cargo build --locked --release -p tpcgen-cli --quiet)
     local generator
     generator=$(find_generator)
     if [[ ! -x "$generator" ]]; then

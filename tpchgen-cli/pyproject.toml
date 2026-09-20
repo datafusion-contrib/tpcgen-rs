@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
+requires = ["maturin>=1.9.3,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -7,6 +7,20 @@ name = "tpchgen-cli"
 dynamic = ["version", "readme", "license", "authors"]
 description = "Python CLI for TPC-H data generator"
 requires-python = ">=3.8"
+license-files = ["LICENSE"]
+keywords = ["tpch", "benchmark", "data-generator", "parquet"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Rust",
+    "Topic :: Database",
+    "Topic :: System :: Benchmark",
+]
+
+[project.urls]
+Homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
+Repository = "https://github.com/datafusion-contrib/tpcgen-rs"
+Issues = "https://github.com/datafusion-contrib/tpcgen-rs/issues"
 
 [tool.maturin]
 bindings = "bin"  # this makes maturin treat it as a binary crate (not a library)

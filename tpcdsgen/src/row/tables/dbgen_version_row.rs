@@ -20,10 +20,10 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct DbgenVersionRow {
     null_bit_map: i64,
-    dv_version: String,
-    dv_create_date: Date,
-    dv_create_time: i32,
-    dv_cmdline_args: String,
+    pub(crate) dv_version: String,
+    pub(crate) dv_create_date: Date,
+    pub(crate) dv_create_time: i32,
+    pub(crate) dv_cmdline_args: String,
 }
 
 impl DbgenVersionRow {
@@ -70,7 +70,7 @@ impl DbgenVersionRow {
 }
 
 /// Seconds-since-midnight rendered as `HH:MM:SS`.
-struct TimeOfDay(i32);
+pub(crate) struct TimeOfDay(pub(crate) i32);
 
 impl fmt::Display for TimeOfDay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -83,7 +83,7 @@ impl fmt::Display for TimeOfDay {
 
 /// DAT field helper for this row's columns.
 impl DbgenVersionRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }

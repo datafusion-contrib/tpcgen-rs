@@ -1,8 +1,9 @@
-use super::output_plan::OutputPlanGenerator;
+use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
-pub use ::parquet::basic::Compression;
+pub use ::parquet::basic::{Compression, Encoding};
+use arrow::datatypes::SchemaRef;
 use log::info;
 use std::fmt::Display;
 use std::io;
@@ -11,12 +12,16 @@ use std::sync::Arc;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
 use tpchgen::text::TextPool;
+use tpchgen_arrow::{
+    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
+    SupplierArrow,
+};
 
 /// TPC-H table types
 ///
 /// Represents the 8 tables in the TPC-H benchmark schema.
 /// Tables are ordered by size (smallest to largest at SF=1).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Table {
     /// Nation table (25 rows)
     Nation,
@@ -52,17 +57,22 @@ impl FromStr for Table {
     /// not support this since it just adds unnecessary complexity and confusion so we
     /// only support the exclusive abbreviations.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "n" | "nation" => Ok(Table::Nation),
-            "r" | "region" => Ok(Table::Region),
-            "s" | "supplier" => Ok(Table::Supplier),
-            "P" | "part" => Ok(Table::Part),
-            "S" | "partsupp" => Ok(Table::Partsupp),
-            "c" | "customer" => Ok(Table::Customer),
-            "O" | "orders" => Ok(Table::Orders),
-            "L" | "lineitem" => Ok(Table::Lineitem),
-            _ => Err("Invalid table name {s}"),
+        for (alias, table) in [
+            ("n", Table::Nation),
+            ("r", Table::Region),
+            ("s", Table::Supplier),
+            ("P", Table::Part),
+            ("S", Table::Partsupp),
+            ("c", Table::Customer),
+            ("O", Table::Orders),
+            ("L", Table::Lineitem),
+        ] {
+            if s == alias || s.eq_ignore_ascii_case(table.name()) {
+                return Ok(table);
+            }
         }
+
+        Err("Invalid table name {s}")
     }
 }
 
@@ -141,6 +151,8 @@ pub struct GeneratorConfig {
     pub num_threads: usize,
     /// Parquet compression format
     pub parquet_compression: Compression,
+    /// Per-column Parquet encodings (overrides writer defaults)
+    pub parquet_column_encodings: Option<Vec<(String, Encoding)>>,
     /// Target row group size in bytes for Parquet files
     pub parquet_row_group_bytes: i64,
     /// Number of partitions to generate (if None, generates a single file per table)
@@ -162,6 +174,7 @@ impl Default for GeneratorConfig {
             format: OutputFormat::Tbl,
             num_threads: num_cpus::get(),
             parquet_compression: Compression::SNAPPY,
+            parquet_column_encodings: None,
             parquet_row_group_bytes: DEFAULT_PARQUET_ROW_GROUP_BYTES,
             parts: None,
             part: None,
@@ -169,6 +182,59 @@ impl Default for GeneratorConfig {
             csv_delimiter: ',',
         }
     }
+}
+
+pub(super) fn table_schema(table: Table) -> SchemaRef {
+    match table {
+        Table::Nation => NationArrow::schema_ref(),
+        Table::Region => RegionArrow::schema_ref(),
+        Table::Part => PartArrow::schema_ref(),
+        Table::Supplier => SupplierArrow::schema_ref(),
+        Table::Partsupp => PartSuppArrow::schema_ref(),
+        Table::Customer => CustomerArrow::schema_ref(),
+        Table::Orders => OrderArrow::schema_ref(),
+        Table::Lineitem => LineItemArrow::schema_ref(),
+    }
+}
+
+/// Checks each column in `encodings` against every table in `tables`.
+///
+/// Rejects an encoding `reject_unsupported_encoding` always rejects.
+/// Rejects a column name that matches no table (almost always a typo). A
+/// column that matches only some tables is fine: [`column_encodings_for_table`]
+/// applies it there and skips it elsewhere.
+pub(super) fn validate_column_encodings(
+    tables: &[Table],
+    encodings: &[(String, Encoding)],
+) -> io::Result<()> {
+    for (col, enc) in encodings {
+        crate::parquet::reject_unsupported_encoding(*enc)?;
+        let matches_any_table = tables.iter().any(|table| {
+            table_schema(*table)
+                .fields()
+                .iter()
+                .any(|f| f.name() == col)
+        });
+        if !matches_any_table {
+            return Err(io::Error::other(format!(
+                "column '{col}' for --column-encoding not found in any selected table"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Keeps only the encodings whose column exists in `table`'s schema.
+pub(super) fn column_encodings_for_table(
+    table: Table,
+    encodings: &[(String, Encoding)],
+) -> Vec<(String, Encoding)> {
+    let schema = table_schema(table);
+    encodings
+        .iter()
+        .filter(|(col, _)| schema.fields().iter().any(|f| f.name() == col))
+        .cloned()
+        .collect()
 }
 
 /// TPC-H data generator
@@ -212,11 +278,22 @@ impl TpchGenerator {
             ]
         };
 
+        // Reject a --column-encoding column that matches no selected table
+        // (a typo) before any work starts. column_encodings_for_table
+        // (below) skips a column that only matches some tables, so that
+        // case is not an error.
+        if let Some(encodings) = &config.parquet_column_encodings {
+            validate_column_encodings(&tables, encodings)?;
+        }
+
         // Determine what files to generate
         let mut output_plan_generator = OutputPlanGenerator::new(
             config.format,
             config.scale_factor,
-            config.parquet_compression,
+            ParquetWriterOptions {
+                compression: config.parquet_compression,
+                column_encodings: config.parquet_column_encodings,
+            },
             config.parquet_row_group_bytes,
             config.stdout,
             config.output_dir,
@@ -298,6 +375,15 @@ impl TpchGeneratorBuilder {
     /// Set Parquet compression format (default: SNAPPY).
     pub fn with_parquet_compression(mut self, compression: Compression) -> Self {
         self.config.parquet_compression = compression;
+        self
+    }
+
+    /// Set per-column Parquet encodings (overrides writer defaults).
+    pub fn with_parquet_column_encodings(
+        mut self,
+        encodings: Option<Vec<(String, Encoding)>>,
+    ) -> Self {
+        self.config.parquet_column_encodings = encodings;
         self
     }
 
@@ -387,6 +473,45 @@ mod tests {
         fn finish(&self) {
             self.finishes.fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    #[test]
+    fn validate_column_encodings_accepts_a_column_present_on_just_one_table() {
+        // l_comment exists only on lineitem, not orders.
+        let tables = [Table::Lineitem, Table::Orders];
+        let encodings = [("l_comment".to_string(), Encoding::PLAIN)];
+        assert!(validate_column_encodings(&tables, &encodings).is_ok());
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_a_typo() {
+        let tables = [Table::Lineitem, Table::Orders];
+        let encodings = [("l_comment_typo".to_string(), Encoding::PLAIN)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(err.to_string().contains("column 'l_comment_typo'"), "{err}");
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_dictionary_encoding() {
+        let tables = [Table::Lineitem];
+        let encodings = [("l_comment".to_string(), Encoding::PLAIN_DICTIONARY)];
+        assert!(validate_column_encodings(&tables, &encodings).is_err());
+    }
+
+    #[test]
+    fn column_encodings_for_table_keeps_only_matching_columns() {
+        let encodings = [
+            ("l_comment".to_string(), Encoding::PLAIN),
+            ("o_comment".to_string(), Encoding::PLAIN),
+        ];
+        assert_eq!(
+            column_encodings_for_table(Table::Lineitem, &encodings),
+            vec![("l_comment".to_string(), Encoding::PLAIN)]
+        );
+        assert_eq!(
+            column_encodings_for_table(Table::Nation, &encodings),
+            Vec::new()
+        );
     }
 
     #[tokio::test]

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["clflushopt", "alamb"]
 description = "TPC-DS data generator into Apache Arrow format"
-repository = "https://github.com/clflushopt/tpchgen-rs"
+repository = { workspace = true }
 readme = "README.md"
 license = "Apache-2.0"
 

@@ -92,7 +92,7 @@ pub struct TPCHDate {
 impl Display for TPCHDate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // uses a pre-computed table to avoid recalculating the date
-        write!(f, "{}", &DATE_TO_STRING[self.date_index as usize])
+        write!(f, "{}", DATE_TO_STRING[self.date_index as usize])
     }
 }
 

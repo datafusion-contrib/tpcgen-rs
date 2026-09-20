@@ -2,15 +2,16 @@
 //! be generated in parallel.
 
 use std::ops::RangeInclusive;
-use tpcdsgen::config::{Scaling, Table};
+use tpcdsgen::config::Table;
 
 /// Parquet files can have at most 32767 row groups
-const MAX_ROW_GROUPS: i64 = 32767;
+const MAX_ROW_GROUPS: u64 = 32767;
 
 /// What a chunk of a table is generated into.
 ///
 /// Selects the estimated output bytes per source row, which is what turns a
-/// target chunk size in bytes into a number of source rows.
+/// target chunk size in bytes into a number of source rows, and how many
+/// chunks a table may be split into.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ChunkFormat {
     /// One chunk is one Parquet row group. The number of chunks is capped at
@@ -18,11 +19,14 @@ pub(super) enum ChunkFormat {
     Parquet,
     /// One chunk is one in memory buffer of DAT text.
     Dat,
+    /// One chunk is one in memory buffer of CSV text.
+    Csv,
 }
 
 /// How to generate a TPC-DS table: a list of contiguous source row ranges,
 /// each of which is generated as one chunk (a Parquet row group, or a buffer
-/// of DAT text). Each range can be generated independently, in parallel.
+/// of DAT or CSV text). Each range can be generated (and encoded)
+/// independently, in parallel.
 ///
 /// The number of chunks is computed from the source row count, an estimated
 /// output size per source row, and the target chunk size.
@@ -34,48 +38,62 @@ pub(super) enum ChunkFormat {
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct TpcdsGenerationPlan {
     /// Inclusive 1-based source row ranges, one per chunk
-    ranges: Vec<RangeInclusive<i64>>,
+    ranges: Vec<RangeInclusive<u64>>,
 }
 
 impl TpcdsGenerationPlan {
     /// Compute the chunk layout for `table` given the target `chunk_bytes` of
-    /// generated `format` output.
-    pub(super) fn new(
+    /// generated `format` output, restricted to `row_range` of the table's
+    /// source rows.
+    ///
+    /// `row_range` is typically a whole table (`1..=source_rows`) or one
+    /// `--parts`/`--part` chunk (see
+    /// [`tpcdsgen::config::Session::get_source_row_range`]); either way the
+    /// chunks it produces cover exactly `row_range`.
+    pub(super) fn new_for_range(
         table: Table,
-        scaling: &Scaling,
-        chunk_bytes: usize,
+        chunk_bytes: i64,
+        row_range: RangeInclusive<u64>,
         format: ChunkFormat,
     ) -> Self {
-        let source_rows = scaling.get_row_count(table.source_table());
-        let estimated_bytes =
-            source_rows.saturating_mul(estimated_bytes_per_source_row(table, format));
+        let range_start = *row_range.start();
+        let range_end = *row_range.end();
+        let range_len = if range_end >= range_start {
+            range_end - range_start + 1
+        } else {
+            0
+        };
+
         let max_chunks = match format {
             ChunkFormat::Parquet => MAX_ROW_GROUPS,
-            // DAT chunks are just buffers, so there is no limit on how many
+            // Text chunks are just buffers, so there is no limit on how many
             // there can be. Capping them would instead grow the buffers, and
             // with them the peak memory use, at high scale factors.
-            ChunkFormat::Dat => i64::MAX,
+            ChunkFormat::Dat | ChunkFormat::Csv => u64::MAX,
         };
-        let num_chunks = (estimated_bytes / chunk_bytes.max(1) as i64 + 1)
+        let estimated_bytes =
+            (range_len as f64 * estimated_bytes_per_source_row(table, format)).ceil() as u64;
+        let num_chunks = estimated_bytes
+            .div_ceil(chunk_bytes.max(1) as u64)
             .min(max_chunks)
-            .min(source_rows)
+            .min(range_len)
             .max(1);
         // ceiling division so the last chunk is the one that comes up short
-        let rows_per_chunk = ((source_rows + num_chunks - 1) / num_chunks).max(1);
+        let rows_per_chunk = range_len.div_ceil(num_chunks).max(1);
 
         let mut ranges = Vec::with_capacity(num_chunks as usize);
-        let mut start = 1;
-        while start <= source_rows {
-            let end = (start + rows_per_chunk - 1).min(source_rows);
+        let mut start = range_start;
+        while start <= range_end {
+            let end = (start + rows_per_chunk - 1).min(range_end);
             ranges.push(start..=end);
             start = end + 1;
         }
-        // An empty table still needs one (empty) range so that an (empty)
+        // An empty range still needs one (empty) chunk so that an (empty)
         // output file is written: for Parquet that is a valid file containing
-        // the table schema, for DAT an empty file.
+        // the table schema, for the text formats an empty (or header only)
+        // file.
         if ranges.is_empty() {
-            #[allow(clippy::reversed_empty_ranges)]
-            ranges.push(1..=0);
+            ranges.push(row_range);
         }
         Self { ranges }
     }
@@ -88,7 +106,7 @@ impl TpcdsGenerationPlan {
 
 /// Converts the plan into an iterator of inclusive source row ranges
 impl IntoIterator for TpcdsGenerationPlan {
-    type Item = RangeInclusive<i64>;
+    type Item = RangeInclusive<u64>;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -98,10 +116,11 @@ impl IntoIterator for TpcdsGenerationPlan {
 
 /// Estimated output bytes written per *source* row (see
 /// [`TpcdsGenerationPlan`] for what a source row is).
-fn estimated_bytes_per_source_row(table: Table, format: ChunkFormat) -> i64 {
+fn estimated_bytes_per_source_row(table: Table, format: ChunkFormat) -> f64 {
     match format {
         ChunkFormat::Parquet => estimated_parquet_bytes_per_source_row(table),
         ChunkFormat::Dat => estimated_dat_bytes_per_source_row(table),
+        ChunkFormat::Csv => estimated_csv_bytes_per_source_row(table),
     }
 }
 
@@ -111,10 +130,25 @@ fn estimated_bytes_per_source_row(table: Table, format: ChunkFormat) -> i64 {
 /// Row group sizes are conventionally measured in uncompressed bytes, which
 /// is also what the previous `ArrowWriter` based implementation limited.
 ///
-/// Measured from files generated at scale factor 1: the total uncompressed
-/// bytes, computed using datafusion-cli:
+/// Measured offline at scale factor 100 using the default column encodings.
+/// Large tables were sampled in single row groups near 128 MiB uncompressed
+/// (119-165 MiB); smaller tables were measured in full. Sizes are approximate:
+/// cardinality, row-group size, and column encodings affect encoding efficiency.
 ///
-/// You can verify these numbers using
+/// To remeasure the estimates, first generate scale-factor-100 Parquet files
+/// with approximately 128 MiB row groups:
+/// ```shell
+/// cargo run --release --bin tpcgen-cli -- tpcds parquet \
+///   --scale-factor 100 \
+///   --row-group-bytes 134217728 \
+///   --output-dir /tmp/tpcds-sf100
+/// cd /tmp/tpcds-sf100
+/// ```
+///
+/// Then divide each file's total uncompressed Parquet size by its source-row
+/// count. Sales generators emit multiple output rows per source row, and return
+/// tables use the source rows of their paired sales table, so use distinct
+/// order or ticket numbers from the sales file for both:
 /// ```shell
 /// for table in call_center catalog_page catalog_returns catalog_sales customer customer_address \
 ///   customer_demographics date_dim dbgen_version household_demographics income_band inventory \
@@ -136,66 +170,48 @@ fn estimated_bytes_per_source_row(table: Table, format: ChunkFormat) -> i64 {
 ///   esac
 ///
 ///   datafusion-cli -q -c "
-///   select
-///     '$table' as table_name,
-///     round(
-///       cast(sum(total_uncompressed_size) as double) / cast($source_rows as double)
-///     ) as bytes_per_source_row
-///   from parquet_metadata('$table.parquet')"
+///     select
+///       '$table' as table_name,
+///       cast(sum(total_uncompressed_size) as double) /
+///         cast($source_rows as double) as bytes_per_source_row
+///     from parquet_metadata('$table.parquet')"
 /// done
 /// ```
 ///
-/// Which results in something like
-/// ```text
-/// +-------------+----------------------+
-/// | table_name  | bytes_per_source_row |
-/// +-------------+----------------------+
-/// | call_center | 423.0                |
-/// +-------------+----------------------+
-/// ...
-/// +-----------------+----------------------+
-/// | table_name      | bytes_per_source_row |
-/// +-----------------+----------------------+
-/// | catalog_returns | 195.0                |
-/// +-----------------+----------------------+
-/// +---------------+----------------------+
-/// | table_name    | bytes_per_source_row |
-/// +---------------+----------------------+
-/// | catalog_sales | 2391.0               |
-/// +---------------+----------------------+
-/// ```
-///
-/// Remember you have to divide by the **source** row count (which is different
-/// for sales vs returns tables) to get the bytes per source row.
-fn estimated_parquet_bytes_per_source_row(table: Table) -> i64 {
+/// The estimates are the sum of Parquet metadata's
+/// `total_uncompressed_size` divided by the exact source-row range used to
+/// generate the group. Sales and returns must both use their paired sales
+/// table's source-row count, not their output-row count. Fractional bytes avoid
+/// large rounding errors for narrow tables such as inventory.
+fn estimated_parquet_bytes_per_source_row(table: Table) -> f64 {
     match table {
-        Table::CallCenter => 423,
-        Table::CatalogPage => 113,
-        Table::CatalogReturns => 195,
-        Table::CatalogSales => 2391,
-        Table::Customer => 92,
-        Table::CustomerAddress => 46,
-        Table::CustomerDemographics => 9,
-        Table::DateDim => 57,
+        Table::CallCenter => 229.80,
+        Table::CatalogPage => 108.21,
+        Table::CatalogReturns => 65.97,
+        Table::CatalogSales => 668.72,
+        Table::Customer => 76.65,
+        Table::CustomerAddress => 35.63,
+        Table::CustomerDemographics => 5.06,
+        Table::DateDim => 52.56,
         // Note: this value is not performance critical as this is a 1 row table
         // and the size depends on the command line args.
-        Table::DbgenVersion => 358,
-        Table::HouseholdDemographics => 10,
-        Table::IncomeBand => 20,
-        Table::Inventory => 3,
-        Table::Item => 197,
-        Table::Promotion => 120,
-        Table::Reason => 54,
-        Table::ShipMode => 76,
-        Table::Store => 265,
-        Table::StoreReturns => 220,
-        Table::StoreSales => 2366,
-        Table::TimeDim => 38,
-        Table::Warehouse => 206,
-        Table::WebPage => 50,
-        Table::WebReturns => 261,
-        Table::WebSales => 3119,
-        Table::WebSite => 218,
+        Table::DbgenVersion => 448.00,
+        Table::HouseholdDemographics => 6.44,
+        Table::IncomeBand => 20.05,
+        Table::Inventory => 3.45,
+        Table::Item => 188.84,
+        Table::Promotion => 85.67,
+        Table::Reason => 45.85,
+        Table::ShipMode => 71.65,
+        Table::Store => 131.99,
+        Table::StoreReturns => 66.27,
+        Table::StoreSales => 578.47,
+        Table::TimeDim => 34.03,
+        Table::Warehouse => 156.93,
+        Table::WebPage => 27.57,
+        Table::WebReturns => 86.25,
+        Table::WebSales => 799.19,
+        Table::WebSite => 231.17,
         // Not a main table; never generated as Parquet output
         _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
     }
@@ -204,73 +220,122 @@ fn estimated_parquet_bytes_per_source_row(table: Table) -> i64 {
 /// Estimated DAT bytes written per *source* row (see [`TpcdsGenerationPlan`]
 /// for what a source row is).
 ///
-/// Measured from files generated at scale factor 1: the size of each
-/// `<table>.dat` file divided by the source row count of the table
-/// (`Scaling::get_row_count(table.source_table())`), rounded to whole bytes.
+/// DAT and CSV rows are fixed width in the sense that matters here: the field
+/// values come from the same distributions at every scale factor, so bytes per
+/// source row does not change with the scale factor. That makes these
+/// estimates far more accurate than the Parquet ones, which depend on how well
+/// each row group encodes.
 ///
-/// DAT rows are fixed width in the sense that matters here: the field values
-/// come from the same distributions at every scale factor, so bytes per source
-/// row does not change with the scale factor.
-fn estimated_dat_bytes_per_source_row(table: Table) -> i64 {
+/// Measured from files generated at scale factor 1: each `<table>.dat` file's
+/// size divided by the table's source row count
+/// (`Scaling::get_row_count(table.source_table())`).
+///
+/// ```shell
+/// cargo run --release --bin tpcgen-cli -- tpcds dat \
+///   --scale-factor 1 --output-dir /tmp/tpcds-sf1-dat
+/// ```
+fn estimated_dat_bytes_per_source_row(table: Table) -> f64 {
     match table {
-        Table::CallCenter => 315,
-        Table::CatalogPage => 139,
-        Table::CatalogReturns => 134,
-        Table::CatalogSales => 1849,
-        Table::Customer => 132,
-        Table::CustomerAddress => 110,
-        Table::CustomerDemographics => 42,
-        Table::DateDim => 141,
+        Table::CallCenter => 315.17,
+        Table::CatalogPage => 139.26,
+        Table::CatalogReturns => 133.61,
+        Table::CatalogSales => 1849.44,
+        Table::Customer => 132.09,
+        Table::CustomerAddress => 110.04,
+        Table::CustomerDemographics => 41.99,
+        Table::DateDim => 141.24,
         // Note: this value is not performance critical as this is a 1 row table
         // and the size depends on the command line args.
-        Table::DbgenVersion => 210,
-        Table::HouseholdDemographics => 21,
-        Table::IncomeBand => 16,
-        Table::Inventory => 20,
-        Table::Item => 281,
-        Table::Promotion => 124,
-        Table::Reason => 38,
-        Table::ShipMode => 56,
-        Table::Store => 263,
-        Table::StoreReturns => 136,
-        Table::StoreSales => 1619,
-        Table::TimeDim => 59,
-        Table::Warehouse => 117,
-        Table::WebPage => 96,
-        Table::WebReturns => 163,
-        Table::WebSales => 2448,
-        Table::WebSite => 292,
+        Table::DbgenVersion => 229.00,
+        Table::HouseholdDemographics => 21.06,
+        Table::IncomeBand => 16.40,
+        Table::Inventory => 20.13,
+        Table::Item => 280.66,
+        Table::Promotion => 124.11,
+        Table::Reason => 38.26,
+        Table::ShipMode => 55.65,
+        Table::Store => 262.92,
+        Table::StoreReturns => 136.29,
+        Table::StoreSales => 1618.52,
+        Table::TimeDim => 59.12,
+        Table::Warehouse => 117.00,
+        Table::WebPage => 96.27,
+        Table::WebReturns => 163.44,
+        Table::WebSales => 2447.96,
+        Table::WebSite => 292.37,
         // Not a main table; never generated as DAT output
         _ => unreachable!("DAT generation plans are only defined for main TPC-DS tables"),
+    }
+}
+
+/// Estimated CSV bytes written per *source* row (see [`TpcdsGenerationPlan`]
+/// for what a source row is).
+///
+/// Measured the same way as [`estimated_dat_bytes_per_source_row`], from
+/// scale factor 1 `<table>.csv` files. CSV rows are close to DAT rows in
+/// size: they drop DAT's trailing separator but quote the free text columns.
+///
+/// ```shell
+/// cargo run --release --bin tpcgen-cli -- tpcds csv \
+///   --scale-factor 1 --output-dir /tmp/tpcds-sf1-csv
+/// ```
+fn estimated_csv_bytes_per_source_row(table: Table) -> f64 {
+    match table {
+        Table::CallCenter => 386.83,
+        Table::CatalogPage => 140.25,
+        Table::CatalogReturns => 132.72,
+        Table::CatalogSales => 1840.43,
+        Table::Customer => 133.04,
+        Table::CustomerAddress => 109.05,
+        Table::CustomerDemographics => 40.99,
+        Table::DateDim => 140.24,
+        // Note: this value is not performance critical as this is a 1 row table
+        // and the size depends on the command line args.
+        Table::DbgenVersion => 285.00,
+        Table::HouseholdDemographics => 20.07,
+        Table::IncomeBand => 17.80,
+        Table::Inventory => 19.13,
+        Table::Item => 281.67,
+        Table::Promotion => 126.00,
+        Table::Reason => 38.34,
+        Table::ShipMode => 58.20,
+        Table::Store => 295.83,
+        Table::StoreReturns => 135.09,
+        Table::StoreSales => 1606.52,
+        Table::TimeDim => 58.12,
+        Table::Warehouse => 153.00,
+        Table::WebPage => 98.72,
+        Table::WebReturns => 162.25,
+        Table::WebSales => 2435.98,
+        Table::WebSite => 307.57,
+        // Not a main table; never generated as CSV output
+        _ => unreachable!("CSV generation plans are only defined for main TPC-DS tables"),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tpcdsgen::config::Scaling;
 
-    const DEFAULT_ROW_GROUP_BYTES: usize = 7 * 1024 * 1024;
+    const DEFAULT_ROW_GROUP_BYTES: i64 = 7 * 1024 * 1024;
 
-    fn plan(table: Table, scale_factor: f64, row_group_bytes: usize) -> TpcdsGenerationPlan {
-        TpcdsGenerationPlan::new(
-            table,
-            &Scaling::new(scale_factor),
-            row_group_bytes,
-            ChunkFormat::Parquet,
-        )
+    fn plan(table: Table, scale_factor: f64, row_group_bytes: i64) -> TpcdsGenerationPlan {
+        plan_with_format(table, scale_factor, row_group_bytes, ChunkFormat::Parquet)
     }
 
-    fn dat_plan(table: Table, scale_factor: f64, chunk_bytes: usize) -> TpcdsGenerationPlan {
-        TpcdsGenerationPlan::new(
-            table,
-            &Scaling::new(scale_factor),
-            chunk_bytes,
-            ChunkFormat::Dat,
-        )
+    fn plan_with_format(
+        table: Table,
+        scale_factor: f64,
+        chunk_bytes: i64,
+        format: ChunkFormat,
+    ) -> TpcdsGenerationPlan {
+        let source_rows = Scaling::new(scale_factor).get_row_count(table.source_table());
+        TpcdsGenerationPlan::new_for_range(table, chunk_bytes, 1..=source_rows, format)
     }
 
     /// Assert the ranges cover `1..=expected_source_rows` contiguously
-    fn assert_covers(plan: &TpcdsGenerationPlan, expected_source_rows: i64) {
+    fn assert_covers(plan: &TpcdsGenerationPlan, expected_source_rows: u64) {
         let mut next_row = 1;
         for range in &plan.ranges {
             assert_eq!(*range.start(), next_row);
@@ -289,8 +354,32 @@ mod tests {
     #[test]
     fn store_sales_sf1_default() {
         let plan = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        // ~568 MB estimated output in 7 MB row groups over 240k source rows
-        assert_eq!(plan.chunk_count(), 78);
+        // ~132 MiB estimated output in 7 MiB row groups over 240k source rows
+        assert_eq!(plan.chunk_count(), 19);
+        assert_covers(&plan, 240_000);
+    }
+
+    #[test]
+    fn narrow_tables_keep_fractional_byte_estimates() {
+        let plan = plan(Table::Inventory, 100.0, 128 * 1024 * 1024);
+        // Rounding 3.45 bytes/source row to an integer would produce 9 or 12 groups.
+        assert_eq!(plan.chunk_count(), 11);
+        assert_covers(&plan, Scaling::new(100.0).get_row_count(Table::Inventory));
+    }
+
+    #[test]
+    fn exact_target_multiples_do_not_add_a_row_group() {
+        for (target, expected) in [(46_368, 1), (23_184, 2), (23_183, 3)] {
+            let plan = plan(Table::HouseholdDemographics, 1.0, target);
+            assert_eq!(plan.chunk_count(), expected);
+            assert_covers(&plan, 7200);
+        }
+    }
+
+    #[test]
+    fn maximum_target_keeps_one_row_group() {
+        let plan = plan(Table::StoreSales, 1.0, i64::MAX);
+        assert_eq!(plan.chunk_count(), 1);
         assert_covers(&plan, 240_000);
     }
 
@@ -299,7 +388,7 @@ mod tests {
         let plan = plan(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES);
         // store_returns is generated from the 240k store_sales source rows
         // (its own scaling row count is 0)
-        assert_eq!(plan.chunk_count(), 8);
+        assert_eq!(plan.chunk_count(), 3);
         assert_covers(&plan, 240_000);
     }
 
@@ -330,6 +419,14 @@ mod tests {
     }
 
     #[test]
+    fn non_positive_row_group_size_is_clamped() {
+        let expected = plan(Table::Reason, 1.0, 1);
+        for row_group_bytes in [0, -1, i64::MIN] {
+            assert_eq!(plan(Table::Reason, 1.0, row_group_bytes), expected);
+        }
+    }
+
+    #[test]
     fn empty_table_gets_one_empty_range() {
         let plan = plan(Table::Reason, 0.0, DEFAULT_ROW_GROUP_BYTES);
         assert_eq!(plan.chunk_count(), 1);
@@ -337,32 +434,63 @@ mod tests {
     }
 
     #[test]
-    fn dat_chunks_are_sized_from_dat_bytes() {
-        // store_sales DAT output is ~1619 bytes per source row: ~389 MB at SF 1
-        let plan = dat_plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        assert_eq!(plan.chunk_count(), 53);
-        assert_covers(&plan, 240_000);
+    fn a_part_is_planned_over_just_its_own_rows() {
+        // `--parts 4 --part 2` of store_sales: the chunks cover exactly the
+        // requested range and nothing outside it.
+        let plan = TpcdsGenerationPlan::new_for_range(
+            Table::StoreSales,
+            DEFAULT_ROW_GROUP_BYTES,
+            60_001..=120_000,
+            ChunkFormat::Parquet,
+        );
+        assert_eq!(*plan.ranges.first().unwrap().start(), 60_001);
+        assert_eq!(*plan.ranges.last().unwrap().end(), 120_000);
+        // a quarter of the whole table's rows needs a quarter of its chunks
+        assert_eq!(plan.chunk_count(), 5);
     }
 
     #[test]
-    fn dat_chunk_count_is_not_capped_at_the_parquet_row_group_limit() {
-        // DAT chunks are buffers, so they keep their target size rather than
+    fn text_chunks_are_sized_from_text_bytes() {
+        // store_sales at SF 1 is ~371 MiB of DAT and ~368 MiB of CSV text,
+        // both far larger than the ~132 MiB of (uncompressed) Parquet.
+        let parquet = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
+        for format in [ChunkFormat::Dat, ChunkFormat::Csv] {
+            let text = plan_with_format(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES, format);
+            assert!(
+                text.chunk_count() > parquet.chunk_count(),
+                "{format:?} planned {} chunks, parquet planned {}",
+                text.chunk_count(),
+                parquet.chunk_count()
+            );
+            assert_covers(&text, 240_000);
+        }
+    }
+
+    #[test]
+    fn text_chunk_count_is_not_capped_at_the_parquet_row_group_limit() {
+        // Text chunks are buffers, so they keep their target size rather than
         // growing to stay under Parquet's row group limit
-        let plan = dat_plan(Table::StoreSales, 3000.0, DEFAULT_ROW_GROUP_BYTES);
-        assert!(plan.chunk_count() > MAX_ROW_GROUPS as usize);
-        assert_covers(&plan, Scaling::new(3000.0).get_row_count(Table::StoreSales));
+        for format in [ChunkFormat::Dat, ChunkFormat::Csv] {
+            let plan = plan_with_format(Table::StoreSales, 3000.0, DEFAULT_ROW_GROUP_BYTES, format);
+            assert!(plan.chunk_count() > MAX_ROW_GROUPS as usize);
+            assert_covers(&plan, Scaling::new(3000.0).get_row_count(Table::StoreSales));
+        }
     }
 
     #[test]
-    fn dat_returns_ranges_use_sales_source_rows() {
-        let plan = dat_plan(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        assert_covers(&plan, 240_000);
+    fn text_returns_ranges_use_sales_source_rows() {
+        for format in [ChunkFormat::Dat, ChunkFormat::Csv] {
+            let plan = plan_with_format(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES, format);
+            assert_covers(&plan, 240_000);
+        }
     }
 
     #[test]
-    fn dat_empty_table_gets_one_empty_range() {
-        let plan = dat_plan(Table::Reason, 0.0, DEFAULT_ROW_GROUP_BYTES);
-        assert_eq!(plan.chunk_count(), 1);
-        assert!(plan.ranges[0].is_empty());
+    fn text_empty_table_gets_one_empty_range() {
+        for format in [ChunkFormat::Dat, ChunkFormat::Csv] {
+            let plan = plan_with_format(Table::Reason, 0.0, DEFAULT_ROW_GROUP_BYTES, format);
+            assert_eq!(plan.chunk_count(), 1);
+            assert!(plan.ranges[0].is_empty());
+        }
     }
 }

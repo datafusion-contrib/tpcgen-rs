@@ -23,17 +23,17 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct StoreReturnsRow {
     null_bit_map: i64,
-    sr_returned_date_sk: i64,
-    sr_returned_time_sk: i64,
-    sr_item_sk: i64,
-    sr_customer_sk: i64,
-    sr_cdemo_sk: i64,
-    sr_hdemo_sk: i64,
-    sr_addr_sk: i64,
-    sr_store_sk: i64,
-    sr_reason_sk: i64,
-    sr_ticket_number: i64,
-    sr_pricing: Pricing,
+    pub(crate) sr_returned_date_sk: i64,
+    pub(crate) sr_returned_time_sk: i64,
+    pub(crate) sr_item_sk: i64,
+    pub(crate) sr_customer_sk: i64,
+    pub(crate) sr_cdemo_sk: i64,
+    pub(crate) sr_hdemo_sk: i64,
+    pub(crate) sr_addr_sk: i64,
+    pub(crate) sr_store_sk: i64,
+    pub(crate) sr_reason_sk: i64,
+    pub(crate) sr_ticket_number: i64,
+    pub(crate) sr_pricing: Pricing,
 }
 
 impl StoreReturnsRow {
@@ -68,7 +68,7 @@ impl StoreReturnsRow {
         }
     }
 
-    fn is_null_at(&self, column: StoreReturnsGeneratorColumn) -> bool {
+    pub(crate) fn is_null_at(&self, column: StoreReturnsGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - StoreReturnsGeneratorColumn::SrReturnedDateSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0

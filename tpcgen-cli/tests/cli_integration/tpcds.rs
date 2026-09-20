@@ -1,16 +1,16 @@
-use super::test_helpers::{expect_row_group_sizes, RowGroups};
+use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::basic::Compression;
+use parquet::basic::{Compression, Encoding};
 use parquet::file::metadata::ParquetMetaDataReader;
 use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{StoreReturnsArrow, StoreSalesArrow};
@@ -241,6 +241,154 @@ fn test_tpcgen_cli_tpcds_parquet_compression() {
 }
 
 #[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_desc=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let path = temp_dir.path().join("reason.parquet");
+    expect_column_encoding(&path, "r_reason_desc", Encoding::DELTA_LENGTH_BYTE_ARRAY);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_desc=NOT_AN_ENCODING")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("invalid value") && stderr.contains("--column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+}
+
+/// A `--column-encoding` column that exists on only some selected tables
+/// applies there and is skipped elsewhere. Selecting tables that do not
+/// share every named column is not an error.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_exists() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // r_reason_desc only exists on reason, not item.
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_desc=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let reason_path = temp_dir.path().join("reason.parquet");
+    expect_column_encoding(
+        &reason_path,
+        "r_reason_desc",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    );
+    assert!(
+        temp_dir.path().join("item.parquet").exists(),
+        "expected item.parquet to still be generated, just without r_reason_desc applied to it"
+    );
+}
+
+/// A `--column-encoding` column that matches no selected table (a typo)
+/// must fail before any table is written.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_desc_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("column 'r_reason_desc_typo'"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
+/// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are always rejected.
+/// This must fail before any table is written, same as a typo, even when
+/// the column exists on only one of the selected tables.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // r_reason_desc only exists on reason. This must still fail up
+    // front, before either table is scheduled.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_desc=PLAIN_DICTIONARY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("cannot be set with --column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
+#[test]
 fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
@@ -263,8 +411,7 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                1074775, 1073988, 1073405, 1071992, 1073785, 1072613, 1072227, 1073264, 1073338,
-                1072748,
+                1154938, 1153793, 1152175, 1152992, 1152614, 1152066, 1153473, 1152964,
             ],
         }],
     );
@@ -372,6 +519,158 @@ fn test_tpcgen_cli_tpcds_dat_multiple_table_selection_command_forms() {
             "Expected `tpcgen-cli {}` to produce the selected table output set",
             form.join(" ")
         );
+    }
+}
+
+/// Repeated selections and both sides of a sales/returns pair should schedule
+/// each row generator exactly once for DAT and CSV.
+#[test]
+fn test_tpcgen_cli_tpcds_row_outputs_deduplicate_selected_tables() {
+    let table_orders = [
+        "reason,reason,reason,\
+         store_sales,store_returns,store_sales,\
+         catalog_sales,catalog_returns,catalog_sales,\
+         web_sales,web_returns,web_sales",
+        "reason,reason,reason,\
+         store_returns,store_sales,store_returns,\
+         catalog_returns,catalog_sales,catalog_returns,\
+         web_returns,web_sales,web_returns",
+    ];
+
+    for tables in table_orders {
+        for (format, extension) in [("dat", "dat"), ("csv", "csv")] {
+            let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+            let assert = cargo_bin_cmd!("tpcgen-cli")
+                .arg("tpcds")
+                .arg(format)
+                .arg("--scale-factor")
+                .arg("0")
+                .arg("--tables")
+                .arg(tables)
+                .arg("--output-dir")
+                .arg(temp_dir.path())
+                .arg("--verbose")
+                .assert()
+                .success();
+
+            let expected_files = [
+                format!("reason.{extension}"),
+                format!("store_sales.{extension}"),
+                format!("store_returns.{extension}"),
+                format!("catalog_sales.{extension}"),
+                format!("catalog_returns.{extension}"),
+                format!("web_sales.{extension}"),
+                format!("web_returns.{extension}"),
+            ]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+            let actual_files = fs::read_dir(temp_dir.path())
+                .expect("Failed to read generated output directory")
+                .map(|entry| {
+                    entry
+                        .expect("Failed to read generated output directory entry")
+                        .file_name()
+                        .into_string()
+                        .expect("Generated output file name is not valid UTF-8")
+                })
+                .collect::<BTreeSet<_>>();
+            assert_eq!(actual_files, expected_files);
+
+            // Each selected table is written exactly once, however many
+            // times it was named on the command line.
+            let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+            for file in &expected_files {
+                let generated = stderr
+                    .lines()
+                    .filter(|line| line.contains("Generated ") && line.ends_with(file))
+                    .count();
+                assert_eq!(
+                    generated, 1,
+                    "Expected {file} to be generated once for {format} with {tables}, got stderr: {stderr}"
+                );
+            }
+        }
+    }
+}
+
+fn generate_parquet_files(table_args: &[String]) -> BTreeSet<String> {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let mut command = cargo_bin_cmd!("tpcgen-cli");
+    command
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0");
+    for tables in table_args {
+        command.arg("--tables").arg(tables);
+    }
+    command
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    fs::read_dir(temp_dir.path())
+        .expect("Failed to read generated output directory")
+        .map(|entry| {
+            entry
+                .expect("Failed to read generated output directory entry")
+                .file_name()
+                .into_string()
+                .expect("Generated output file name is not valid UTF-8")
+        })
+        .collect()
+}
+
+/// Parquet receives the same exact-value deduplication as other formats,
+/// including when values are supplied through repeated `--tables` flags.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_deduplicates_repeated_table_selection() {
+    let expected = BTreeSet::from(["reason.parquet".to_string()]);
+    for table_args in [
+        vec!["reason,reason,reason".to_string()],
+        vec![
+            "reason".to_string(),
+            "reason".to_string(),
+            "reason".to_string(),
+        ],
+    ] {
+        assert_eq!(generate_parquet_files(&table_args), expected);
+    }
+}
+
+/// Parquet keeps sales and returns as distinct output selections while still
+/// deduplicating repeated occurrences of either table.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_preserves_sales_returns_selection_semantics() {
+    for (sales, returns) in [
+        (Table::CatalogSales, Table::CatalogReturns),
+        (Table::StoreSales, Table::StoreReturns),
+        (Table::WebSales, Table::WebReturns),
+    ] {
+        let sales = sales.get_name();
+        let returns = returns.get_name();
+
+        assert_eq!(
+            generate_parquet_files(&[sales.to_string()]),
+            BTreeSet::from([format!("{sales}.parquet")])
+        );
+        assert_eq!(
+            generate_parquet_files(&[returns.to_string()]),
+            BTreeSet::from([format!("{returns}.parquet")])
+        );
+
+        for tables in [
+            format!("{sales},{returns},{sales}"),
+            format!("{returns},{sales},{returns}"),
+        ] {
+            assert_eq!(
+                generate_parquet_files(&[tables]),
+                BTreeSet::from([format!("{sales}.parquet"), format!("{returns}.parquet"),])
+            );
+        }
     }
 }
 
@@ -517,7 +816,7 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     let lines: Vec<_> = contents.lines().collect();
     assert_eq!(
         lines.first(),
-        Some(&"r_reason_sk,r_reason_id,r_reason_description")
+        Some(&"r_reason_sk,r_reason_id,r_reason_desc")
     );
     assert_eq!(
         lines.len(),
@@ -552,7 +851,7 @@ fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
     let contents =
         fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
     let first_line = contents.lines().next().expect("CSV output is empty");
-    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_description");
+    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_desc");
     assert!(
         !first_line.contains(','),
         "Expected custom-delimited CSV header not to use commas: {first_line}"
@@ -589,7 +888,7 @@ fn test_tpcgen_cli_tpcds_csv_delimiter_in_header_is_escaped() {
     let second_line = contents.lines().nth(1).expect("CSV data row is missing");
     assert_eq!(
         first_line,
-        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_description\""
+        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_desc\""
     );
     assert_eq!(
         second_line.split('_').count(),
@@ -739,7 +1038,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
         .arg("store_sales,store_returns")
         // small row groups to force several source row ranges
         .arg("--row-group-bytes")
-        .arg("1000000")
+        .arg("250000")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .assert()
@@ -792,7 +1091,7 @@ fn test_tpcgen_cli_tpcds_parquet_num_threads_equivalence() {
         let mut metadata_reader = ParquetMetaDataReader::new();
         metadata_reader.try_parse(&file).unwrap();
         let num_row_groups = metadata_reader.finish().unwrap().num_row_groups();
-        assert_eq!(num_row_groups, 24);
+        assert_eq!(num_row_groups, 6);
 
         outputs.push(fs::read(&path).expect("Failed to read Parquet file"));
     }
@@ -849,4 +1148,471 @@ fn test_tpcgen_cli_tpcds_help_lists_tables() {
             "Expected `tpcds --help` to list {table}, got stdout: {stdout}"
         );
     }
+}
+
+/// Test that `--part` without `--parts` is rejected with the expected message.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_part_without_parts_is_rejected() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--part")
+        .arg("1")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert_eq!(
+        stderr,
+        "Error: The --part option requires the --parts option to be set\n"
+    );
+}
+
+/// Test that an invalid `--part`/`--parts` combination is rejected before any
+/// output directory is created.
+#[test]
+fn test_tpcgen_cli_tpcds_rejects_invalid_part_without_creating_output() {
+    // (--parts, --part, expected error)
+    let cases = [
+        (
+            "3",
+            "4",
+            "Invalid --part value '4'. Expected at most the value of --parts (3)",
+        ),
+        (
+            "3",
+            "0",
+            "Invalid --part value '0'. Expected a number greater than zero",
+        ),
+        (
+            "0",
+            "1",
+            "Invalid --parts value '0'. Expected a number greater than zero",
+        ),
+    ];
+
+    for format in ["dat", "csv", "parquet"] {
+        for (parts, part, expected_error) in cases {
+            let temp_dir = tempdir().expect("Failed to create temporary directory");
+            let output_dir = temp_dir.path().join("output");
+
+            let assert = cargo_bin_cmd!("tpcgen-cli")
+                .arg("tpcds")
+                .arg(format)
+                .arg("--scale-factor")
+                .arg("0.001")
+                .arg("--tables")
+                .arg("reason")
+                .arg("--output-dir")
+                .arg(&output_dir)
+                .arg("--parts")
+                .arg(parts)
+                .arg("--part")
+                .arg(part)
+                .assert()
+                .failure();
+
+            let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+            assert_eq!(
+                stderr,
+                format!("Error: {expected_error}\n"),
+                "Unexpected error for {format} --parts {parts} --part {part}"
+            );
+
+            assert!(
+                !output_dir.exists(),
+                "Invalid --part must not create output: {format} --parts {parts} --part {part}"
+            );
+        }
+    }
+}
+
+/// Test that a non-positive `--parts` is rejected.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_rejects_non_positive_parts() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--parts")
+        .arg("0")
+        .assert()
+        .failure();
+}
+
+/// Test that `--parts` works for small tables.
+///
+/// The original `dsdgen` has a 1M-row split threshold, so for the 35-row reason
+/// table `--parts 4` puts the whole table in a single chunk
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_small_table_stays_in_chunk_one() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--parts")
+        .arg("4")
+        .assert()
+        .success();
+
+    let path = temp_dir.path().join("reason/reason.1.dat");
+    let contents =
+        fs::read_to_string(&path).unwrap_or_else(|err| panic!("Expected {path:?} to exist: {err}"));
+    assert_eq!(contents.lines().count(), 35, "chunk 1 has every row");
+
+    for chunk in 2..=5 {
+        let path = temp_dir.path().join(format!("reason/reason.{chunk}.dat"));
+        assert!(
+            !path.exists(),
+            "chunk {chunk} at path {path:?} should not exist"
+        );
+    }
+}
+
+/// Test that `--parts 1` puts the output in the `parts` directory,
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_outputs_directory() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--parts")
+        .arg("1")
+        .assert()
+        .success();
+
+    assert!(
+        temp_dir.path().join("reason/reason.1.dat").is_file(),
+        "--parts 1 should nest like tpchgen-cli"
+    );
+    assert!(
+        !temp_dir.path().join("reason.dat").exists(),
+        "--parts 1 should not also produce a flat file"
+    );
+}
+
+// ----------------
+// Test that concatenating a file created with `--parts`
+// exactly reproduces a single-file output
+//
+// Most of the tables are below the 1M minimum size, so only testing the larger
+// tables is sufficient to verify the behavior.
+//
+// For now, to avoid long test times, we test only a subset of the larger tables.
+// testing the whole thing is tracked by
+// https://github.com/datafusion-contrib/tpcgen-rs/issues/457
+// ----------------
+
+// DAT
+
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_catalog_page() {
+    test_dat_parts("catalog_page", 1.0, 4, &[11_718, 0, 0, 0]);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_customer_demographics() {
+    test_dat_parts(
+        "customer_demographics",
+        1.0,
+        4,
+        &[480_200, 480_200, 480_200, 480_200],
+    );
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_inventory() {
+    test_dat_parts(
+        "inventory",
+        1.0,
+        4,
+        &[2_936_250, 2_936_250, 2_936_250, 2_936_250],
+    );
+}
+
+/// dbgen_version records the command line that generated it, so a `--parts`
+/// run is never byte identical to an unsplit one. Check the part layout and
+/// row placement instead: the one row belongs to part 1.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_dbgen_version() {
+    let parts_dir = tempdir().expect("Failed to create temporary directory");
+    generate_parts("dat", "dbgen_version", 1.0, 4, parts_dir.path());
+
+    let path = parts_dir.path().join("dbgen_version/dbgen_version.1.dat");
+    let contents =
+        fs::read_to_string(&path).unwrap_or_else(|err| panic!("Expected {path:?} to exist: {err}"));
+    assert_eq!(contents.lines().count(), 1, "chunk 1 holds the single row");
+    for chunk in 2..=4 {
+        let path = part_path(parts_dir.path(), "dbgen_version", chunk, "dat");
+        assert!(
+            !path.exists(),
+            "chunk {chunk} generates no rows, so it must write no file: {path:?}"
+        );
+    }
+}
+
+// CSV
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_parts_catalog_page() {
+    test_csv_parts("catalog_page", 1.0, 4, &[11_718, 0, 0, 0]);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_parts_customer_demographics() {
+    test_csv_parts(
+        "customer_demographics",
+        1.0,
+        4,
+        &[480_200, 480_200, 480_200, 480_200],
+    );
+}
+
+// PARQUET
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_parts_catalog_returns() {
+    test_parquet_parts("catalog_returns", 1.0, 4, &[144_067, 0, 0, 0]);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_parts_customer_demographics() {
+    test_parquet_parts(
+        "customer_demographics",
+        1.0,
+        4,
+        &[480_200, 480_200, 480_200, 480_200],
+    );
+}
+
+/// Run the CLI once for `table_name` in `format`, writing a single unsplit
+/// file per table into `output_dir`.
+fn generate_unsplit(format: &str, table_name: &str, scale_factor: f64, output_dir: &Path) {
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg(format)
+        .arg("--scale-factor")
+        .arg(scale_factor.to_string())
+        .arg("--tables")
+        .arg(table_name)
+        .arg("--output-dir")
+        .arg(output_dir)
+        .assert()
+        .success();
+}
+
+/// Run the CLI once for `table_name` in `format`, writing `parts` numbered
+/// files per table into `output_dir/<table>/`.
+fn generate_parts(
+    format: &str,
+    table_name: &str,
+    scale_factor: f64,
+    parts: usize,
+    output_dir: &Path,
+) {
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg(format)
+        .arg("--scale-factor")
+        .arg(scale_factor.to_string())
+        .arg("--tables")
+        .arg(table_name)
+        .arg("--output-dir")
+        .arg(output_dir)
+        .arg("--parts")
+        .arg(parts.to_string())
+        .assert()
+        .success();
+}
+
+/// Assert `table_name`'s `--parts` directory holds exactly one file for each
+/// entry in `expected_rows`.
+///
+/// For example, if `expected_rows` is `[100, 200]` this verifies that there are
+/// exactly 2 files in `parts_dir/table_name`.
+fn assert_part_file_count(parts_dir: &Path, table_name: &str, expected_rows: &[usize]) {
+    let expected_files = expected_rows.iter().filter(|rows| **rows > 0).count();
+    let num_files = fs::read_dir(parts_dir.join(table_name))
+        .map(|dir| dir.count())
+        .unwrap_or(0);
+    assert_eq!(
+        num_files, expected_files,
+        "Expected one --parts output file per non-empty part"
+    );
+}
+
+/// Path of one `--parts` chunk file for `table_name`.
+fn part_path(parts_dir: &Path, table_name: &str, chunk: usize, ext: &str) -> PathBuf {
+    parts_dir.join(format!("{table_name}/{table_name}.{chunk}.{ext}"))
+}
+
+/// Test that concatenating a file created with `--parts` exactly reproduces a
+/// single-file output, and that every part holds the expected number of rows.
+///
+/// `expected_rows` has one entry per expected part.
+///
+/// For example, given 4 parts, and `expected_rows` is `[n, 0, 0, 0]` a single
+/// file with n rows is expected, and no files for the other three parts should
+/// exist.
+fn test_dat_parts(table_name: &str, scale_factor: f64, parts: usize, expected_rows: &[usize]) {
+    assert_eq!(expected_rows.len(), parts, "one row count per part");
+
+    let unsplit_dir = tempdir().expect("Failed to create temporary directory");
+    generate_unsplit("dat", table_name, scale_factor, unsplit_dir.path());
+    let unsplit = fs::read(unsplit_dir.path().join(format!("{table_name}.dat")))
+        .expect("unsplit file exists");
+
+    let parts_dir = tempdir().expect("Failed to create temporary directory");
+    generate_parts("dat", table_name, scale_factor, parts, parts_dir.path());
+
+    assert_part_file_count(parts_dir.path(), table_name, expected_rows);
+    let mut concatenated = Vec::new();
+    for (chunk, expected_rows) in (1..=parts).zip(expected_rows.iter().copied()) {
+        let path = part_path(parts_dir.path(), table_name, chunk, "dat");
+        if expected_rows == 0 {
+            assert!(!path.exists(), "an empty part must write no file: {path:?}");
+            continue;
+        }
+        let contents = fs::read(&path).unwrap_or_else(|err| panic!("{path:?} exists: {err}"));
+        assert_eq!(
+            contents.iter().filter(|byte| **byte == b'\n').count(),
+            expected_rows,
+            "Unexpected number of rows in chunk {chunk}"
+        );
+        concatenated.extend(contents);
+    }
+
+    assert_eq!(
+        concatenated, unsplit,
+        "Expected concatenated chunks are not the same as unsplit"
+    );
+}
+
+/// Test that concatenating CSV files results in the same output as a single CSV
+/// file, and that every part holds the expected number of rows.
+///
+/// See  [`test_dat_parts`]  for details on `expected_rows`.
+fn test_csv_parts(table_name: &str, scale_factor: f64, parts: usize, expected_rows: &[usize]) {
+    assert_eq!(expected_rows.len(), parts, "one row count per part");
+
+    let unsplit_dir = tempdir().expect("Failed to create temporary directory");
+    generate_unsplit("csv", table_name, scale_factor, unsplit_dir.path());
+    let unsplit = fs::read_to_string(unsplit_dir.path().join(format!("{table_name}.csv")))
+        .expect("unsplit exists");
+
+    let parts_dir = tempdir().expect("Failed to create temporary directory");
+    generate_parts("csv", table_name, scale_factor, parts, parts_dir.path());
+
+    assert_part_file_count(parts_dir.path(), table_name, expected_rows);
+
+    let mut lines = unsplit.lines();
+    let header = lines.next().expect("unsplit CSV has a header");
+    let mut expected = header.to_string();
+    expected.push('\n');
+    expected.push_str(&lines.map(|line| format!("{line}\n")).collect::<String>());
+
+    let mut reconstructed = String::new();
+    for (chunk, expected_rows) in (1..=parts).zip(expected_rows.iter().copied()) {
+        let path = part_path(parts_dir.path(), table_name, chunk, "csv");
+        if expected_rows == 0 {
+            assert!(!path.exists(), "an empty part must write no file: {path:?}");
+            continue;
+        }
+        let contents =
+            fs::read_to_string(&path).unwrap_or_else(|err| panic!("{path:?} exists: {err}"));
+        let mut chunk_lines = contents.lines();
+        let chunk_header = chunk_lines.next().expect("every chunk has its own header");
+        assert_eq!(chunk_header, header, "every chunk's header matches");
+        if reconstructed.is_empty() {
+            reconstructed.push_str(header);
+            reconstructed.push('\n');
+        }
+        let rows: Vec<&str> = chunk_lines.collect();
+        assert_eq!(
+            rows.len(),
+            expected_rows,
+            "Unexpected number of rows in chunk {chunk}"
+        );
+        reconstructed.push_str(
+            &rows
+                .iter()
+                .map(|line| format!("{line}\n"))
+                .collect::<String>(),
+        );
+    }
+
+    assert_eq!(
+        reconstructed, expected,
+        "Expected --parts chunk row data (headers aside) to reproduce the unsplit CSV output"
+    );
+}
+
+/// Test that concatenating the `--parts` Parquet files reproduces the unsplit
+/// Parquet output, and that every part holds the expected number of rows.
+///
+/// See  [`test_dat_parts`]  for details on `expected_rows`.
+fn test_parquet_parts(table_name: &str, scale_factor: f64, parts: usize, expected_rows: &[usize]) {
+    assert_eq!(expected_rows.len(), parts, "one row count per part");
+
+    let unsplit_dir = tempdir().expect("Failed to create temporary directory");
+    generate_unsplit("parquet", table_name, scale_factor, unsplit_dir.path());
+    let (unsplit, _row_groups) =
+        read_concatenated_parquet(&unsplit_dir.path().join(format!("{table_name}.parquet")));
+
+    let parts_dir = tempdir().expect("Failed to create temporary directory");
+    generate_parts("parquet", table_name, scale_factor, parts, parts_dir.path());
+
+    assert_part_file_count(parts_dir.path(), table_name, expected_rows);
+
+    let mut part_batches = vec![];
+    for (chunk, expected_rows) in (1..=parts).zip(expected_rows.iter().copied()) {
+        let path = part_path(parts_dir.path(), table_name, chunk, "parquet");
+        if expected_rows == 0 {
+            assert!(!path.exists(), "an empty part must write no file: {path:?}");
+            continue;
+        }
+        assert!(path.exists(), "Expected {path:?} to exist");
+        let (batch, _row_groups) = read_concatenated_parquet(&path);
+        assert_eq!(
+            batch.num_rows(),
+            expected_rows,
+            "Unexpected number of rows in chunk {chunk}"
+        );
+        part_batches.push(batch);
+    }
+    let reconstructed = concat_batches(&unsplit.schema(), &part_batches)
+        .expect("Failed to concatenate part batches");
+    assert_eq!(
+        reconstructed, unsplit,
+        "Expected concatenated --parts Parquet batches to match the unsplit Parquet batch"
+    );
 }

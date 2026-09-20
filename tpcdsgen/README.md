@@ -6,7 +6,7 @@ This crate provides the core data generator logic for TPC-DS.
 
 ```bash
 # Build the unified generator CLI
-cargo build --release -p tpcgen-cli
+cargo build --locked --release -p tpcgen-cli
 
 # Generate all tables at scale factor 1 (default)
 ./target/release/tpcgen-cli tpcds dat

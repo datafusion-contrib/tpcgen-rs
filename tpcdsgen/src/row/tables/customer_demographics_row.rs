@@ -5,15 +5,15 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct CustomerDemographicsRow {
     null_bit_map: i64,
-    cd_demo_sk: i64,
-    cd_gender: String,
-    cd_marital_status: String,
-    cd_education_status: String,
-    cd_purchase_estimate: i32,
-    cd_credit_rating: String,
-    cd_dep_count: i32,
-    cd_dep_employed_count: i32,
-    cd_dep_college_count: i32,
+    pub(crate) cd_demo_sk: i64,
+    pub(crate) cd_gender: String,
+    pub(crate) cd_marital_status: String,
+    pub(crate) cd_education_status: String,
+    pub(crate) cd_purchase_estimate: i32,
+    pub(crate) cd_credit_rating: String,
+    pub(crate) cd_dep_count: i32,
+    pub(crate) cd_dep_employed_count: i32,
+    pub(crate) cd_dep_college_count: i32,
 }
 
 impl CustomerDemographicsRow {
@@ -92,7 +92,7 @@ impl CustomerDemographicsRow {
 
 /// DAT field helper for this row's columns.
 impl CustomerDemographicsRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }

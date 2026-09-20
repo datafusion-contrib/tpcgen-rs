@@ -21,16 +21,16 @@ use std::fmt;
 /// Catalog page row
 #[derive(Clone)]
 pub struct CatalogPageRow {
-    null_bit_map: i64,
-    cp_catalog_page_sk: i64,
-    cp_catalog_page_id: String,
-    cp_start_date_id: i64,
-    cp_end_date_id: i64,
-    cp_department: String,
-    cp_catalog_number: i32,
-    cp_catalog_page_number: i32,
-    cp_description: String,
-    cp_type: String,
+    pub(crate) null_bit_map: i64,
+    pub(crate) cp_catalog_page_sk: i64,
+    pub(crate) cp_catalog_page_id: String,
+    pub(crate) cp_start_date_id: i64,
+    pub(crate) cp_end_date_id: i64,
+    pub(crate) cp_department: String,
+    pub(crate) cp_catalog_number: i32,
+    pub(crate) cp_catalog_page_number: i32,
+    pub(crate) cp_description: String,
+    pub(crate) cp_type: String,
 }
 
 impl CatalogPageRow {
@@ -61,7 +61,7 @@ impl CatalogPageRow {
         }
     }
 
-    fn is_null(&self, column: &CatalogPageGeneratorColumn) -> bool {
+    pub(crate) fn is_null(&self, column: &CatalogPageGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - CatalogPageGeneratorColumn::CpCatalogPageSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
@@ -111,12 +111,16 @@ impl CatalogPageRow {
 impl CatalogPageRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is negative.
-    fn key_field(&self, value: i64, column: &CatalogPageGeneratorColumn) -> DatField<i64> {
+    pub(crate) fn key_field(
+        &self,
+        value: i64,
+        column: &CatalogPageGeneratorColumn,
+    ) -> DatField<i64> {
         DatField::new(value, self.is_null(column) || value < 0)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column: &CatalogPageGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: &CatalogPageGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 }

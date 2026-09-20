@@ -23,17 +23,17 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct StoreSalesRow {
     null_bit_map: i64,
-    ss_sold_date_sk: i64,
-    ss_sold_time_sk: i64,
-    ss_sold_item_sk: i64,
-    ss_sold_customer_sk: i64,
-    ss_sold_cdemo_sk: i64,
-    ss_sold_hdemo_sk: i64,
-    ss_sold_addr_sk: i64,
-    ss_sold_store_sk: i64,
-    ss_sold_promo_sk: i64,
-    ss_ticket_number: i64,
-    ss_pricing: Pricing,
+    pub(crate) ss_sold_date_sk: i64,
+    pub(crate) ss_sold_time_sk: i64,
+    pub(crate) ss_sold_item_sk: i64,
+    pub(crate) ss_sold_customer_sk: i64,
+    pub(crate) ss_sold_cdemo_sk: i64,
+    pub(crate) ss_sold_hdemo_sk: i64,
+    pub(crate) ss_sold_addr_sk: i64,
+    pub(crate) ss_sold_store_sk: i64,
+    pub(crate) ss_sold_promo_sk: i64,
+    pub(crate) ss_ticket_number: i64,
+    pub(crate) ss_pricing: Pricing,
 }
 
 impl StoreSalesRow {
@@ -93,7 +93,7 @@ impl StoreSalesRow {
         &self.ss_pricing
     }
 
-    fn is_null_at(&self, column: StoreSalesGeneratorColumn) -> bool {
+    pub(crate) fn is_null_at(&self, column: StoreSalesGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - StoreSalesGeneratorColumn::SsSoldDateSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0

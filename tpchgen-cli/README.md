@@ -8,9 +8,9 @@ of (`duckdb`). On a 2023 Mac M3 Max laptop, it easily generates data faster than
 can be written to SSD. See [BENCHMARKS.md] for more details on performance and
 benchmarking.
 
-[BENCHMARKS.md]: https://github.com/clflushopt/tpchgen-rs/blob/main/benchmarks/BENCHMARKS.md
+[BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/benchmarks/BENCHMARKS.md
 
-* See the tpchgen [README.md](https://github.com/clflushopt/tpchgen-rs) for
+* See the tpchgen [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
 project details
 * Watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
 [@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
@@ -37,7 +37,7 @@ python -m pip install tpchgen-cli
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-RUSTFLAGS='-C target-cpu=native' cargo install tpchgen-cli
+RUSTFLAGS='-C target-cpu=native' cargo install --locked tpchgen-cli
 ```
 
 ## Examples
@@ -56,6 +56,9 @@ tpchgen-cli -s 10 --output-dir sf10
 # 20 part(itions), 100MB row groups
 # (220GB, 20 files, 6B lineitem rows, 3.5 minutes on a modern laptop)
 tpchgen-cli parquet -s 1000 --tables lineitem --parts 20 --row-group-bytes=100000000 --output-dir sf1000
+
+# Per-column encodings (overrides Parquet writer defaults for named columns)
+tpchgen-cli parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY
 
 # Scale Factor 10, partition 2 and 3 of 10 in sf10 directory
 #
@@ -92,16 +95,3 @@ is not a terminal, e.g. in CI logs).
   which is why it is not included in the table above.
 
 Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
-
-## Deprecation Notice
-
-`--format`, `--parquet-compression`, and `--parquet-row-group-bytes` are deprecated as of v3.x and will be removed in v4.0.0. Use subcommands instead:
-
-```shell
-# Before
-tpchgen-cli --format=parquet --parquet-compression=ZSTD(1) -s 10
-
-# After
-tpchgen-cli parquet --compression=ZSTD(1) -s 10
-```
-

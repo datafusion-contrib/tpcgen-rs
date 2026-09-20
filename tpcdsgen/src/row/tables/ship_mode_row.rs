@@ -5,12 +5,12 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct ShipModeRow {
     null_bit_map: i64,
-    sm_ship_mode_sk: i64,
-    sm_ship_mode_id: String,
-    sm_type: String,
-    sm_code: String,
-    sm_carrier: String,
-    sm_contract: String,
+    pub(crate) sm_ship_mode_sk: i64,
+    pub(crate) sm_ship_mode_id: String,
+    pub(crate) sm_type: String,
+    pub(crate) sm_code: String,
+    pub(crate) sm_carrier: String,
+    pub(crate) sm_contract: String,
 }
 
 impl ShipModeRow {
@@ -35,7 +35,7 @@ impl ShipModeRow {
     }
 
     /// Check if a column should be null based on the null bitmap (TableRowWithNulls logic)
-    fn should_be_null(&self, column_position: i32) -> bool {
+    pub(crate) fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1
     }
 
@@ -71,7 +71,7 @@ impl ShipModeRow {
 /// DAT field helper: NULL is driven purely by the null bit
 /// (ship_mode applies no key sentinel check, only the null bit).
 impl ShipModeRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }

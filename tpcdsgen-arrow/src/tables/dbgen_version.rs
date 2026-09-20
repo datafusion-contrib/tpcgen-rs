@@ -14,6 +14,11 @@ pub struct DbgenVersionArrow {
 }
 
 impl DbgenVersionArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::DbgenVersion);
         Self {
@@ -21,7 +26,7 @@ impl DbgenVersionArrow {
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
-    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.inner
             .skip_rows_until_starting_row_number(starting_row_number);
     }
@@ -31,8 +36,8 @@ impl DbgenVersionArrow {
     /// row count.
     pub fn with_source_row_range(
         mut self,
-        starting_row_number: i64,
-        ending_row_number: i64,
+        starting_row_number: u64,
+        ending_row_number: u64,
     ) -> Self {
         self.inner
             .set_source_row_range(starting_row_number, ending_row_number);
@@ -47,7 +52,7 @@ impl DbgenVersionArrow {
 
 impl RecordBatchReader for DbgenVersionArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 

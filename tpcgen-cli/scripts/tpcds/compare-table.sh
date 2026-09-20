@@ -153,7 +153,7 @@ generate_rust_table() {
 
     if ! binary=$(find_rust_binary); then
         log_error "Rust binary not found"
-        log_error "Build it with: cargo build --release -p tpcgen-cli"
+        log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
         return 1
     fi
 

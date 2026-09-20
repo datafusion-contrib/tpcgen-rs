@@ -68,14 +68,14 @@ impl TimeDimRow {
     }
 
     /// Check if a column should be NULL based on the null bitmap
-    fn is_field_null(&self, column_index: usize) -> bool {
+    pub(crate) fn is_field_null(&self, column_index: usize) -> bool {
         (self.null_bit_map & (1 << column_index)) != 0
     }
 }
 
 /// DAT field helper for this row's columns.
 impl TimeDimRow {
-    fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
         DatField::new(value, self.is_field_null(column_index))
     }
 }

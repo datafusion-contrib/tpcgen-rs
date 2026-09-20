@@ -23,21 +23,21 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct WebReturnsRow {
     null_bit_map: i64,
-    wr_returned_date_sk: i64,
-    wr_returned_time_sk: i64,
-    wr_item_sk: i64,
-    wr_refunded_customer_sk: i64,
-    wr_refunded_cdemo_sk: i64,
-    wr_refunded_hdemo_sk: i64,
-    wr_refunded_addr_sk: i64,
-    wr_returning_customer_sk: i64,
-    wr_returning_cdemo_sk: i64,
-    wr_returning_hdemo_sk: i64,
-    wr_returning_addr_sk: i64,
-    wr_web_page_sk: i64,
-    wr_reason_sk: i64,
-    wr_order_number: i64,
-    wr_pricing: Pricing,
+    pub(crate) wr_returned_date_sk: i64,
+    pub(crate) wr_returned_time_sk: i64,
+    pub(crate) wr_item_sk: i64,
+    pub(crate) wr_refunded_customer_sk: i64,
+    pub(crate) wr_refunded_cdemo_sk: i64,
+    pub(crate) wr_refunded_hdemo_sk: i64,
+    pub(crate) wr_refunded_addr_sk: i64,
+    pub(crate) wr_returning_customer_sk: i64,
+    pub(crate) wr_returning_cdemo_sk: i64,
+    pub(crate) wr_returning_hdemo_sk: i64,
+    pub(crate) wr_returning_addr_sk: i64,
+    pub(crate) wr_web_page_sk: i64,
+    pub(crate) wr_reason_sk: i64,
+    pub(crate) wr_order_number: i64,
+    pub(crate) wr_pricing: Pricing,
 }
 
 impl WebReturnsRow {
@@ -154,7 +154,7 @@ impl WebReturnsRow {
 /// DAT field helper: NULL is driven purely by the null bit (web rows
 /// apply no key sentinel check).
 impl WebReturnsRow {
-    fn field<T>(&self, value: T, column: WebReturnsGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: WebReturnsGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 }

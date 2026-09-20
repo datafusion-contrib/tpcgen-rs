@@ -7,45 +7,45 @@ use std::fmt;
 #[derive(Debug, Clone, PartialEq)]
 pub struct CallCenterRow {
     // Primary key
-    cc_call_center_sk: i64,
+    pub(crate) cc_call_center_sk: i64,
 
     // Business key and versioning.
     //
     // Open/closed dates are DATE_DIM surrogate keys.
-    cc_call_center_id: String,
-    cc_rec_start_date_id: i64,
-    cc_rec_end_date_id: i64,
-    cc_closed_date_id: i64,
-    cc_open_date_id: i64,
+    pub(crate) cc_call_center_id: String,
+    pub(crate) cc_rec_start_date_id: i64,
+    pub(crate) cc_rec_end_date_id: i64,
+    pub(crate) cc_closed_date_id: i64,
+    pub(crate) cc_open_date_id: i64,
 
     // Call center information
-    cc_name: String,
-    cc_class: String,
-    cc_employees: i32,
-    cc_sq_ft: i32,
-    cc_hours: String,
-    cc_manager: String,
+    pub(crate) cc_name: String,
+    pub(crate) cc_class: String,
+    pub(crate) cc_employees: i32,
+    pub(crate) cc_sq_ft: i32,
+    pub(crate) cc_hours: String,
+    pub(crate) cc_manager: String,
 
     // Market information
-    cc_market_id: i32,
-    cc_market_class: String,
-    cc_market_desc: String,
-    cc_market_manager: String,
+    pub(crate) cc_market_id: i32,
+    pub(crate) cc_market_class: String,
+    pub(crate) cc_market_desc: String,
+    pub(crate) cc_market_manager: String,
 
     // Organization hierarchy
-    cc_division_id: i32,
-    cc_division_name: String,
-    cc_company: i32,
-    cc_company_name: String,
+    pub(crate) cc_division_id: i32,
+    pub(crate) cc_division_name: String,
+    pub(crate) cc_company: i32,
+    pub(crate) cc_company_name: String,
 
     // Address information (embedded)
-    cc_address: Address,
+    pub(crate) cc_address: Address,
 
     // Financial information
-    cc_tax_percentage: Decimal,
+    pub(crate) cc_tax_percentage: Decimal,
 
     // Null bitmap for handling null values
-    null_bit_map: i64,
+    pub(crate) null_bit_map: i64,
 }
 
 impl CallCenterRow {
@@ -148,7 +148,7 @@ impl CallCenterRow {
     }
 
     /// Check if a field should be null based on the null bitmap
-    fn is_null(&self, column_position: i32) -> bool {
+    pub(crate) fn is_null(&self, column_position: i32) -> bool {
         (self.null_bit_map & (1 << column_position)) != 0
     }
 }
@@ -156,13 +156,13 @@ impl CallCenterRow {
 impl CallCenterRow {
     /// DAT field for a DATE_DIM surrogate key: empty when the null bit is
     /// set or the key is negative.
-    fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
+    pub(crate) fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
         DatField::new(value, self.is_null(column_position) || value < 0)
     }
 
     /// DAT field for an SCD date: empty when the null bit is set or the
     /// julian day is negative.
-    fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
+    pub(crate) fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
         DatField::from(
             (!(self.is_null(column_position) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),
@@ -170,7 +170,7 @@ impl CallCenterRow {
     }
 
     /// DAT field printing the literal `NULL` when the null bit is set.
-    fn nulled<T>(&self, value: T, column_position: i32) -> NullLiteralField<T> {
+    pub(crate) fn nulled<T>(&self, value: T, column_position: i32) -> NullLiteralField<T> {
         NullLiteralField::new(value, self.is_null(column_position))
     }
 }

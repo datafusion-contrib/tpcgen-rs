@@ -44,6 +44,11 @@ pub struct RegionArrow {
 }
 
 impl RegionArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&REGION_SCHEMA)
+    }
+
     pub fn new(generator: RegionGenerator<'static>) -> Self {
         Self {
             inner: generator.iter(),
@@ -60,7 +65,7 @@ impl RegionArrow {
 
 impl RecordBatchReader for RegionArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&REGION_SCHEMA)
+        Self::schema_ref()
     }
 }
 

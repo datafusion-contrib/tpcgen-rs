@@ -5,21 +5,21 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct IncomeBandRow {
     null_bit_map: i64,
-    ib_income_band_id: i32,
-    ib_lower_bound: i32,
-    ib_upper_bound: i32,
+    pub(crate) ib_income_band_sk: i32,
+    pub(crate) ib_lower_bound: i32,
+    pub(crate) ib_upper_bound: i32,
 }
 
 impl IncomeBandRow {
     pub fn new(
         null_bit_map: i64,
-        ib_income_band_id: i32,
+        ib_income_band_sk: i32,
         ib_lower_bound: i32,
         ib_upper_bound: i32,
     ) -> Self {
         IncomeBandRow {
             null_bit_map,
-            ib_income_band_id,
+            ib_income_band_sk,
             ib_lower_bound,
             ib_upper_bound,
         }
@@ -34,8 +34,8 @@ impl IncomeBandRow {
         self.null_bit_map
     }
 
-    pub fn get_ib_income_band_id(&self) -> i32 {
-        self.ib_income_band_id
+    pub fn get_ib_income_band_sk(&self) -> i32 {
+        self.ib_income_band_sk
     }
 
     pub fn get_ib_lower_bound(&self) -> i32 {
@@ -49,7 +49,7 @@ impl IncomeBandRow {
 
 /// DAT field helper for this row's columns.
 impl IncomeBandRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }
@@ -62,7 +62,7 @@ impl fmt::Display for IncomeBandRow {
         write!(
             f,
             "{}|{}|{}|",
-            self.field(self.ib_income_band_id, 0),
+            self.field(self.ib_income_band_sk, 0),
             self.field(self.ib_lower_bound, 1),
             self.field(self.ib_upper_bound, 2),
         )

@@ -1,6 +1,6 @@
-use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -14,6 +14,11 @@ pub struct HouseholdDemographicsArrow {
 }
 
 impl HouseholdDemographicsArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session
             .get_scaling()
@@ -23,7 +28,7 @@ impl HouseholdDemographicsArrow {
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
-    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.inner
             .skip_rows_until_starting_row_number(starting_row_number);
     }
@@ -33,8 +38,8 @@ impl HouseholdDemographicsArrow {
     /// row count.
     pub fn with_source_row_range(
         mut self,
-        starting_row_number: i64,
-        ending_row_number: i64,
+        starting_row_number: u64,
+        ending_row_number: u64,
     ) -> Self {
         self.inner
             .set_source_row_range(starting_row_number, ending_row_number);
@@ -49,7 +54,7 @@ impl HouseholdDemographicsArrow {
 
 impl RecordBatchReader for HouseholdDemographicsArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 
@@ -70,16 +75,16 @@ impl Iterator for HouseholdDemographicsArrow {
             return None;
         }
 
-        let mut demo_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut income_band_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut demo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut income_band_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut buy_potential: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut dep_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut vehicle_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            demo_sk.push(sk_opt(nbm, 0, r.get_hd_demo_sk()));
-            income_band_sk.push(sk_opt(nbm, 1, r.get_hd_income_band_sk()));
+            demo_sk.push(integer_sk_opt(nbm, 0, r.get_hd_demo_sk()));
+            income_band_sk.push(integer_sk_opt(nbm, 1, r.get_hd_income_band_sk()));
             buy_potential.push(opt(nbm, 2, r.get_hd_buy_potential().to_owned()));
             dep_count.push(opt(nbm, 3, r.get_hd_dep_count()));
             vehicle_count.push(opt(nbm, 4, r.get_hd_vehicle_count()));
@@ -88,8 +93,8 @@ impl Iterator for HouseholdDemographicsArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(demo_sk)),
-                Arc::new(Int64Array::from(income_band_sk)),
+                Arc::new(Int32Array::from(demo_sk)),
+                Arc::new(Int32Array::from(income_band_sk)),
                 Arc::new(string_view_array_from_opt_iter(
                     buy_potential.iter().map(|s| s.as_deref()),
                 )),
@@ -105,8 +110,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("hd_demo_sk", DataType::Int64, true),
-        Field::new("hd_income_band_sk", DataType::Int64, true),
+        Field::new("hd_demo_sk", DataType::Int32, false),
+        Field::new("hd_income_band_sk", DataType::Int32, true),
         Field::new("hd_buy_potential", DataType::Utf8View, true),
         Field::new("hd_dep_count", DataType::Int32, true),
         Field::new("hd_vehicle_count", DataType::Int32, true),

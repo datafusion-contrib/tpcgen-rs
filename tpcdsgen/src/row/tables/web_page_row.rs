@@ -6,20 +6,20 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct WebPageRow {
     null_bit_map: i64,
-    wp_page_sk: i64,
-    wp_page_id: String,
-    wp_rec_start_date_id: i64,
-    wp_rec_end_date_id: i64,
-    wp_creation_date_sk: i64,
-    wp_access_date_sk: i64,
-    wp_autogen_flag: bool,
-    wp_customer_sk: i64,
-    wp_url: String,
-    wp_type: String,
-    wp_char_count: i32,
-    wp_link_count: i32,
-    wp_image_count: i32,
-    wp_max_ad_count: i32,
+    pub(crate) wp_page_sk: i64,
+    pub(crate) wp_page_id: String,
+    pub(crate) wp_rec_start_date_id: i64,
+    pub(crate) wp_rec_end_date_id: i64,
+    pub(crate) wp_creation_date_sk: i64,
+    pub(crate) wp_access_date_sk: i64,
+    pub(crate) wp_autogen_flag: bool,
+    pub(crate) wp_customer_sk: i64,
+    pub(crate) wp_url: String,
+    pub(crate) wp_type: String,
+    pub(crate) wp_char_count: i32,
+    pub(crate) wp_link_count: i32,
+    pub(crate) wp_image_count: i32,
+    pub(crate) wp_max_ad_count: i32,
 }
 
 impl WebPageRow {
@@ -94,7 +94,7 @@ impl WebPageRow {
     }
 
     /// Check if a column should be null based on the null bit map (shouldBeNull)
-    fn should_be_null(&self, column_position: i32) -> bool {
+    pub(crate) fn should_be_null(&self, column_position: i32) -> bool {
         (self.null_bit_map & (1 << column_position)) != 0
     }
 
@@ -130,18 +130,18 @@ impl WebPageRow {
 impl WebPageRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is -1.
-    fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
+    pub(crate) fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
         DatField::new(value, self.should_be_null(column_position) || value == -1)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
     /// julian day is negative.
-    fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
+    pub(crate) fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
         DatField::from(
             (!(self.should_be_null(column_position) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),

@@ -23,28 +23,28 @@ use std::fmt;
 #[derive(Clone)]
 pub struct ItemRow {
     null_bit_map: i64,
-    i_item_sk: i64,
-    i_item_id: String,
-    i_rec_start_date_id: i64,
-    i_rec_end_date_id: i64,
-    i_item_desc: String,
-    i_current_price: Decimal,
-    i_wholesale_cost: Decimal,
-    i_brand_id: i64,
-    i_brand: String,
-    i_class_id: i64,
-    i_class: String,
-    i_category_id: i64,
-    i_category: String,
-    i_manufact_id: i64,
-    i_manufact: String,
-    i_size: String,
-    i_formulation: String,
-    i_color: String,
-    i_units: String,
-    i_container: String,
-    i_manager_id: i64,
-    i_product_name: String,
+    pub(crate) i_item_sk: i64,
+    pub(crate) i_item_id: String,
+    pub(crate) i_rec_start_date_id: i64,
+    pub(crate) i_rec_end_date_id: i64,
+    pub(crate) i_item_desc: String,
+    pub(crate) i_current_price: Decimal,
+    pub(crate) i_wholesale_cost: Decimal,
+    pub(crate) i_brand_id: i64,
+    pub(crate) i_brand: String,
+    pub(crate) i_class_id: i64,
+    pub(crate) i_class: String,
+    pub(crate) i_category_id: i64,
+    pub(crate) i_category: String,
+    pub(crate) i_manufact_id: i64,
+    pub(crate) i_manufact: String,
+    pub(crate) i_size: String,
+    pub(crate) i_formulation: String,
+    pub(crate) i_color: String,
+    pub(crate) i_units: String,
+    pub(crate) i_container: String,
+    pub(crate) i_manager_id: i64,
+    pub(crate) i_product_name: String,
 }
 
 impl ItemRow {
@@ -101,7 +101,7 @@ impl ItemRow {
         }
     }
 
-    fn is_null(&self, column: &ItemGeneratorColumn) -> bool {
+    pub(crate) fn is_null(&self, column: &ItemGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - ItemGeneratorColumn::IItemSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
@@ -204,14 +204,18 @@ impl ItemRow {
 impl ItemRow {
     /// DAT field for a regular value or key: NULL when the null bit is set
     /// (item keys have no sentinel check).
-    fn field<T>(&self, value: T, column: &ItemGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: &ItemGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
     /// julian day is negative; the Date is only constructed when it will be
     /// printed.
-    fn date_field(&self, julian_days: i64, column: &ItemGeneratorColumn) -> DatField<Date> {
+    pub(crate) fn date_field(
+        &self,
+        julian_days: i64,
+        column: &ItemGeneratorColumn,
+    ) -> DatField<Date> {
         DatField::from(
             (!(self.is_null(column) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),

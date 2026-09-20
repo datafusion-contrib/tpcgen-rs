@@ -23,25 +23,25 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct WebSalesRow {
     null_bit_map: i64,
-    ws_sold_date_sk: i64,
-    ws_sold_time_sk: i64,
-    ws_ship_date_sk: i64,
-    ws_item_sk: i64,
-    ws_bill_customer_sk: i64,
-    ws_bill_cdemo_sk: i64,
-    ws_bill_hdemo_sk: i64,
-    ws_bill_addr_sk: i64,
-    ws_ship_customer_sk: i64,
-    ws_ship_cdemo_sk: i64,
-    ws_ship_hdemo_sk: i64,
-    ws_ship_addr_sk: i64,
-    ws_web_page_sk: i64,
-    ws_web_site_sk: i64,
-    ws_ship_mode_sk: i64,
-    ws_warehouse_sk: i64,
-    ws_promo_sk: i64,
-    ws_order_number: i64,
-    ws_pricing: Pricing,
+    pub(crate) ws_sold_date_sk: i64,
+    pub(crate) ws_sold_time_sk: i64,
+    pub(crate) ws_ship_date_sk: i64,
+    pub(crate) ws_item_sk: i64,
+    pub(crate) ws_bill_customer_sk: i64,
+    pub(crate) ws_bill_cdemo_sk: i64,
+    pub(crate) ws_bill_hdemo_sk: i64,
+    pub(crate) ws_bill_addr_sk: i64,
+    pub(crate) ws_ship_customer_sk: i64,
+    pub(crate) ws_ship_cdemo_sk: i64,
+    pub(crate) ws_ship_hdemo_sk: i64,
+    pub(crate) ws_ship_addr_sk: i64,
+    pub(crate) ws_web_page_sk: i64,
+    pub(crate) ws_web_site_sk: i64,
+    pub(crate) ws_ship_mode_sk: i64,
+    pub(crate) ws_warehouse_sk: i64,
+    pub(crate) ws_promo_sk: i64,
+    pub(crate) ws_order_number: i64,
+    pub(crate) ws_pricing: Pricing,
 }
 
 impl WebSalesRow {
@@ -182,7 +182,7 @@ impl WebSalesRow {
 /// DAT field helper: NULL is driven purely by the null bit (web rows
 /// apply no key sentinel check).
 impl WebSalesRow {
-    fn field<T>(&self, value: T, column: WebSalesGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: WebSalesGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 }

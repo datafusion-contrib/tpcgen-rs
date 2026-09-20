@@ -1,4 +1,4 @@
-# Contributing to tpchgen-rs
+# Contributing to tpcgen-rs
 
 We want to make contributing to this project as easy and transparent as
 possible, if you have suggestions to improve the contributions guide feel
@@ -56,5 +56,5 @@ hyperfine --runs 5 \
 
 ## License
 
-By contributing to tpchgen-rs, you agree that your contributions will be licensed
+By contributing to tpcgen-rs, you agree that your contributions will be licensed
 under the LICENSE file in the root directory of this source tree.

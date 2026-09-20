@@ -19,11 +19,11 @@ use std::fmt;
 /// Contains all fields for the HOUSEHOLD_DEMOGRAPHICS table in TPC-DS
 #[derive(Debug, Clone, PartialEq)]
 pub struct HouseholdDemographicsRow {
-    hd_demo_sk: i64,
-    hd_income_band_sk: i64,
-    hd_buy_potential: String,
-    hd_dep_count: i32,
-    hd_vehicle_count: i32,
+    pub(crate) hd_demo_sk: i64,
+    pub(crate) hd_income_band_sk: i64,
+    pub(crate) hd_buy_potential: String,
+    pub(crate) hd_dep_count: i32,
+    pub(crate) hd_vehicle_count: i32,
     null_bit_map: i64,
 }
 
@@ -63,7 +63,7 @@ impl HouseholdDemographicsRow {
     }
 
     /// Check if a field should be null based on the null bitmap
-    fn is_null(&self, column_position: i32) -> bool {
+    pub(crate) fn is_null(&self, column_position: i32) -> bool {
         (self.null_bit_map & (1 << column_position)) != 0
     }
 }

@@ -1,12 +1,14 @@
 //! TPC-DS Parquet output.
 
+use super::generate::output_path;
 use super::plan::{ChunkFormat, TpcdsGenerationPlan};
+use super::runner::{plan_tables, run_plans, PlannedTable};
 use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
-use crate::worker_queue::WorkerQueue;
+use crate::temp_path::inprogress_path;
+use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
-use parquet::basic::Compression;
-use std::collections::HashSet;
+use parquet::basic::{Compression, Encoding};
 use std::fs::File;
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
@@ -20,93 +22,145 @@ use tpcdsgen_arrow::{
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
+fn table_schema(table: Table) -> SchemaRef {
+    match table {
+        Table::CallCenter => CallCenterArrow::schema_ref(),
+        Table::CatalogPage => CatalogPageArrow::schema_ref(),
+        Table::CatalogReturns => CatalogReturnsArrow::schema_ref(),
+        Table::CatalogSales => CatalogSalesArrow::schema_ref(),
+        Table::Customer => CustomerArrow::schema_ref(),
+        Table::CustomerAddress => CustomerAddressArrow::schema_ref(),
+        Table::CustomerDemographics => CustomerDemographicsArrow::schema_ref(),
+        Table::DateDim => DateDimArrow::schema_ref(),
+        Table::DbgenVersion => DbgenVersionArrow::schema_ref(),
+        Table::HouseholdDemographics => HouseholdDemographicsArrow::schema_ref(),
+        Table::IncomeBand => IncomeBandArrow::schema_ref(),
+        Table::Inventory => InventoryArrow::schema_ref(),
+        Table::Item => ItemArrow::schema_ref(),
+        Table::Promotion => PromotionArrow::schema_ref(),
+        Table::Reason => ReasonArrow::schema_ref(),
+        Table::ShipMode => ShipModeArrow::schema_ref(),
+        Table::Store => StoreArrow::schema_ref(),
+        Table::StoreReturns => StoreReturnsArrow::schema_ref(),
+        Table::StoreSales => StoreSalesArrow::schema_ref(),
+        Table::TimeDim => TimeDimArrow::schema_ref(),
+        Table::Warehouse => WarehouseArrow::schema_ref(),
+        Table::WebPage => WebPageArrow::schema_ref(),
+        Table::WebReturns => WebReturnsArrow::schema_ref(),
+        Table::WebSales => WebSalesArrow::schema_ref(),
+        Table::WebSite => WebSiteArrow::schema_ref(),
+        _ => unreachable!("table_schema is only called for main TPC-DS tables"),
+    }
+}
+
+/// Checks each column in `encodings` against every table in `tables`.
+///
+/// Rejects an encoding `reject_unsupported_encoding` always rejects.
+/// Rejects a column name that matches no table (almost always a typo). A
+/// column that matches only some tables is fine: [`column_encodings_for_table`]
+/// applies it there and skips it elsewhere.
+fn validate_column_encodings(tables: &[Table], encodings: &[(String, Encoding)]) -> io::Result<()> {
+    for (col, enc) in encodings {
+        crate::parquet::reject_unsupported_encoding(*enc)?;
+        let matches_any_table = tables.iter().any(|table| {
+            table_schema(*table)
+                .fields()
+                .iter()
+                .any(|f| f.name() == col)
+        });
+        if !matches_any_table {
+            return Err(io::Error::other(format!(
+                "column '{col}' for --column-encoding not found in any selected table"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Keeps only the encodings whose column exists in `table`'s schema.
+fn column_encodings_for_table(
+    table: Table,
+    encodings: &[(String, Encoding)],
+) -> Vec<(String, Encoding)> {
+    let schema = table_schema(table);
+    encodings
+        .iter()
+        .filter(|(col, _)| schema.fields().iter().any(|f| f.name() == col))
+        .cloned()
+        .collect()
+}
+
 /// Parquet output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
     output_dir: PathBuf,
     compression: Compression,
-    row_group_bytes: usize,
-    num_threads: usize,
+    row_group_bytes: i64,
+    column_encodings: Option<Vec<(String, Encoding)>>,
 }
 
 impl Parquet {
     pub(super) fn new(
         output_dir: PathBuf,
         compression: Compression,
-        row_group_bytes: usize,
-        num_threads: usize,
+        row_group_bytes: i64,
+        column_encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {
         Self {
             output_dir,
             compression,
             row_group_bytes,
-            num_threads,
+            column_encodings,
         }
     }
 
     /// Generate the given TPC-DS tables as Parquet files.
     ///
-    /// Tables are generated concurrently: each table's plan gets as many
-    /// threads as it has row groups, within the overall `num_threads`
-    /// budget (see [`WorkerQueue`]). Scheduling the largest tables first
-    /// keeps all cores busy while the trailing row groups of each table
-    /// are encoded, instead of waiting for one table at a time.
+    /// Tables are planned and scheduled the same way the DAT and CSV outputs
+    /// are (see [`super::runner`]): one row group per chunk, generated
+    /// concurrently within the `num_threads` budget, and one progress bar per
+    /// table however many `--parts` it is split across.
     pub(super) async fn generate_tables(
         &self,
-        tables: Vec<(Table, Session)>,
+        table_sessions: Vec<(Table, Session)>,
+        num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
-        // Remove duplicate table selections: generating the same table
-        // twice concurrently would race on the same output file
-        let mut seen = HashSet::new();
-        let tables = tables.into_iter().filter(|(table, _)| seen.insert(*table));
+        // Reject a --column-encoding column that matches no selected table
+        // (a typo) before any work starts. column_encodings_for_table
+        // (below) skips a column that only matches some tables, so that
+        // case is not an error.
+        if let Some(encodings) = &self.column_encodings {
+            let selected_tables: Vec<Table> =
+                table_sessions.iter().map(|(table, _)| *table).collect();
+            validate_column_encodings(&selected_tables, encodings)?;
+        }
 
-        // Plan each table and pre-register the row group totals so trackers
-        // can size their bars before the first increment
-        let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = tables
-            .map(|(table, session)| {
-                let plan = TpcdsGenerationPlan::new(
-                    table,
-                    session.get_scaling(),
-                    self.row_group_bytes,
-                    ChunkFormat::Parquet,
-                );
-                let progress = progress
-                    .clone()
-                    .register(table.get_name(), plan.chunk_count() as u64);
-                (table, session, plan, progress)
-            })
-            .collect();
+        let work = plan_tables(
+            table_sessions,
+            self.row_group_bytes,
+            ChunkFormat::Parquet,
+            &progress,
+        );
         progress.start();
 
-        // Schedule the largest tables (most row groups) first for the best
-        // thread utilization (the list is popped from the back)
-        work.sort_by_key(|(_, _, plan, _)| plan.chunk_count());
-
-        let mut queue = WorkerQueue::new(self.num_threads);
-        while let Some((table, session, plan, progress)) = work.pop() {
-            let this = self.clone();
-            queue
-                .schedule(plan.chunk_count(), move |num_threads| async move {
-                    this.generate_table(table, session, plan, num_threads, progress)
-                        .await?;
-                    Ok(num_threads)
-                })
-                .await?;
-        }
-        queue.join_all().await
+        let this = self.clone();
+        run_plans(work, num_threads, move |planned, num_threads| {
+            let this = this.clone();
+            async move { this.generate_table(planned, num_threads).await }
+        })
+        .await
     }
 
-    /// Generate one TPC-DS table as a Parquet file using `num_threads`
-    /// threads.
-    async fn generate_table(
-        &self,
-        table: Table,
-        session: Session,
-        plan: TpcdsGenerationPlan,
-        num_threads: usize,
-        progress: ProgressHandle,
-    ) -> io::Result<()> {
+    /// Generate one planned table (one `--parts` chunk of one table) as a
+    /// Parquet file using `num_threads` threads.
+    async fn generate_table(&self, planned: PlannedTable, num_threads: usize) -> io::Result<()> {
+        let PlannedTable {
+            table,
+            session,
+            plan,
+            progress,
+        } = planned;
         match table {
             Table::CallCenter => {
                 self.write_table(
@@ -455,26 +509,90 @@ impl Parquet {
     ) -> io::Result<()>
     where
         R: RecordBatchReader + Send + 'static,
-        F: Fn(Session, i64, i64) -> R + Send + 'static,
+        F: Fn(Session, u64, u64) -> R + Send + 'static,
     {
-        let table_name = table.get_name();
-        let path = self.output_dir.join(format!("{table_name}.parquet"));
+        // Keep only the encodings for columns on this table.
+        // --column-encoding usually targets a few tables, not all of them.
+        let column_encodings = self
+            .column_encodings
+            .as_ref()
+            .map(|encodings| column_encodings_for_table(table, encodings));
+
+        let path = output_path(&self.output_dir, table, "parquet", &session)?;
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
         // write to a temp file and then rename to avoid partial files
-        let temp_path = path.with_extension("inprogress");
+        let temp_path = inprogress_path(&path);
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
         let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        generate_parquet(writer, sources, num_threads, self.compression, progress).await?;
+        generate_parquet(
+            writer,
+            sources,
+            num_threads,
+            self.compression,
+            column_encodings.as_deref(),
+            progress.clone(),
+        )
+        .await?;
         std::fs::rename(&temp_path, &path).map_err(|err| {
             io::Error::other(format!(
                 "Failed to rename {temp_path:?} to {path:?} file: {err}"
             ))
         })?;
+        progress.complete();
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_column_encodings_accepts_a_column_present_on_just_one_table() {
+        // r_reason_desc exists only on reason, not item.
+        let tables = [Table::Reason, Table::Item];
+        let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN)];
+        assert!(validate_column_encodings(&tables, &encodings).is_ok());
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_a_typo() {
+        let tables = [Table::Reason];
+        let encodings = [("r_reason_desc_typo".to_string(), Encoding::PLAIN)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(
+            err.to_string().contains("column 'r_reason_desc_typo'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_dictionary_encoding() {
+        // The column is real, so the only reason to fail is the encoding.
+        let tables = [Table::Reason];
+        let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN_DICTIONARY)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(err.to_string().contains("dictionary encoding"), "{err}");
+    }
+
+    #[test]
+    fn column_encodings_for_table_keeps_only_matching_columns() {
+        let encodings = [
+            ("r_reason_desc".to_string(), Encoding::PLAIN),
+            ("i_item_desc".to_string(), Encoding::PLAIN),
+        ];
+        assert_eq!(
+            column_encodings_for_table(Table::Reason, &encodings),
+            vec![("r_reason_desc".to_string(), Encoding::PLAIN)]
+        );
+        assert_eq!(
+            column_encodings_for_table(Table::CallCenter, &encodings),
+            Vec::new()
+        );
     }
 }

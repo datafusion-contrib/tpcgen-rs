@@ -22,25 +22,25 @@ use std::fmt;
 /// Row structure for catalog_returns table
 #[derive(Debug, Clone)]
 pub struct CatalogReturnsRow {
-    null_bit_map: i64,
-    cr_returned_date_sk: i64,
-    cr_returned_time_sk: i64,
-    cr_item_sk: i64,
-    cr_refunded_customer_sk: i64,
-    cr_refunded_cdemo_sk: i64,
-    cr_refunded_hdemo_sk: i64,
-    cr_refunded_addr_sk: i64,
-    cr_returning_customer_sk: i64,
-    cr_returning_cdemo_sk: i64,
-    cr_returning_hdemo_sk: i64,
-    cr_returning_addr_sk: i64,
-    cr_call_center_sk: i64,
-    cr_catalog_page_sk: i64,
-    cr_ship_mode_sk: i64,
-    cr_warehouse_sk: i64,
-    cr_reason_sk: i64,
-    cr_order_number: i64,
-    cr_pricing: Pricing,
+    pub(crate) null_bit_map: i64,
+    pub(crate) cr_returned_date_sk: i64,
+    pub(crate) cr_returned_time_sk: i64,
+    pub(crate) cr_item_sk: i64,
+    pub(crate) cr_refunded_customer_sk: i64,
+    pub(crate) cr_refunded_cdemo_sk: i64,
+    pub(crate) cr_refunded_hdemo_sk: i64,
+    pub(crate) cr_refunded_addr_sk: i64,
+    pub(crate) cr_returning_customer_sk: i64,
+    pub(crate) cr_returning_cdemo_sk: i64,
+    pub(crate) cr_returning_hdemo_sk: i64,
+    pub(crate) cr_returning_addr_sk: i64,
+    pub(crate) cr_call_center_sk: i64,
+    pub(crate) cr_catalog_page_sk: i64,
+    pub(crate) cr_ship_mode_sk: i64,
+    pub(crate) cr_warehouse_sk: i64,
+    pub(crate) cr_reason_sk: i64,
+    pub(crate) cr_order_number: i64,
+    pub(crate) cr_pricing: Pricing,
 }
 
 impl CatalogReturnsRow {
@@ -175,12 +175,16 @@ impl CatalogReturnsRow {
 
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is negative.
-    fn key_field(&self, value: i64, column: &CatalogReturnsGeneratorColumn) -> DatField<i64> {
+    pub(crate) fn key_field(
+        &self,
+        value: i64,
+        column: &CatalogReturnsGeneratorColumn,
+    ) -> DatField<i64> {
         DatField::new(value, self.is_null(column) || value < 0)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column: &CatalogReturnsGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: &CatalogReturnsGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 }

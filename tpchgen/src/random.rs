@@ -166,7 +166,7 @@ impl RowRandomLong {
 
         while count > 0 {
             if count % 2 != 0 {
-                self.seed = (multiplier * self.seed) % Self::MODULUS_32;
+                self.seed = multiplier.wrapping_mul(self.seed) % Self::MODULUS_32;
             }
 
             // Integer division, truncates

@@ -67,6 +67,53 @@ impl<T> NullLiteralField<T> {
     }
 }
 
+/// A double-quoted CSV field: formats the value wrapped in `"`, or nothing
+/// when the column is NULL.
+///
+/// Used by the CSV wrappers in [`crate::csv`] for free-text columns whose
+/// values may contain the CSV delimiter (see [`crate::csv`]). The generated
+/// text never contains `"` or newlines, so no escaping is needed.
+pub(crate) struct CsvQuoted<T>(Option<T>);
+
+impl<T> CsvQuoted<T> {
+    /// Quoted CSV field for a free-text value: NULL (empty) when the row's
+    /// null bit is set.
+    pub(crate) fn new(value: T, is_null: bool) -> Self {
+        CsvQuoted((!is_null).then_some(value))
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for CsvQuoted<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(value) => write!(f, "\"{value}\""),
+            None => Ok(()),
+        }
+    }
+}
+
+/// A quoted CSV field that prints the literal `NULL` (unquoted) for NULL
+/// columns — the CSV counterpart of [`NullLiteralField`], keeping the CSV
+/// values identical to the DAT values for the call_center quirk columns.
+pub(crate) struct CsvQuotedNullLiteral<T>(Option<T>);
+
+impl<T> CsvQuotedNullLiteral<T> {
+    /// Quoted CSV field printing the literal `NULL` when the row's null bit
+    /// is set.
+    pub(crate) fn new(value: T, is_null: bool) -> Self {
+        CsvQuotedNullLiteral((!is_null).then_some(value))
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for CsvQuotedNullLiteral<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(value) => write!(f, "\"{value}\""),
+            None => f.write_str("NULL"),
+        }
+    }
+}
+
 /// Zero-padded five-digit zip code (`{:05}`).
 pub(crate) struct Zip5(i32);
 

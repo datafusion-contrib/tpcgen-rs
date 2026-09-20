@@ -1,6 +1,8 @@
-use crate::conversions::{bool_to_yn, date_to_date32, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{
+    bool_to_yn, date_to_date32, integer_sk_opt, string_view_array_from_opt_iter,
+};
 use crate::{RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewBuilder};
+use arrow::array::{Date32Array, Int32Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -14,6 +16,11 @@ pub struct DateDimArrow {
 }
 
 impl DateDimArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::DateDim);
         Self {
@@ -21,7 +28,7 @@ impl DateDimArrow {
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
-    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.inner
             .skip_rows_until_starting_row_number(starting_row_number);
     }
@@ -31,8 +38,8 @@ impl DateDimArrow {
     /// row count.
     pub fn with_source_row_range(
         mut self,
-        starting_row_number: i64,
-        ending_row_number: i64,
+        starting_row_number: u64,
+        ending_row_number: u64,
     ) -> Self {
         self.inner
             .set_source_row_range(starting_row_number, ending_row_number);
@@ -47,7 +54,7 @@ impl DateDimArrow {
 
 impl RecordBatchReader for DateDimArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 
@@ -68,7 +75,7 @@ impl Iterator for DateDimArrow {
             return None;
         }
 
-        let mut d_date_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut d_date_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut d_date_id: Vec<String> = Vec::with_capacity(rows.len());
         let mut d_date: Vec<i32> = Vec::with_capacity(rows.len());
         let mut d_month_seq: Vec<i32> = Vec::with_capacity(rows.len());
@@ -99,7 +106,7 @@ impl Iterator for DateDimArrow {
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            d_date_sk.push(sk_opt(nbm, 0, r.d_date_sk));
+            d_date_sk.push(integer_sk_opt(nbm, 0, r.d_date_sk));
             d_date_id.push(r.d_date_id.clone());
             d_date.push(date_to_date32(&r.d_date));
             d_month_seq.push(r.d_month_seq);
@@ -145,7 +152,7 @@ impl Iterator for DateDimArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int64Array::from(d_date_sk)),
+                Arc::new(Int32Array::from(d_date_sk)),
                 Arc::new(id_b.finish()),
                 Arc::new(Date32Array::from_iter_values(d_date)),
                 Arc::new(Int32Array::from_iter_values(d_month_seq)),
@@ -199,33 +206,33 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("d_date_sk", DataType::Int64, true),
+        Field::new("d_date_sk", DataType::Int32, false),
         Field::new("d_date_id", DataType::Utf8View, false),
-        Field::new("d_date", DataType::Date32, false),
-        Field::new("d_month_seq", DataType::Int32, false),
-        Field::new("d_week_seq", DataType::Int32, false),
-        Field::new("d_quarter_seq", DataType::Int32, false),
-        Field::new("d_year", DataType::Int32, false),
-        Field::new("d_dow", DataType::Int32, false),
-        Field::new("d_moy", DataType::Int32, false),
-        Field::new("d_dom", DataType::Int32, false),
-        Field::new("d_qoy", DataType::Int32, false),
-        Field::new("d_fy_year", DataType::Int32, false),
-        Field::new("d_fy_quarter_seq", DataType::Int32, false),
-        Field::new("d_fy_week_seq", DataType::Int32, false),
-        Field::new("d_day_name", DataType::Utf8View, false),
-        Field::new("d_quarter_name", DataType::Utf8View, false),
-        Field::new("d_holiday", DataType::Utf8View, false),
-        Field::new("d_weekend", DataType::Utf8View, false),
-        Field::new("d_following_holiday", DataType::Utf8View, false),
-        Field::new("d_first_dom", DataType::Int32, false),
-        Field::new("d_last_dom", DataType::Int32, false),
-        Field::new("d_same_day_ly", DataType::Int32, false),
-        Field::new("d_same_day_lq", DataType::Int32, false),
-        Field::new("d_current_day", DataType::Utf8View, false),
-        Field::new("d_current_week", DataType::Utf8View, false),
-        Field::new("d_current_month", DataType::Utf8View, false),
-        Field::new("d_current_quarter", DataType::Utf8View, false),
-        Field::new("d_current_year", DataType::Utf8View, false),
+        Field::new("d_date", DataType::Date32, true),
+        Field::new("d_month_seq", DataType::Int32, true),
+        Field::new("d_week_seq", DataType::Int32, true),
+        Field::new("d_quarter_seq", DataType::Int32, true),
+        Field::new("d_year", DataType::Int32, true),
+        Field::new("d_dow", DataType::Int32, true),
+        Field::new("d_moy", DataType::Int32, true),
+        Field::new("d_dom", DataType::Int32, true),
+        Field::new("d_qoy", DataType::Int32, true),
+        Field::new("d_fy_year", DataType::Int32, true),
+        Field::new("d_fy_quarter_seq", DataType::Int32, true),
+        Field::new("d_fy_week_seq", DataType::Int32, true),
+        Field::new("d_day_name", DataType::Utf8View, true),
+        Field::new("d_quarter_name", DataType::Utf8View, true),
+        Field::new("d_holiday", DataType::Utf8View, true),
+        Field::new("d_weekend", DataType::Utf8View, true),
+        Field::new("d_following_holiday", DataType::Utf8View, true),
+        Field::new("d_first_dom", DataType::Int32, true),
+        Field::new("d_last_dom", DataType::Int32, true),
+        Field::new("d_same_day_ly", DataType::Int32, true),
+        Field::new("d_same_day_lq", DataType::Int32, true),
+        Field::new("d_current_day", DataType::Utf8View, true),
+        Field::new("d_current_week", DataType::Utf8View, true),
+        Field::new("d_current_month", DataType::Utf8View, true),
+        Field::new("d_current_quarter", DataType::Utf8View, true),
+        Field::new("d_current_year", DataType::Utf8View, true),
     ]))
 }

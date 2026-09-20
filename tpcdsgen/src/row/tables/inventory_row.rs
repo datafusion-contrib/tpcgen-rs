@@ -22,10 +22,10 @@ use std::fmt;
 #[derive(Clone)]
 pub struct InventoryRow {
     null_bit_map: i64,
-    inv_date_sk: i64,
-    inv_item_sk: i64,
-    inv_warehouse_sk: i64,
-    inv_quantity_on_hand: i32,
+    pub(crate) inv_date_sk: i64,
+    pub(crate) inv_item_sk: i64,
+    pub(crate) inv_warehouse_sk: i64,
+    pub(crate) inv_quantity_on_hand: i32,
 }
 
 impl InventoryRow {
@@ -45,7 +45,7 @@ impl InventoryRow {
         }
     }
 
-    fn is_null_at(&self, column: InventoryGeneratorColumn) -> bool {
+    pub(crate) fn is_null_at(&self, column: InventoryGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - InventoryGeneratorColumn::InvDateSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0

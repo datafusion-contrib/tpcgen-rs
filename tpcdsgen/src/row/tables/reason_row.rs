@@ -5,9 +5,9 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct ReasonRow {
     null_bit_map: i64,
-    r_reason_sk: i64,
-    r_reason_id: String,
-    r_reason_description: String,
+    pub(crate) r_reason_sk: i64,
+    pub(crate) r_reason_id: String,
+    pub(crate) r_reason_desc: String,
 }
 
 impl ReasonRow {
@@ -15,18 +15,18 @@ impl ReasonRow {
         null_bit_map: i64,
         r_reason_sk: i64,
         r_reason_id: String,
-        r_reason_description: String,
+        r_reason_desc: String,
     ) -> Self {
         ReasonRow {
             null_bit_map,
             r_reason_sk,
             r_reason_id,
-            r_reason_description,
+            r_reason_desc,
         }
     }
 
     /// Check if a column should be null based on the null bitmap (TableRowWithNulls logic)
-    fn should_be_null(&self, column_position: i32) -> bool {
+    pub(crate) fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1
     }
 
@@ -42,15 +42,15 @@ impl ReasonRow {
         &self.r_reason_id
     }
 
-    pub fn get_r_reason_description(&self) -> &str {
-        &self.r_reason_description
+    pub fn get_r_reason_desc(&self) -> &str {
+        &self.r_reason_desc
     }
 }
 
 /// DAT field helper: NULL is driven purely by the null bit
 /// (reason applies no key sentinel check, only the null bit).
 impl ReasonRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }
@@ -65,7 +65,7 @@ impl fmt::Display for ReasonRow {
             "{}|{}|{}|",
             self.field(self.r_reason_sk, 0),
             self.field(&self.r_reason_id, 1),
-            self.field(&self.r_reason_description, 2),
+            self.field(&self.r_reason_desc, 2),
         )
     }
 }

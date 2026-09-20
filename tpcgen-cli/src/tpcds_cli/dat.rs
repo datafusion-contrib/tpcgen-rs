@@ -14,35 +14,25 @@
 
 //! TPC-DS DAT output.
 //!
-//! Output is the reference DAT format: `|`-separated fields with a trailing
-//! separator, one row per line, written to `<table>.dat` files via each row
-//! type's `Display` impl.
+//! Output is always the reference DAT format: `|`-separated fields with a
+//! trailing separator, one row per line, written to `<table>.dat` files via
+//! each row type's `Display` impl. There is no header line.
 //!
-//! Generation is parallel, using the same mechanism as the TPC-H outputs:
-//! each table is split into chunks of source rows ([`TpcdsGenerationPlan`]),
-//! the chunks are formatted into in memory buffers on separate threads
-//! ([`generate_in_chunks`]), and a single writer task appends the buffers to
-//! the output file in order. Tables are generated concurrently within the
-//! overall thread budget (see [`WorkerQueue`]).
+//! Generation is parallel: see [`super::generate`] for how the row generators
+//! are driven, and [`super::runner`] for how tables are planned and scheduled.
 
-use super::plan::{ChunkFormat, TpcdsGenerationPlan};
-use crate::generate::{generate_in_chunks, Source};
-use crate::progress::{ProgressHandle, ProgressTracker};
-use crate::worker_queue::WorkerQueue;
-use log::info;
-use std::collections::HashSet;
-use std::fs::File;
+use super::generate::{generate_table, RowFormat};
+use super::plan::ChunkFormat;
+use super::runner::{plan_tables, run_plans};
+use crate::progress::ProgressTracker;
 use std::io;
-use std::marker::PhantomData;
-use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::sink::WriterSink;
 use tpcdsgen::config::{CompatMode, Session, Table};
 use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::DatWriter;
-use tpcdsgen::row::*;
+use tpcdsgen::row::GeneratedRow;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -50,12 +40,20 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug, Clone)]
 pub(super) struct Dat {
     output_dir: PathBuf,
-    chunk_bytes: usize,
-    num_threads: usize,
+    /// Which reference implementation to match. This is a property of the
+    /// session too, but every session in one run shares it, so the writers
+    /// can take it from here.
+    compat_mode: CompatMode,
+    /// Target size of each generated buffer
+    chunk_bytes: i64,
 }
 
 impl Dat {
-    pub(super) fn new(output_dir: PathBuf, chunk_bytes: usize, num_threads: usize) -> Result<Self> {
+    pub(super) fn new(
+        output_dir: PathBuf,
+        compat_mode: CompatMode,
+        chunk_bytes: i64,
+    ) -> Result<Self> {
         if output_dir.as_os_str().is_empty() {
             return Err(InvalidOptionError::with_message(
                 "directory",
@@ -66,209 +64,57 @@ impl Dat {
         }
         Ok(Self {
             output_dir,
+            compat_mode,
             chunk_bytes,
-            num_threads,
         })
     }
 
     /// Generate the given TPC-DS tables as DAT files.
-    ///
-    /// Tables are generated concurrently: each table's plan gets as many
-    /// threads as it has chunks, within the overall `num_threads` budget (see
-    /// [`WorkerQueue`]). Scheduling the largest tables first keeps all cores
-    /// busy while the trailing chunks of each table are written, instead of
-    /// generating one table at a time.
     pub(super) async fn generate_tables(
         &self,
-        tables: Vec<(Table, Session)>,
+        table_sessions: Vec<(Table, Session)>,
+        num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
-        // Remove duplicate table selections: generating the same table
-        // twice concurrently would race on the same output file
-        let mut seen = HashSet::new();
-        let tables = tables.into_iter().filter(|(table, _)| seen.insert(*table));
-
-        // Plan each table and pre-register the chunk totals so trackers can
-        // size their bars before the first increment
-        let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = tables
-            .map(|(table, session)| {
-                let plan = TpcdsGenerationPlan::new(
-                    table,
-                    session.get_scaling(),
-                    self.chunk_bytes,
-                    ChunkFormat::Dat,
-                );
-                let progress = progress
-                    .clone()
-                    .register(table.get_name(), plan.chunk_count() as u64);
-                (table, session, plan, progress)
-            })
-            .collect();
+        let work = plan_tables(
+            table_sessions,
+            self.chunk_bytes,
+            ChunkFormat::Dat,
+            &progress,
+        );
         progress.start();
 
-        // Schedule the largest tables (most chunks) first for the best thread
-        // utilization (the list is popped from the back)
-        work.sort_by_key(|(_, _, plan, _)| plan.chunk_count());
-
-        let mut queue = WorkerQueue::new(self.num_threads);
-        while let Some((table, session, plan, progress)) = work.pop() {
-            let this = self.clone();
-            queue
-                .schedule(plan.chunk_count(), move |num_threads| async move {
-                    this.generate_table(table, session, plan, num_threads, progress)
-                        .await?;
-                    Ok(num_threads)
-                })
-                .await?;
-        }
-        queue.join_all().await
-    }
-
-    /// Generate one TPC-DS table as a DAT file using `num_threads` threads.
-    ///
-    /// The returns tables are generated by their sales table's generator,
-    /// which emits rows for both tables; the rows of the other table are
-    /// filtered out (the same way the Arrow generators do).
-    async fn generate_table(
-        &self,
-        table: Table,
-        session: Session,
-        plan: TpcdsGenerationPlan,
-        num_threads: usize,
-        progress: ProgressHandle,
-    ) -> io::Result<()> {
-        macro_rules! write_table {
-            ($GENERATOR:ty) => {
-                self.write_table::<$GENERATOR>(table, session, plan, num_threads, progress)
-                    .await
-            };
-        }
-
-        match table {
-            // Simple tables: one row per source row
-            Table::CallCenter => write_table!(CallCenterRowGenerator),
-            Table::CatalogPage => write_table!(CatalogPageRowGenerator),
-            Table::Customer => write_table!(CustomerRowGenerator),
-            Table::CustomerAddress => write_table!(CustomerAddressRowGenerator),
-            Table::CustomerDemographics => write_table!(CustomerDemographicsRowGenerator),
-            Table::DateDim => write_table!(DateDimRowGenerator),
-            Table::DbgenVersion => write_table!(DbgenVersionRowGenerator),
-            Table::HouseholdDemographics => write_table!(HouseholdDemographicsRowGenerator),
-            Table::IncomeBand => write_table!(IncomeBandRowGenerator),
-            Table::Inventory => write_table!(InventoryRowGenerator),
-            Table::Item => write_table!(ItemRowGenerator),
-            Table::Promotion => write_table!(PromotionRowGenerator),
-            Table::Reason => write_table!(ReasonRowGenerator),
-            Table::ShipMode => write_table!(ShipModeRowGenerator),
-            Table::Store => write_table!(StoreRowGenerator),
-            Table::TimeDim => write_table!(TimeDimRowGenerator),
-            Table::Warehouse => write_table!(WarehouseRowGenerator),
-            Table::WebPage => write_table!(WebPageRowGenerator),
-            Table::WebSite => write_table!(WebSiteRowGenerator),
-
-            // Sales tables and the returns tables generated alongside them
-            Table::CatalogSales | Table::CatalogReturns => write_table!(CatalogSalesRowGenerator),
-            Table::StoreSales | Table::StoreReturns => write_table!(StoreSalesRowGenerator),
-            Table::WebSales | Table::WebReturns => write_table!(WebSalesRowGenerator),
-
-            // Source tables - skip
-            _ => Ok(()),
-        }
-    }
-
-    /// Write the rows of `table` produced by the generator `G` to
-    /// `<table>.dat`, generating the chunks of `plan` on up to `num_threads`
-    /// threads.
-    ///
-    /// Progress is reported in chunks: the writer task advances by one per
-    /// written chunk (the totals are registered in [`Self::generate_tables`]).
-    async fn write_table<G>(
-        &self,
-        table: Table,
-        session: Session,
-        plan: TpcdsGenerationPlan,
-        num_threads: usize,
-        progress: ProgressHandle,
-    ) -> io::Result<()>
-    where
-        G: RowGeneratorFactory + Send + 'static,
-    {
-        let path = self.output_dir.join(format!("{}.dat", table.get_name()));
-        info!("Writing {} using {num_threads} threads", path.display());
-
-        let compat_mode = session.get_compat_mode();
-        let source_rows = session.get_scaling().get_row_count(table.source_table());
-        let sources = plan.into_iter().map(move |range| DatSource::<G> {
-            table,
-            session: session.clone(),
-            compat_mode,
-            source_rows,
-            range,
-            generator: PhantomData,
-        });
-
-        // write to a temp file and then rename to avoid partial files
-        let temp_path = path.with_extension("inprogress");
-        let file = File::create(&temp_path)
-            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        // Since generate_in_chunks already buffers, there is no need to buffer
-        // again (aka don't use BufWriter here)
-        let sink = WriterSink::new(file);
-        generate_in_chunks(sink, sources, num_threads, progress).await?;
-        std::fs::rename(&temp_path, &path).map_err(|err| {
-            io::Error::other(format!(
-                "Failed to rename {temp_path:?} to {path:?} file: {err}"
-            ))
-        })?;
-
-        info!("Generated {}", path.display());
-        Ok(())
+        let this = self.clone();
+        run_plans(work, num_threads, move |planned, num_threads| {
+            let this = this.clone();
+            async move {
+                generate_table(this.clone(), this.output_dir.clone(), planned, num_threads).await
+            }
+        })
+        .await
     }
 }
 
-/// Generates the DAT text for one chunk (a range of source rows) of one table.
-struct DatSource<G> {
-    /// The table to write; rows the generator emits for any other table are
-    /// skipped
-    table: Table,
-    session: Session,
-    compat_mode: CompatMode,
-    /// Total source rows of the table, used to bound the last chunk
-    source_rows: i64,
-    /// The 1-based inclusive source rows of this chunk
-    range: RangeInclusive<i64>,
-    generator: PhantomData<G>,
-}
+impl RowFormat for Dat {
+    const EXTENSION: &'static str = "dat";
 
-impl<G: RowGeneratorFactory + Send + 'static> Source for DatSource<G> {
-    fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
-        // DAT output has no header
+    /// DAT output has no header.
+    fn write_header(&self, _table: Table, buffer: Vec<u8>) -> Vec<u8> {
         buffer
     }
 
-    fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
-        let Self {
-            table,
-            session,
-            compat_mode,
-            source_rows,
-            range,
-            ..
-        } = self;
-
-        let mut rows = RowIter::new(G::create(), session, source_rows);
-        rows.set_source_row_range(*range.start(), *range.end());
-
-        let mut writer = DatWriter::new(&mut buffer, compat_mode);
+    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
+    where
+        I: Iterator<Item = GeneratedRow>,
+    {
+        let mut writer = DatWriter::new(&mut buffer, self.compat_mode);
         for row in rows {
-            if row.table() == table {
-                // Writing to memory cannot fail, and every generated value is
-                // representable in the output encoding (the distributions the
-                // values come from are themselves ISO-8859-1).
-                writer
-                    .write_display_row(&row)
-                    .expect("DAT rows are always writable to memory");
-            }
+            // Writing to memory cannot fail, and every generated value is
+            // representable in the output encoding (the distributions the
+            // values come from are themselves ISO-8859-1).
+            writer
+                .write_display_row(&row)
+                .expect("DAT rows are always writable to memory");
         }
         writer
             .flush()
@@ -276,126 +122,5 @@ impl<G: RowGeneratorFactory + Send + 'static> Source for DatSource<G> {
         drop(writer);
 
         buffer
-    }
-}
-
-/// Trait for creating row generators
-trait RowGeneratorFactory: RowGenerator + Sized {
-    fn create() -> Self;
-}
-
-macro_rules! impl_factory {
-    ($($gen:ty),*) => {
-        $(
-            impl RowGeneratorFactory for $gen {
-                fn create() -> Self { Self::new() }
-            }
-        )*
-    };
-}
-
-// Implement factory for all simple generators
-impl_factory!(
-    CallCenterRowGenerator,
-    CatalogPageRowGenerator,
-    CustomerRowGenerator,
-    CustomerAddressRowGenerator,
-    CustomerDemographicsRowGenerator,
-    DateDimRowGenerator,
-    DbgenVersionRowGenerator,
-    HouseholdDemographicsRowGenerator,
-    IncomeBandRowGenerator,
-    InventoryRowGenerator,
-    ItemRowGenerator,
-    PromotionRowGenerator,
-    ReasonRowGenerator,
-    ShipModeRowGenerator,
-    StoreRowGenerator,
-    TimeDimRowGenerator,
-    WarehouseRowGenerator,
-    WebPageRowGenerator,
-    WebSiteRowGenerator
-);
-
-// Implement factory for generators that emit sales and returns rows
-impl_factory!(
-    CatalogSalesRowGenerator,
-    StoreSalesRowGenerator,
-    WebSalesRowGenerator
-);
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tpcdsgen::config::SessionBuilder;
-
-    /// Generate `table` as DAT text, one chunk per range, concatenated in order
-    fn dat_bytes<G: RowGeneratorFactory + Send + 'static>(
-        table: Table,
-        session: &Session,
-        ranges: Vec<RangeInclusive<i64>>,
-    ) -> Vec<u8> {
-        let source_rows = session.get_scaling().get_row_count(table.source_table());
-        let mut out = Vec::new();
-        for range in ranges {
-            let source = DatSource::<G> {
-                table,
-                session: session.clone(),
-                compat_mode: session.get_compat_mode(),
-                source_rows,
-                range,
-                generator: PhantomData,
-            };
-            out.extend_from_slice(&source.create(Vec::new()));
-        }
-        out
-    }
-
-    fn session(scale_factor: f64) -> Session {
-        SessionBuilder::new()
-            .with_scale_factor(scale_factor)
-            .build()
-            .expect("session")
-    }
-
-    /// Splitting a table into chunks must produce exactly the same bytes as
-    /// generating it in one pass: this is what makes parallel generation safe.
-    #[test]
-    fn chunks_concatenate_to_the_unchunked_output() {
-        let session = session(1.0);
-        let whole = dat_bytes::<ReasonRowGenerator>(Table::Reason, &session, vec![1..=35]);
-        let chunked = dat_bytes::<ReasonRowGenerator>(
-            Table::Reason,
-            &session,
-            vec![1..=1, 2..=10, 11..=34, 35..=35],
-        );
-        assert!(!whole.is_empty());
-        assert_eq!(whole, chunked);
-    }
-
-    /// The sales generator emits rows for the sales and the returns table;
-    /// each output file keeps only its own rows, in every chunk.
-    #[test]
-    fn sales_and_returns_are_generated_from_the_same_source_rows() {
-        let session = session(0.01);
-        let source_rows = session.get_scaling().get_row_count(Table::StoreSales);
-        assert!(source_rows > 100);
-        let split = vec![1..=(source_rows / 2), (source_rows / 2 + 1)..=source_rows];
-
-        for table in [Table::StoreSales, Table::StoreReturns] {
-            let whole = dat_bytes::<StoreSalesRowGenerator>(table, &session, vec![1..=source_rows]);
-            let chunked = dat_bytes::<StoreSalesRowGenerator>(table, &session, split.clone());
-            assert!(!whole.is_empty(), "{table} produced no rows");
-            assert_eq!(whole, chunked, "{table} chunked output differs");
-        }
-    }
-
-    /// An empty range (a table with no rows) produces an empty file
-    #[test]
-    fn empty_range_produces_no_rows() {
-        let session = session(1.0);
-        #[allow(clippy::reversed_empty_ranges)]
-        let empty = dat_bytes::<ReasonRowGenerator>(Table::Reason, &session, vec![1..=0]);
-        assert!(empty.is_empty());
     }
 }

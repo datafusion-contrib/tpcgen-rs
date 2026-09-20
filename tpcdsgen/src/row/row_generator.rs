@@ -36,14 +36,21 @@ impl RowGeneratorResult {
     pub fn should_end_row(&self) -> bool {
         self.should_end_row
     }
+
+    /// Consume the result and return its generated rows and end flag
+    pub fn into_parts(self) -> (Vec<GeneratedRow>, bool) {
+        (self.rows, self.should_end_row)
+    }
 }
 
 /// RowGenerator trait matching the Java RowGenerator interface
 pub trait RowGenerator: Send + Sync {
-    /// Generate a row and its child rows (generateRowAndChildRows)
+    /// Generate a row and its child rows (generateRowAndChildRows).
+    ///
+    /// `row_number` is 1-based.
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         parent_row_generator: Option<&mut dyn RowGenerator>,
         child_row_generator: Option<&mut dyn RowGenerator>,
@@ -53,7 +60,7 @@ pub trait RowGenerator: Send + Sync {
     fn consume_remaining_seeds_for_row(&mut self);
 
     /// Skip rows until reaching the starting row number
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64);
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64);
 }
 
 #[cfg(test)]
@@ -77,8 +84,9 @@ mod tests {
             GeneratedRow::from(CallCenterRow::builder().build()),
         ];
         let result = RowGeneratorResult::new_with_multiple(rows, false);
+        let (rows, should_end_row) = result.into_parts();
 
-        assert_eq!(result.get_rows().len(), 2);
-        assert!(!result.should_end_row());
+        assert_eq!(rows.len(), 2);
+        assert!(!should_end_row);
     }
 }

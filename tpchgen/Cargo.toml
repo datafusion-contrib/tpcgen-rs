@@ -2,7 +2,7 @@
 name = "tpchgen"
 authors = ["clflushopt", "alamb"]
 description = "Blazing fast pure Rust no dependency TPC-H data generation library."
-repository = "https://github.com/clflushopt/tpchgen-rs"
+repository = { workspace = true }
 readme = "README.md"
 version = { workspace = true }
 edition = { workspace = true }

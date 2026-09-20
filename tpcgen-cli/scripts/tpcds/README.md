@@ -156,7 +156,7 @@ mvn clean package
 
 **Problem:** `Rust binary not found`
 ```bash
-cargo build --release
+cargo build --locked --release
 ```
 
 **Problem:** `Fixture not found` (Java path)

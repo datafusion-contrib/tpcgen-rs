@@ -21,25 +21,25 @@ use std::fmt;
 /// Customer row (CustomerRow)
 #[derive(Debug, Clone)]
 pub struct CustomerRow {
-    null_bit_map: i64,
-    c_customer_sk: i64,
-    c_customer_id: String,
-    c_current_cdemo_sk: i64,
-    c_current_hdemo_sk: i64,
-    c_current_addr_sk: i64,
-    c_first_shipto_date_id: i32,
-    c_first_sales_date_id: i32,
-    c_salutation: String,
-    c_first_name: String,
-    c_last_name: String,
-    c_preferred_cust_flag: bool,
-    c_birth_day: i32,
-    c_birth_month: i32,
-    c_birth_year: i32,
-    c_birth_country: String,
-    c_login: Option<String>, // always null in the Java implementation
-    c_email_address: String,
-    c_last_review_date: i32,
+    pub(crate) null_bit_map: i64,
+    pub(crate) c_customer_sk: i64,
+    pub(crate) c_customer_id: String,
+    pub(crate) c_current_cdemo_sk: i64,
+    pub(crate) c_current_hdemo_sk: i64,
+    pub(crate) c_current_addr_sk: i64,
+    pub(crate) c_first_shipto_date_id: i32,
+    pub(crate) c_first_sales_date_id: i32,
+    pub(crate) c_salutation: String,
+    pub(crate) c_first_name: String,
+    pub(crate) c_last_name: String,
+    pub(crate) c_preferred_cust_flag: bool,
+    pub(crate) c_birth_day: i32,
+    pub(crate) c_birth_month: i32,
+    pub(crate) c_birth_year: i32,
+    pub(crate) c_birth_country: String,
+    pub(crate) c_login: Option<String>, // always null in the Java implementation
+    pub(crate) c_email_address: String,
+    pub(crate) c_last_review_date: i32,
 }
 
 impl CustomerRow {
@@ -164,7 +164,7 @@ impl CustomerRow {
     }
 
     /// Check if a column is null based on the null bit map
-    fn is_null(&self, column: CustomerGeneratorColumn) -> bool {
+    pub(crate) fn is_null(&self, column: CustomerGeneratorColumn) -> bool {
         let position = column.get_global_column_number()
             - CustomerGeneratorColumn::CCustomerSk.get_global_column_number();
         (self.null_bit_map & (1 << position)) != 0
@@ -174,12 +174,12 @@ impl CustomerRow {
 impl CustomerRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is negative.
-    fn key_field(&self, value: i64, column: CustomerGeneratorColumn) -> DatField<i64> {
+    pub(crate) fn key_field(&self, value: i64, column: CustomerGeneratorColumn) -> DatField<i64> {
         DatField::new(value, self.is_null(column) || value < 0)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
-    fn field<T>(&self, value: T, column: CustomerGeneratorColumn) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column: CustomerGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
 }

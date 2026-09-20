@@ -44,9 +44,11 @@ impl HouseholdDemographicsRowGenerator {
     /// Generate a HouseholdDemographicsRow with realistic data following Java implementation
     fn generate_household_demographics_row(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         _session: &Session,
     ) -> Result<HouseholdDemographicsRow> {
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
+
         // Create null bit map (createNullBitMap call)
         let nulls_stream = self
             .abstract_generator
@@ -63,7 +65,7 @@ impl HouseholdDemographicsRowGenerator {
         };
 
         // Generate household demographics using index-based cartesian product (algorithm from Java)
-        let hd_demo_sk = row_number;
+        let hd_demo_sk = row_number_i64;
         let mut index = hd_demo_sk;
 
         // Get income band id using modulo
@@ -98,7 +100,7 @@ impl HouseholdDemographicsRowGenerator {
 impl RowGenerator for HouseholdDemographicsRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -111,7 +113,7 @@ impl RowGenerator for HouseholdDemographicsRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

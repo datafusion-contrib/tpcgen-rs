@@ -2511,6 +2511,15 @@ mod tests {
     }
 
     #[test]
+    fn test_large_scale_partitioned_line_item_generation() {
+        let line_item_count = LineItemGenerator::new(100_000.0, 1, 1_000_000_000)
+            .iter()
+            .count();
+
+        assert_eq!(line_item_count, 586);
+    }
+
+    #[test]
     fn check_iter_static_lifetimes() {
         // Lifetimes of iterators should be independent of the generator that
         // created it. This test case won't compile if that's not the case.

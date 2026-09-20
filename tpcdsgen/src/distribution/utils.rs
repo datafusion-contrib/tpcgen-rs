@@ -54,6 +54,8 @@ impl WeightsBuilder {
 }
 
 /// Pick a random value from values list based on weights (DistributionUtils.pickRandomValue)
+///
+/// Weights must be nondecreasing.
 pub fn pick_random_value<'a, T>(
     values: &'a [T],
     weights: &[i32],
@@ -85,13 +87,8 @@ fn get_value_for_weight<'a, T>(weight: i32, values: &'a [T], weights: &[i32]) ->
         ));
     }
 
-    for (index, &w) in weights.iter().enumerate() {
-        if weight <= w {
-            return Ok(&values[index]);
-        }
-    }
-
-    Err(TpcdsError::new("Random weight was greater than max weight"))
+    let index = get_index_for_weight(weight, weights)?;
+    Ok(&values[index])
 }
 
 /// Get value for index modulo size (DistributionUtils.getValueForIndexModSize)
@@ -102,6 +99,8 @@ pub fn get_value_for_index_mod_size<T>(index: i64, values: &[T]) -> &T {
 }
 
 /// Pick random index from weights (DistributionUtils.pickRandomIndex)
+///
+/// Weights must be nondecreasing.
 pub fn pick_random_index(weights: &[i32], stream: &mut dyn RandomNumberStream) -> Result<usize> {
     use crate::random::RandomValueGenerator;
 
@@ -117,13 +116,12 @@ pub fn pick_random_index(weights: &[i32], stream: &mut dyn RandomNumberStream) -
 
 /// Get index for specific weight (DistributionUtils.getIndexForWeight)
 fn get_index_for_weight(weight: i32, weights: &[i32]) -> Result<usize> {
-    for (index, &w) in weights.iter().enumerate() {
-        if weight <= w {
-            return Ok(index);
-        }
+    let index = weights.partition_point(|&w| w < weight);
+    if index < weights.len() {
+        Ok(index)
+    } else {
+        Err(TpcdsError::new("Random weight was greater than max weight"))
     }
-
-    Err(TpcdsError::new("Random weight was greater than max weight"))
 }
 
 /// Get weight for specific index (DistributionUtils.getWeightForIndex)
@@ -155,6 +153,8 @@ pub struct DistributionUtils;
 
 impl DistributionUtils {
     /// Pick random index based on cumulative weights (core algorithm from Java)
+    ///
+    /// Weights must be nondecreasing.
     pub fn pick_random_index_from_weights(
         weights: &[i32],
         stream: &mut dyn RandomNumberStream,
@@ -173,21 +173,7 @@ impl DistributionUtils {
         let random_weight =
             crate::random::RandomValueGenerator::generate_uniform_random_int(1, max_weight, stream);
 
-        // Find first weight >= random_weight using binary search
-        // This is the cumulative weight distribution selection algorithm
-        match weights.binary_search(&random_weight) {
-            Ok(index) => Ok(index),
-            Err(index) => {
-                // binary_search returns insertion point when not found
-                // This is exactly where the random_weight would fall
-                if index < weights.len() {
-                    Ok(index)
-                } else {
-                    // Should not happen with proper weights, but handle gracefully
-                    Ok(weights.len() - 1)
-                }
-            }
-        }
+        get_index_for_weight(random_weight, weights)
     }
 
     /// Pick random index with uniform distribution (for non-weighted selection)
@@ -279,6 +265,31 @@ mod tests {
                 DistributionUtils::pick_random_index_from_weights(&weights, &mut stream).unwrap();
             assert!(index < weights.len());
         }
+    }
+
+    #[test]
+    fn test_weight_lookup_boundaries() {
+        let weights = [0, 10, 10, 20, 40];
+        let values = ["zero", "first ten", "second ten", "twenty", "forty"];
+
+        assert_eq!(get_index_for_weight(0, &weights).unwrap(), 0);
+        assert_eq!(get_index_for_weight(1, &weights).unwrap(), 1);
+        assert_eq!(get_index_for_weight(10, &weights).unwrap(), 1);
+        assert_eq!(get_index_for_weight(11, &weights).unwrap(), 3);
+        assert_eq!(get_index_for_weight(40, &weights).unwrap(), 4);
+        assert!(get_index_for_weight(41, &weights).is_err());
+        assert!(get_index_for_weight(1, &[]).is_err());
+
+        assert_eq!(
+            get_value_for_weight(10, &values, &weights).unwrap(),
+            &"first ten"
+        );
+        assert_eq!(
+            get_value_for_weight(11, &values, &weights).unwrap(),
+            &"twenty"
+        );
+        assert!(get_value_for_weight(1, &[] as &[i32], &[]).is_err());
+        assert!(get_value_for_weight(1, &values[..4], &weights).is_err());
     }
 
     #[test]

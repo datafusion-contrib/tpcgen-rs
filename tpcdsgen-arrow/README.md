@@ -14,12 +14,12 @@ See [docs.rs page](https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/)
 
 This crate ensures correct results using two methods.
 
-1. Basic functional tests are in Rust doc tests in the source code (`cargo test -p tpcdsgen-arrow --doc`)
+1. Basic functional tests are in Rust doc tests in the source code (`cargo test --locked -p tpcdsgen-arrow --doc`)
 2. The `reparse` integration test ensures that the Arrow generators
-   produce the same results as parsing the original DAT format (`cargo test -p tpcdsgen-arrow --test reparse`)
+   produce the same results as parsing the original DAT format (`cargo test --locked -p tpcdsgen-arrow --test reparse`)
 
 # Contributing:
 
 Please see [CONTRIBUTING.md] for more information on how to contribute to this project.
 
-[CONTRIBUTING.md]: https://github.com/clflushopt/tpchgen-rs/blob/main/CONTRIBUTING.md
+[CONTRIBUTING.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/CONTRIBUTING.md

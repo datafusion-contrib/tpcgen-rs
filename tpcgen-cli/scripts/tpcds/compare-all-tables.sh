@@ -133,7 +133,7 @@ ALL_TABLES=(
 build_generator() {
     log_info "Building Rust TPC-DS generator..."
 
-    if cargo build --release -p tpcgen-cli --quiet 2>&1; then
+    if cargo build --locked --release -p tpcgen-cli --quiet 2>&1; then
         log_success "Generator built successfully"
         return 0
     else

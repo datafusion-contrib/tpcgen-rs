@@ -1,12 +1,18 @@
-# tpchgen-rs
+# tpcgen-rs
+
+> [!NOTE]
+> Originally written by [@clflushopt](https://github.com/clflushopt) at
+> [`clflushopt/tpchgen-rs`](https://github.com/clflushopt/tpchgen-rs).
+> The project is now maintained at
+> [`datafusion-contrib/tpcgen-rs`](https://github.com/datafusion-contrib/tpcgen-rs).
 
 [![Apache licensed][license-badge]][license-url]
 [![Build Status][actions-badge]][actions-url]
 
 [license-badge]: https://img.shields.io/badge/license-Apache%20v2-blue.svg
-[license-url]: https://github.com/clflushopt/tpchgen-rs/blob/main/LICENSE
-[actions-badge]: https://github.com/clflushopt/tpchgen-rs/actions/workflows/rust.yml/badge.svg
-[actions-url]: https://github.com/clflushopt/tpchgen-rs/actions?query=branch%3Amain
+[license-url]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/LICENSE
+[actions-badge]: https://github.com/datafusion-contrib/tpcgen-rs/actions/workflows/rust.yml/badge.svg
+[actions-url]: https://github.com/datafusion-contrib/tpcgen-rs/actions?query=branch%3Amain
 
 Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencies.
 

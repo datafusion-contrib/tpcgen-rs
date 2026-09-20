@@ -49,7 +49,7 @@
 //! generation logic.
 //!
 //! If you want an easy way to generate the TPC-H dataset for usage with external
-//! see the [`tpchgen-cli`](https://github.com/alamb/tpchgen-rs/tree/main/tpchgen-cli)
+//! see the [`tpchgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli)
 //! tool instead.
 pub mod csv;
 pub mod dates;

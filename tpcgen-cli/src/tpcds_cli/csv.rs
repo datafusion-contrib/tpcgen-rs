@@ -1,146 +1,113 @@
 //! TPC-DS CSV output.
+//!
+//! Rows are formatted via the `tpcdsgen::csv` Display wrappers (the same
+//! model as the TPC-H CSV output): one header line, then one line per row
+//! with the same field values as the DAT output, joined by the delimiter
+//! with no trailing separator. Free-text columns that can contain the
+//! delimiter are double-quoted.
+//!
+//! Two deliberate differences from the DAT output, documented in more detail
+//! on `tpcdsgen::csv`:
+//!
+//! * Output is UTF-8 in both compat modes, where the DAT output is ISO-8859-1
+//!   in `CompatMode::Trino`. The values match as characters, not as bytes.
+//! * Quoting is a fixed per-column property rather than quote-when-needed, so
+//!   `--delimiter` is only safe for delimiters that no unquoted column
+//!   contains (`,`, `|`, tab, `;`).
+//!
+//! Generation is parallel: see [`super::generate`] for how the row generators
+//! are driven, and [`super::runner`] for how tables are planned and scheduled.
 
-use crate::progress::{ProgressHandle, ProgressTracker};
-use arrow::array::RecordBatch;
-use arrow::record_batch::RecordBatchReader;
-use arrow_csv::writer::WriterBuilder;
-use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use super::generate::{generate_table, RowFormat};
+use super::plan::ChunkFormat;
+use super::runner::{plan_tables, run_plans};
+use crate::progress::ProgressTracker;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen_arrow::{
-    CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
-    CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
-    DbgenVersionArrow, HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow,
-    PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
-    TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
-};
-
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
+use tpcdsgen::row::GeneratedRow;
 
 /// CSV output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Csv {
     output_dir: PathBuf,
     delimiter: char,
+    /// Target size of each generated buffer
+    chunk_bytes: i64,
 }
 
 impl Csv {
-    pub(super) fn new(output_dir: PathBuf, delimiter: char) -> Self {
+    pub(super) fn new(output_dir: PathBuf, delimiter: char, chunk_bytes: i64) -> Self {
         Self {
             output_dir,
             delimiter,
+            chunk_bytes,
         }
     }
 
-    pub(super) fn register_table(
+    /// Generate the given TPC-DS tables as CSV files.
+    pub(super) async fn generate_tables(
         &self,
-        table: Table,
-        session: &Session,
+        table_sessions: Vec<(Table, Session)>,
+        num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
-    ) -> ProgressHandle {
-        let rows: u64 = session
-            .get_scaling()
-            .get_row_count(table)
-            .try_into()
-            .unwrap_or(0);
-        progress.register(table.get_name(), rows)
-    }
-
-    /// Generate one TPC-DS table as a CSV file.
-    pub(super) fn generate_table(
-        &self,
-        table: Table,
-        session: Session,
-        progress: ProgressHandle,
-    ) -> Result<()> {
-        let path = self.output_dir.join(format!("{}.csv", table.get_name()));
-
-        match table {
-            Table::CallCenter => self.write_batches(path, CallCenterArrow::new(session), &progress),
-            Table::CatalogPage => {
-                self.write_batches(path, CatalogPageArrow::new(session), &progress)
+    ) -> io::Result<()> {
+        // Every table must have a header before any file is created: unlike
+        // DAT, a CSV file is not valid without one, and `write_header` cannot
+        // report an error once generation has started.
+        for (table, _) in &table_sessions {
+            if csv_header(*table, self.delimiter).is_none() {
+                return Err(io::Error::other(format!(
+                    "table {} has no CSV output",
+                    table.get_name()
+                )));
             }
-            Table::CatalogReturns => {
-                self.write_batches(path, CatalogReturnsArrow::new(session), &progress)
-            }
-            Table::CatalogSales => {
-                self.write_batches(path, CatalogSalesArrow::new(session), &progress)
-            }
-            Table::Customer => self.write_batches(path, CustomerArrow::new(session), &progress),
-            Table::CustomerAddress => {
-                self.write_batches(path, CustomerAddressArrow::new(session), &progress)
-            }
-            Table::CustomerDemographics => {
-                self.write_batches(path, CustomerDemographicsArrow::new(session), &progress)
-            }
-            Table::DateDim => self.write_batches(path, DateDimArrow::new(session), &progress),
-            Table::DbgenVersion => {
-                self.write_batches(path, DbgenVersionArrow::new(session), &progress)
-            }
-            Table::HouseholdDemographics => {
-                self.write_batches(path, HouseholdDemographicsArrow::new(session), &progress)
-            }
-            Table::IncomeBand => self.write_batches(path, IncomeBandArrow::new(session), &progress),
-            Table::Inventory => self.write_batches(path, InventoryArrow::new(session), &progress),
-            Table::Item => self.write_batches(path, ItemArrow::new(session), &progress),
-            Table::Promotion => self.write_batches(path, PromotionArrow::new(session), &progress),
-            Table::Reason => self.write_batches(path, ReasonArrow::new(session), &progress),
-            Table::ShipMode => self.write_batches(path, ShipModeArrow::new(session), &progress),
-            Table::Store => self.write_batches(path, StoreArrow::new(session), &progress),
-            Table::StoreReturns => {
-                self.write_batches(path, StoreReturnsArrow::new(session), &progress)
-            }
-            Table::StoreSales => self.write_batches(path, StoreSalesArrow::new(session), &progress),
-            Table::TimeDim => self.write_batches(path, TimeDimArrow::new(session), &progress),
-            Table::Warehouse => self.write_batches(path, WarehouseArrow::new(session), &progress),
-            Table::WebPage => self.write_batches(path, WebPageArrow::new(session), &progress),
-            Table::WebReturns => self.write_batches(path, WebReturnsArrow::new(session), &progress),
-            Table::WebSales => self.write_batches(path, WebSalesArrow::new(session), &progress),
-            Table::WebSite => self.write_batches(path, WebSiteArrow::new(session), &progress),
-            _ => Ok(()),
         }
+
+        let work = plan_tables(
+            table_sessions,
+            self.chunk_bytes,
+            ChunkFormat::Csv,
+            &progress,
+        );
+        progress.start();
+
+        let this = self.clone();
+        run_plans(work, num_threads, move |planned, num_threads| {
+            let this = this.clone();
+            async move {
+                generate_table(this.clone(), this.output_dir.clone(), planned, num_threads).await
+            }
+        })
+        .await
+    }
+}
+
+impl RowFormat for Csv {
+    const EXTENSION: &'static str = "csv";
+
+    fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
+        // Validated by `generate_tables` before any generation starts.
+        let header = csv_header(table, self.delimiter)
+            .unwrap_or_else(|| panic!("table {} has no CSV output", table.get_name()));
+        writeln!(buffer, "{header}").expect("writing to memory cannot fail");
+        buffer
     }
 
-    /// Write the record batches to a CSV file at the specified path.
-    fn write_batches<I>(
-        &self,
-        path: PathBuf,
-        mut batches: I,
-        progress: &ProgressHandle,
-    ) -> Result<()>
+    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
     where
-        I: RecordBatchReader,
+        I: Iterator<Item = GeneratedRow>,
     {
-        let temp_path = path.with_extension("inprogress");
-        let file = File::create(&temp_path)
-            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-
-        let mut writer = WriterBuilder::new()
-            .with_header(true)
-            .with_delimiter(self.delimiter as u8)
-            .build(writer);
-
-        // Write the header first.
-        writer.write(&RecordBatch::new_empty(batches.schema()))?;
-
-        for batch in &mut batches {
-            let batch = batch?;
-            writer.write(&batch)?;
-            progress.increment(batch.num_rows() as u64);
+        for row in rows {
+            writeln!(
+                buffer,
+                "{}",
+                GeneratedRowCsv::with_delimiter(&row, self.delimiter)
+            )
+            .expect("writing to memory cannot fail");
         }
-
-        let mut writer = writer.into_inner();
-        writer.flush()?;
-
-        std::fs::rename(&temp_path, &path).map_err(|err| {
-            io::Error::other(format!(
-                "Failed to rename {temp_path:?} to {path:?} file: {err}"
-            ))
-        })?;
-
-        Ok(())
+        buffer
     }
 }

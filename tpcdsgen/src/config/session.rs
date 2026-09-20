@@ -1,5 +1,57 @@
 use crate::config::{CompatMode, Scaling, Table};
 use crate::error::{InvalidOptionError, Result};
+use std::ops::RangeInclusive;
+
+/// Threshold above which tables are not split across chunks. For tables with
+/// fewer than this many rows, chunk 1 generates the whole table . Matches the
+/// C `dsdgen`'s `kTotalRows < 1000000` check in `tools/parallel.c` [1] and
+/// Trino's `Parallel.SMALL_TABLE_THRESHOLD` [2].
+///
+/// [1]: https://github.com/gregrahn/tpcds-kit/blob/5a3a81796992b725c2a8b216767e142609966752/tools/parallel.c#L75
+/// [2]: https://github.com/trinodb/tpcds/blob/b594136818cc95bd6b34a352327611b329017281/src/main/java/io/trino/tpcds/Parallel.java#L28
+const SMALL_TABLE_ROW_THRESHOLD: u64 = 1_000_000;
+
+/// Split `total_rows` into `total_chunks` pieces and return the 1-based
+/// `(first_row, row_count)` for `chunk_number`.
+///
+/// Ports the C `dsdgen`'s `split_work` (`tools/parallel.c`) [1] / Trino's
+/// `Parallel.splitWork` [2].
+///
+/// [1]: https://github.com/gregrahn/tpcds-kit/blob/5a3a81796992b725c2a8b216767e142609966752/tools/parallel.c#L58-L107
+/// [2]: https://github.com/trinodb/tpcds/blob/b594136818cc95bd6b34a352327611b329017281/src/main/java/io/trino/tpcds/Parallel.java#L24-L51
+fn split_work(total_rows: u64, chunk_number: i32, total_chunks: i32) -> (u64, u64) {
+    if total_rows < SMALL_TABLE_ROW_THRESHOLD {
+        return if chunk_number == 1 {
+            (1, total_rows)
+        } else {
+            (1, 0)
+        };
+    }
+
+    let total_chunks = total_chunks as u64;
+    let chunk_number = chunk_number as u64;
+    let rowset_size = total_rows / total_chunks;
+    let extra_rows = total_rows % total_chunks;
+
+    let first_row = {
+        let offset = 1 + (chunk_number - 1) * rowset_size;
+        if extra_rows > 0 && chunk_number > 1 {
+            offset + (chunk_number - 1).min(extra_rows)
+        } else {
+            offset
+        }
+    };
+
+    let row_count = {
+        if extra_rows > 0 && chunk_number <= extra_rows {
+            rowset_size + 1
+        } else {
+            rowset_size
+        }
+    };
+
+    (first_row, row_count)
+}
 
 /// Configuration for a TPC-DS data generation run.
 ///
@@ -10,6 +62,8 @@ pub struct Session {
     table: Option<Table>,
     no_sexism: bool,
     chunk_number: i32,
+    total_chunks: i32,
+    partitioned: bool,
     compat_mode: CompatMode,
     command_line_arguments: Option<String>,
 }
@@ -21,6 +75,8 @@ impl Default for Session {
             table: None,
             no_sexism: Self::DEFAULT_NO_SEXISM,
             chunk_number: Self::DEFAULT_CHUNK_NUMBER,
+            total_chunks: Self::DEFAULT_TOTAL_CHUNKS,
+            partitioned: Self::DEFAULT_PARTITIONED,
             compat_mode: Self::DEFAULT_COMPAT,
             command_line_arguments: None,
         }
@@ -31,6 +87,8 @@ impl Session {
     pub const DEFAULT_SCALE: f64 = 1.0;
     pub const DEFAULT_NO_SEXISM: bool = false;
     pub const DEFAULT_CHUNK_NUMBER: i32 = 1;
+    pub const DEFAULT_TOTAL_CHUNKS: i32 = 1;
+    pub const DEFAULT_PARTITIONED: bool = false;
     pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
 
     /// Convert this session into a builder initialized with its current values.
@@ -40,6 +98,8 @@ impl Session {
             table: self.table,
             no_sexism: self.no_sexism,
             chunk_number: self.chunk_number,
+            total_chunks: self.total_chunks,
+            partitioned: self.partitioned,
             compat_mode: self.compat_mode,
             command_line_arguments: self.command_line_arguments,
         }
@@ -82,6 +142,32 @@ impl Session {
         self.chunk_number
     }
 
+    /// Return the total number of chunks for table generation
+    pub fn get_total_chunks(&self) -> i32 {
+        self.total_chunks
+    }
+
+    /// Return `true` if `--parts` was requested.
+    ///
+    /// Note this also returns true for `--parts 1`
+    pub fn is_partitioned(&self) -> bool {
+        self.partitioned
+    }
+
+    /// Return the 1-based, inclusive range of `table`'s source rows generated
+    /// by this session.
+    ///
+    /// Note there is a 1M row minimum for TPCDS so smaller tables may have only
+    /// a single chunk.
+    ///
+    /// A chunk with no work returns an empty range, so callers must check
+    /// [`RangeInclusive::is_empty`] before generating
+    pub fn get_source_row_range(&self, table: Table) -> RangeInclusive<u64> {
+        let total_rows = self.scaling.get_row_count(table.source_table());
+        let (first_row, row_count) = split_work(total_rows, self.chunk_number, self.total_chunks);
+        first_row..=(first_row + row_count - 1)
+    }
+
     /// Return the reference implementation compatibility mode.
     pub fn get_compat_mode(&self) -> CompatMode {
         self.compat_mode
@@ -100,6 +186,8 @@ pub struct SessionBuilder {
     table: Option<Table>,
     no_sexism: bool,
     chunk_number: i32,
+    total_chunks: i32,
+    partitioned: bool,
     compat_mode: CompatMode,
     command_line_arguments: Option<String>,
 }
@@ -111,6 +199,8 @@ impl Default for SessionBuilder {
             table: None,
             no_sexism: Session::DEFAULT_NO_SEXISM,
             chunk_number: Session::DEFAULT_CHUNK_NUMBER,
+            total_chunks: Session::DEFAULT_TOTAL_CHUNKS,
+            partitioned: Session::DEFAULT_PARTITIONED,
             compat_mode: Session::DEFAULT_COMPAT,
             command_line_arguments: None,
         }
@@ -153,6 +243,18 @@ impl SessionBuilder {
         self
     }
 
+    /// Set the total number of chunks for table generation.
+    pub fn with_total_chunks(mut self, total_chunks: i32) -> Self {
+        self.total_chunks = total_chunks;
+        self
+    }
+
+    /// Set whether `--parts` was requested. See [`Session::is_partitioned`].
+    pub fn with_partitioned(mut self, partitioned: bool) -> Self {
+        self.partitioned = partitioned;
+        self
+    }
+
     /// Set the reference implementation compatibility mode.
     pub fn with_compat_mode(mut self, compat_mode: CompatMode) -> Self {
         self.compat_mode = compat_mode;
@@ -183,6 +285,8 @@ impl SessionBuilder {
             table: self.table,
             no_sexism: self.no_sexism,
             chunk_number: self.chunk_number,
+            total_chunks: self.total_chunks,
+            partitioned: self.partitioned,
             compat_mode: self.compat_mode,
             command_line_arguments: self.command_line_arguments,
         })
@@ -193,7 +297,7 @@ impl SessionBuilder {
             return Err(InvalidOptionError::with_message(
                 "scale",
                 &self.scale.to_string(),
-                "Scale must be greater than 0 and less than 100000",
+                "Scale must be between 0 and 100000, inclusive",
             )
             .into());
         }
@@ -207,11 +311,33 @@ impl SessionBuilder {
             .into());
         }
 
+        if self.total_chunks < 1 {
+            return Err(InvalidOptionError::with_message(
+                "total_chunks",
+                &self.total_chunks.to_string(),
+                "Total chunks must be >= 1",
+            )
+            .into());
+        }
+
+        if self.chunk_number > self.total_chunks {
+            return Err(InvalidOptionError::with_message(
+                "chunk_number",
+                &self.chunk_number.to_string(),
+                &format!(
+                    "Chunk number must be <= total_chunks ({})",
+                    self.total_chunks
+                ),
+            )
+            .into());
+        }
+
         Ok(())
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::reversed_empty_ranges)]
 mod tests {
     use super::*;
 
@@ -233,6 +359,7 @@ mod tests {
             .with_table(Table::CatalogSales)
             .with_no_sexism(true)
             .with_chunk_number(2)
+            .with_total_chunks(4)
             .with_compat_mode(CompatMode::C)
             .with_command_line_arguments("tpcgen tpcds --scale-factor 2")
             .build()
@@ -242,6 +369,7 @@ mod tests {
         assert_eq!(session.get_table(), Some(Table::CatalogSales));
         assert!(!session.is_sexist());
         assert_eq!(session.get_chunk_number(), 2);
+        assert_eq!(session.get_total_chunks(), 4);
         assert_eq!(session.get_compat_mode(), CompatMode::C);
         assert_eq!(
             session.command_line_arguments(),
@@ -278,6 +406,7 @@ mod tests {
             .with_table(Table::CatalogSales)
             .with_scale_factor(10.0)
             .with_chunk_number(2)
+            .with_total_chunks(4)
             .with_no_sexism(true)
             .with_command_line_arguments("initial")
             .without_command_line_arguments()
@@ -314,5 +443,245 @@ mod tests {
     fn test_get_only_table_when_none() {
         let session = Session::default();
         session.get_only_table_to_generate();
+    }
+
+    #[test]
+    fn test_call_center_ranges() {
+        RowSizeTest::new(Table::CallCenter, &[1..=6, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_catalog_page_ranges() {
+        RowSizeTest::new(Table::CatalogPage, &[1..=11718, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_catalog_returns_ranges() {
+        // catalog_returns is split over its paired catalog_sales source rows
+        RowSizeTest::new(Table::CatalogReturns, &[1..=160000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_catalog_sales_ranges() {
+        RowSizeTest::new(Table::CatalogSales, &[1..=160000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_customer_ranges() {
+        RowSizeTest::new(Table::Customer, &[1..=100000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_customer_address_ranges() {
+        RowSizeTest::new(Table::CustomerAddress, &[1..=50000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_customer_demographics_ranges() {
+        // 1,920,800 rows clears the 1M threshold, so it really is split. 3 does
+        // not divide it evenly: the 2 extra rows go to the first 2 chunks.
+        RowSizeTest::new(
+            Table::CustomerDemographics,
+            &[1..=640267, 640268..=1280534, 1280535..=1920800],
+        )
+        .run();
+    }
+
+    #[test]
+    fn test_date_dim_ranges() {
+        RowSizeTest::new(Table::DateDim, &[1..=73049, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_household_demographics_ranges() {
+        RowSizeTest::new(Table::HouseholdDemographics, &[1..=7200, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_income_band_ranges() {
+        RowSizeTest::new(Table::IncomeBand, &[1..=20, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_inventory_ranges() {
+        // 11,745,000 rows clears the 1M threshold and divides evenly by 3
+        RowSizeTest::new(
+            Table::Inventory,
+            &[1..=3915000, 3915001..=7830000, 7830001..=11745000],
+        )
+        .run();
+    }
+
+    #[test]
+    fn test_item_ranges() {
+        RowSizeTest::new(Table::Item, &[1..=18000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_promotion_ranges() {
+        RowSizeTest::new(Table::Promotion, &[1..=300, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_reason_ranges() {
+        RowSizeTest::new(Table::Reason, &[1..=35, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_ship_mode_ranges() {
+        RowSizeTest::new(Table::ShipMode, &[1..=20, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_store_ranges() {
+        RowSizeTest::new(Table::Store, &[1..=12, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_store_returns_ranges() {
+        // store_returns is split over its paired store_sales source rows
+        RowSizeTest::new(Table::StoreReturns, &[1..=240000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_store_sales_ranges() {
+        RowSizeTest::new(Table::StoreSales, &[1..=240000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_time_dim_ranges() {
+        RowSizeTest::new(Table::TimeDim, &[1..=86400, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_warehouse_ranges() {
+        RowSizeTest::new(Table::Warehouse, &[1..=5, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_web_page_ranges() {
+        RowSizeTest::new(Table::WebPage, &[1..=60, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_web_returns_ranges() {
+        // web_returns is split over its paired web_sales source rows
+        RowSizeTest::new(Table::WebReturns, &[1..=60000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_web_sales_ranges() {
+        RowSizeTest::new(Table::WebSales, &[1..=60000, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_web_site_ranges() {
+        RowSizeTest::new(Table::WebSite, &[1..=30, 1..=0, 1..=0]).run();
+    }
+
+    #[test]
+    fn test_dbgen_version_ranges() {
+        RowSizeTest::new(Table::DbgenVersion, &[1..=1, 1..=0, 1..=0]).run();
+    }
+
+    // Larger tables at scale factor 1000, split 10 ways. Both have hundreds of
+    // millions of source rows, well over the 1M threshold, so every chunk gets
+    // an equal share.
+
+    #[test]
+    fn test_store_sales_ranges_sf1000() {
+        // 240,000,000 source rows / 10 chunks = 24,000,000 rows each
+        RowSizeTest::new(
+            Table::StoreSales,
+            &[
+                1..=24000000,
+                24000001..=48000000,
+                48000001..=72000000,
+                72000001..=96000000,
+                96000001..=120000000,
+                120000001..=144000000,
+                144000001..=168000000,
+                168000001..=192000000,
+                192000001..=216000000,
+                216000001..=240000000,
+            ],
+        )
+        .with_scale_factor(1000.0)
+        .run();
+    }
+
+    #[test]
+    fn test_catalog_sales_ranges_sf1000() {
+        // 160,000,000 source rows / 10 chunks = 16,000,000 rows each
+        RowSizeTest::new(
+            Table::CatalogSales,
+            &[
+                1..=16000000,
+                16000001..=32000000,
+                32000001..=48000000,
+                48000001..=64000000,
+                64000001..=80000000,
+                80000001..=96000000,
+                96000001..=112000000,
+                112000001..=128000000,
+                128000001..=144000000,
+                144000001..=160000000,
+            ],
+        )
+        .with_scale_factor(1000.0)
+        .run();
+    }
+
+    /// Verify the source row range each chunk of a table generates.
+    struct RowSizeTest {
+        table: Table,
+        scale_factor: f64,
+        /// Expected range for each chunk, so the number of chunks is the
+        /// length of this slice. Note the ranges are inclusive:
+        /// * `1..=6` means rows 1 through 6
+        /// * `1..=0` means no rows
+        expected_ranges: &'static [RangeInclusive<u64>],
+    }
+
+    impl RowSizeTest {
+        /// Test `table` at scale factor 1 with the default split threshold.
+        fn new(table: Table, expected_ranges: &'static [RangeInclusive<u64>]) -> Self {
+            Self {
+                table,
+                scale_factor: 1.0,
+                expected_ranges,
+            }
+        }
+
+        fn with_scale_factor(mut self, scale_factor: f64) -> Self {
+            self.scale_factor = scale_factor;
+            self
+        }
+
+        fn run(self) {
+            let Self {
+                table,
+                scale_factor,
+                expected_ranges,
+            } = self;
+
+            let total_chunks = expected_ranges.len() as i32;
+            let actual_ranges: Vec<_> = (1..=total_chunks)
+                .map(|chunk_number| {
+                    SessionBuilder::new()
+                        .with_scale_factor(scale_factor)
+                        .with_chunk_number(chunk_number)
+                        .with_total_chunks(total_chunks)
+                        .build()
+                        .unwrap()
+                        .get_source_row_range(table)
+                })
+                .collect();
+
+            assert_eq!(
+                expected_ranges, &actual_ranges,
+                "Row ranges for table {table:?} do not match expected"
+            );
+        }
     }
 }

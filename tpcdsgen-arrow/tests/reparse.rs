@@ -1,6 +1,11 @@
 //! Verifies correctness of the tpcdsgen-arrow generators by reparsing the
-//! canonical pipe-delimited .dat format and comparing against the directly
-//! generated Arrow RecordBatches.
+//! textual output formats (pipe-delimited `.dat` and CSV) and comparing against
+//! the directly generated Arrow RecordBatches.
+//!
+//! This also serves as a transitive test for csv correctness: we compare the
+//! DAT output to the original C and Trino generators, and verify it is the same
+//! as arrow. Thus, if CSV is the same as arrow, it too is the same as the
+//! original generators.
 //!
 //! Strategy:
 //! - drive the tpcdsgen RowGenerator to produce rows for each table
@@ -15,6 +20,7 @@ use arrow::record_batch::RecordBatchReader;
 use std::io::Write as _;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
+use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
 use tpcdsgen::row::{
     CallCenterRowGenerator, CatalogPageRowGenerator, CatalogSalesRowGenerator,
     CustomerAddressRowGenerator, CustomerDemographicsRowGenerator, CustomerRowGenerator,
@@ -35,12 +41,13 @@ use tpcdsgen_arrow::{
 /// Session options for tests (scale factor 1).
 static SESSION: LazyLock<Session> = LazyLock::new(Session::default);
 const DAT_SEPARATOR: char = '|';
+const CSV_SEPARATOR: char = ',';
 
 /// Number of rows to test for `table`.
-fn test_row_count(table: Table) -> i64 {
+fn test_row_count(table: Table) -> u64 {
     // Test up to 10k rows, rather than the entire table, to keep testing time
     // reasonable for large fact tables.
-    const MAX_REPARSE_SOURCE_ROWS: i64 = 10_000;
+    const MAX_REPARSE_SOURCE_ROWS: u64 = 10_000;
 
     SESSION
         .get_scaling()
@@ -48,37 +55,88 @@ fn test_row_count(table: Table) -> i64 {
         .min(MAX_REPARSE_SOURCE_ROWS)
 }
 
-/// Re-parse `tbl` format with the Arrow CSV reader.
-///
-/// 'tbl' format is pipe delimited, e.g.
-/// ```csv
-/// 1|foo
-/// 2|bar
-/// ```
-/// Note there is no trailing separator
-fn parse_dat<'a>(data: &'a [u8], schema: &'a SchemaRef) -> impl Iterator<Item = RecordBatch> + 'a {
-    let null_re = regex::Regex::new("^$").unwrap();
-    let builder = arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema))
-        .with_delimiter(DAT_SEPARATOR as u8)
-        .with_header(false)
-        .with_null_regex(null_re);
-    builder
-        .build(data)
-        .unwrap()
-        // csv reader returns Result<RecordBatch>, so check here
-        .map(|batch| batch.expect("parse .tbl data into RecordBatch"))
+/// The textual output formats that the tpcds crate can produce, each of which
+/// must reparse exactly to the generated Arrow data.
+#[derive(Debug, Clone, Copy)]
+enum Format {
+    /// Pipe delimited `.dat` format, with a trailing separator and no header:
+    /// ```text
+    /// 1|foo|
+    /// 2|bar|
+    /// ```
+    Dat,
+    /// Comma delimited CSV, with a header line and quoting as needed:
+    /// ```text
+    /// id,name
+    /// 1,foo
+    /// 2,"bar,baz"
+    /// ```
+    Csv,
 }
 
-/// Yields Arrow RecordBatches by creating pipe-delimited output for the
-/// specified table generator `gen`, and parsing the result to Arrow.
+impl Format {
+    /// Writes the header line for `table`, if the format has one.
+    fn write_header(&self, table: Table, data: &mut Vec<u8>) {
+        match self {
+            Format::Dat => {}
+            Format::Csv => {
+                let header = csv_header(table, CSV_SEPARATOR).expect("csv header for table");
+                writeln!(data, "{header}").unwrap();
+            }
+        }
+    }
+
+    /// Writes `row` as a single line, including the trailing newline.
+    fn write_row(&self, row: &GeneratedRow, data: &mut Vec<u8>) {
+        match self {
+            Format::Dat => {
+                write!(data, "{row}").unwrap();
+                // Note: .dat lines end with '|' which the Arrow CSV parser treats as a
+                // delimiter for a new column, so replace the trailing '|' with a newline.
+                let end_offset = data.len() - 1;
+                data[end_offset] = b'\n';
+            }
+            Format::Csv => writeln!(data, "{}", GeneratedRowCsv::new(row)).unwrap(),
+        }
+    }
+
+    /// Re-parses data with the Arrow CSV reader.
+    fn parse<'a>(
+        &self,
+        data: &'a [u8],
+        schema: &'a SchemaRef,
+    ) -> impl Iterator<Item = RecordBatch> + 'a {
+        let null_re = regex::Regex::new("^$").unwrap();
+        let builder =
+            arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
+        let builder = match self {
+            Format::Dat => builder
+                .with_delimiter(DAT_SEPARATOR as u8)
+                .with_header(false),
+            Format::Csv => builder
+                .with_delimiter(CSV_SEPARATOR as u8)
+                .with_header(true)
+                .with_header_validation(true),
+        };
+        builder
+            .build(data)
+            .unwrap()
+            .map(|batch| batch.expect("parse text data into RecordBatch"))
+    }
+}
+
+/// Yields Arrow RecordBatches by creating `format` output for the specified
+/// table generator `gen`, and parsing the result back to Arrow.
 ///
 /// Returns only rows for which `select` returns true.
 fn reparsed_batches<G, F>(
     mut gen: G,
+    format: Format,
+    table: Table,
     schema: &SchemaRef,
     select: F,
-    starting_row_number: i64,
-    source_row_count: i64,
+    starting_row_number: u64,
+    source_row_count: u64,
 ) -> impl Iterator<Item = RecordBatch>
 where
     G: RowGenerator,
@@ -90,34 +148,33 @@ where
     let mut source_row = starting_row_number;
     std::iter::from_fn(move || {
         let mut data = Vec::new();
+        format.write_header(table, &mut data);
+        let header_len = data.len();
 
         while data.len() < REPARSE_BUFFER_TARGET_BYTES && source_row <= source_row_count {
             let result = gen
                 .generate_row_and_child_rows(source_row, &SESSION, None, None)
                 .expect("row gen");
-            // Format the rows into `data` as pipe-delimited data.
-            for row in result.get_rows() {
+            let (rows, should_end_row) = result.into_parts();
+            for row in &rows {
                 if select(row) {
-                    write!(&mut data, "{row}").unwrap();
-                    // Note: .tbl lines end with '|' which the Arrow CSV parser treats as a
-                    // delimiter for a new column, so replace the trailing '|' with a newline.
-                    let end_offset = data.len() - 1;
-                    data[end_offset] = b'\n';
+                    format.write_row(row, &mut data);
                 }
             }
-            if result.should_end_row() {
+            if should_end_row {
                 gen.consume_remaining_seeds_for_row();
                 source_row += 1;
             }
         }
 
-        if data.is_empty() {
+        if data.len() == header_len {
             None
         } else {
-            let batches: Vec<_> = parse_dat(&data, &schema).collect();
-            Some(concat_batches(&schema, &batches).expect("concatenate reparsed batches"))
+            let batches = format.parse(&data, &schema).collect::<Vec<_>>();
+            Some(batches)
         }
     })
+    .flatten()
 }
 
 /// Asserts that two streams of Arrow RecordBatches are logically equal up to a
@@ -155,7 +212,7 @@ where
 ///
 /// Defaults to source row 100 and has special handling for slowly changing
 /// dimension (SCD) tables.
-fn skip_starting_row(table: Table, source_row_count: i64) -> i64 {
+fn skip_starting_row(table: Table, source_row_count: u64) -> u64 {
     let max_skip_row = source_row_count.min(100);
     if !matches!(
         table,
@@ -188,13 +245,35 @@ macro_rules! table_test {
             use super::*;
 
             #[test]
-            fn from_start() {
+            fn from_start_dat() {
+                from_start(Format::Dat);
+            }
+
+            #[test]
+            fn from_start_csv() {
+                from_start(Format::Csv);
+            }
+
+            #[test]
+            fn skip_dat() {
+                skip(Format::Dat);
+            }
+
+            #[test]
+            fn skip_csv() {
+                skip(Format::Csv);
+            }
+
+            /// Parse from the start of the table
+            fn from_start(format: Format) {
                 let source_row_count = SESSION.get_scaling().get_row_count($table);
                 let row_limit = test_row_count($table) as usize;
                 let arrow_gen = $arrow_gen(SESSION.clone());
                 let schema = arrow_gen.schema();
                 let reparsed = reparsed_batches(
                     $gen,
+                    format,
+                    Table::$variant,
                     &schema,
                     |g| match g {
                         GeneratedRow::$variant(_) => true,
@@ -207,8 +286,8 @@ macro_rules! table_test {
                 assert_record_batch_streams(arrow_gen, reparsed, row_limit);
             }
 
-            #[test]
-            fn skip() {
+            /// Parse after skipping some rows. See [`skip_starting_row`]
+            fn skip(format: Format) {
                 let source_row_count = SESSION.get_scaling().get_row_count($table);
                 let starting_row_number = skip_starting_row($table, source_row_count);
                 let remaining_source_rows = source_row_count - starting_row_number + 1;
@@ -224,6 +303,8 @@ macro_rules! table_test {
                 let schema = arrow_gen.schema();
                 let reparsed = reparsed_batches(
                     gen,
+                    format,
+                    Table::$variant,
                     &schema,
                     |g| match g {
                         GeneratedRow::$variant(_) => true,

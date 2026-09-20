@@ -5,7 +5,7 @@
 use crate::tpch_cli::plan::GenerationPlan;
 use crate::tpch_cli::{OutputFormat, Table};
 use log::debug;
-use parquet::basic::Compression;
+use parquet::basic::{Compression, Encoding};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io;
@@ -35,6 +35,22 @@ impl Display for OutputLocation {
     }
 }
 
+/// Parquet writer settings applied when generating parquet output.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParquetWriterOptions {
+    pub compression: Compression,
+    pub column_encodings: Option<Vec<(String, Encoding)>>,
+}
+
+impl Default for ParquetWriterOptions {
+    fn default() -> Self {
+        Self {
+            compression: Compression::SNAPPY,
+            column_encodings: None,
+        }
+    }
+}
+
 /// Describes an output partition (file) that will be generated
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputPlan {
@@ -44,8 +60,8 @@ pub struct OutputPlan {
     scale_factor: f64,
     /// The output format (TODO don't depend back on something in main)
     output_format: OutputFormat,
-    /// If the output is parquet, what compression level to use
-    parquet_compression: Compression,
+    /// Parquet writer options (compression and column encodings)
+    parquet: ParquetWriterOptions,
     /// Where to output
     output_location: OutputLocation,
     /// Plan for generating the table
@@ -59,7 +75,7 @@ impl OutputPlan {
         table: Table,
         scale_factor: f64,
         output_format: OutputFormat,
-        parquet_compression: Compression,
+        parquet: ParquetWriterOptions,
         output_location: OutputLocation,
         generation_plan: GenerationPlan,
         csv_delimiter: char,
@@ -68,7 +84,7 @@ impl OutputPlan {
             table,
             scale_factor,
             output_format,
-            parquet_compression,
+            parquet,
             output_location,
             generation_plan,
             csv_delimiter,
@@ -97,7 +113,11 @@ impl OutputPlan {
 
     /// Return the parquet compression level for this partition
     pub fn parquet_compression(&self) -> Compression {
-        self.parquet_compression
+        self.parquet.compression
+    }
+
+    pub fn parquet_column_encodings(&self) -> Option<&[(String, Encoding)]> {
+        self.parquet.column_encodings.as_deref()
     }
 
     /// Return the number of chunks part(ition) count (the number of data chunks
@@ -134,7 +154,7 @@ impl Display for OutputPlan {
 pub struct OutputPlanGenerator {
     format: OutputFormat,
     scale_factor: f64,
-    parquet_compression: Compression,
+    parquet: ParquetWriterOptions,
     parquet_row_group_bytes: i64,
     stdout: bool,
     output_dir: PathBuf,
@@ -150,7 +170,7 @@ impl OutputPlanGenerator {
     pub fn new(
         format: OutputFormat,
         scale_factor: f64,
-        parquet_compression: Compression,
+        parquet: ParquetWriterOptions,
         parquet_row_group_bytes: i64,
         stdout: bool,
         output_dir: PathBuf,
@@ -159,7 +179,7 @@ impl OutputPlanGenerator {
         Self {
             format,
             scale_factor,
-            parquet_compression,
+            parquet,
             parquet_row_group_bytes,
             stdout,
             output_dir,
@@ -217,7 +237,7 @@ impl OutputPlanGenerator {
             table,
             self.scale_factor,
             self.format,
-            self.parquet_compression,
+            self.parquet.clone(),
             output_location,
             generation_plan,
             self.csv_delimiter,

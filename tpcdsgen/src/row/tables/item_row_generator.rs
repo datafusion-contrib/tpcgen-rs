@@ -61,14 +61,16 @@ impl ItemRowGenerator {
         }
     }
 
-    fn generate_item_row(&mut self, row_number: i64, session: &Session) -> Result<ItemRow> {
+    fn generate_item_row(&mut self, row_number: u64, session: &Session) -> Result<ItemRow> {
         use ItemGeneratorColumn::*;
+
+        let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Generate null bit map first
         let stream = self.abstract_generator.get_random_number_stream(&INulls);
         let null_bit_map = create_null_bit_map(Table::Item, stream);
 
-        let i_item_sk = row_number;
+        let i_item_sk = row_number_i64;
 
         // Generate manager ID range
         let stream = self
@@ -165,7 +167,7 @@ impl ItemRowGenerator {
 
         // Generate brand
         let brand_count = category_class.get_brand_count();
-        let i_brand_id_base = row_number % brand_count as i64 + 1;
+        let i_brand_id_base = row_number_i64 % brand_count as i64 + 1;
         let i_brand = format!(
             "{} #{}",
             RandomValueGenerator::generate_word(
@@ -286,7 +288,7 @@ impl ItemRowGenerator {
         let i_container = "Unknown".to_string();
 
         let i_product_name = RandomValueGenerator::generate_word(
-            row_number,
+            row_number_i64,
             ROW_SIZE_I_PRODUCT_NAME,
             crate::distribution::get_syllables_distribution(),
         );
@@ -344,7 +346,7 @@ impl Default for ItemRowGenerator {
 impl RowGenerator for ItemRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
-        row_number: i64,
+        row_number: u64,
         session: &Session,
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
@@ -359,7 +361,7 @@ impl RowGenerator for ItemRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
     }

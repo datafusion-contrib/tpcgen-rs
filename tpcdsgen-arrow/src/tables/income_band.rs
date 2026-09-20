@@ -14,6 +14,11 @@ pub struct IncomeBandArrow {
 }
 
 impl IncomeBandArrow {
+    /// Return the schema without initializing a data generator.
+    pub fn schema_ref() -> SchemaRef {
+        Arc::clone(&SCHEMA)
+    }
+
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::IncomeBand);
         Self {
@@ -21,7 +26,7 @@ impl IncomeBandArrow {
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
-    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.inner
             .skip_rows_until_starting_row_number(starting_row_number);
     }
@@ -31,8 +36,8 @@ impl IncomeBandArrow {
     /// row count.
     pub fn with_source_row_range(
         mut self,
-        starting_row_number: i64,
-        ending_row_number: i64,
+        starting_row_number: u64,
+        ending_row_number: u64,
     ) -> Self {
         self.inner
             .set_source_row_range(starting_row_number, ending_row_number);
@@ -47,7 +52,7 @@ impl IncomeBandArrow {
 
 impl RecordBatchReader for IncomeBandArrow {
     fn schema(&self) -> SchemaRef {
-        Arc::clone(&SCHEMA)
+        Self::schema_ref()
     }
 }
 
@@ -68,13 +73,13 @@ impl Iterator for IncomeBandArrow {
             return None;
         }
 
-        let mut band_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut band_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut lower: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut upper: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            band_id.push(opt(nbm, 0, r.get_ib_income_band_id()));
+            band_sk.push(opt(nbm, 0, r.get_ib_income_band_sk()));
             lower.push(opt(nbm, 1, r.get_ib_lower_bound()));
             upper.push(opt(nbm, 2, r.get_ib_upper_bound()));
         }
@@ -82,7 +87,7 @@ impl Iterator for IncomeBandArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int32Array::from(band_id)),
+                Arc::new(Int32Array::from(band_sk)),
                 Arc::new(Int32Array::from(lower)),
                 Arc::new(Int32Array::from(upper)),
             ],
@@ -95,8 +100,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-        Field::new("ib_income_band_id", DataType::Int32, false),
-        Field::new("ib_lower_bound", DataType::Int32, false),
-        Field::new("ib_upper_bound", DataType::Int32, false),
+        Field::new("ib_income_band_sk", DataType::Int32, false),
+        Field::new("ib_lower_bound", DataType::Int32, true),
+        Field::new("ib_upper_bound", DataType::Int32, true),
     ]))
 }
