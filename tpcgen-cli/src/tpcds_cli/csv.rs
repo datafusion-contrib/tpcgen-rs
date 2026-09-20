@@ -15,8 +15,8 @@
 //!   `--delimiter` is only safe for delimiters that no unquoted column
 //!   contains (`,`, `|`, tab, `;`).
 //!
-//! Generation is parallel: see [`super::generate`] for how the row generators
-//! are driven, and [`super::runner`] for how tables are planned and scheduled.
+//! Generation is parallel: the `tpcds_cli::generate` module drives the row
+//! generators, and `tpcds_cli::runner` plans and schedules the tables.
 
 use super::generate::{generate_table, RowFormat};
 use super::plan::ChunkFormat;
