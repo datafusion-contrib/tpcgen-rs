@@ -32,7 +32,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Check
         run: cargo check --locked --verbose --workspace --all-targets
-      # An arrow version must always be selected, so these also pass --features arrow_60
+      # Note: An arrow version must always be selected, so these also pass --features arrow_60
       - name: Check tpchgen-cli without default features
         run: cargo check --locked -p tpchgen-cli --all-targets --no-default-features --features arrow_60
       - name: Check tpcgen-cli without default features
@@ -67,7 +67,7 @@ jobs:
       - name: All Tests (workspace)
         run: cargo nextest run --locked --workspace
 
-  # Library and integration tests against the previous arrow version
+  # Library and integration tests against arrow 59 
   test-workspace-arrow-59:
     runs-on: ubuntu-latest
     timeout-minutes: 30
