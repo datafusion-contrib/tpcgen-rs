@@ -65,15 +65,6 @@ enum Commands {
 struct DatArgs {
     #[command(flatten)]
     common: CommonArgs,
-
-    /// The number of threads for parallel generation, defaults to the number of CPUs
-    #[arg(
-        short,
-        long,
-        default_value_t = num_cpus::get(),
-        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
-    )]
-    num_threads: usize,
 }
 
 #[derive(Args)]
@@ -89,15 +80,6 @@ struct CsvArgs {
     /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
     #[arg(long, default_value = ",", value_parser = parse_delimiter)]
     delimiter: char,
-
-    /// The number of threads for parallel generation, defaults to the number of CPUs
-    #[arg(
-        short,
-        long,
-        default_value_t = num_cpus::get(),
-        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
-    )]
-    num_threads: usize,
 }
 
 #[derive(Args)]
@@ -139,15 +121,6 @@ struct ParquetArgs {
         value_parser = parse_row_group_bytes
     )]
     row_group_bytes: i64,
-
-    /// The number of threads for parallel generation, defaults to the number of CPUs
-    #[arg(
-        short,
-        long,
-        default_value_t = num_cpus::get(),
-        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
-    )]
-    num_threads: usize,
 
     /// Per-column Parquet encodings (overrides writer defaults).
     ///
@@ -193,6 +166,15 @@ pub struct CommonArgs {
     #[arg(long)]
     part: Option<i32>,
 
+    /// The number of threads for parallel generation, defaults to the number of CPUs
+    #[arg(
+        short,
+        long,
+        default_value_t = num_cpus::get(),
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
+    )]
+    num_threads: usize,
+
     /// Verbose output
     ///
     /// When specified, sets the log level to `info` and ignores the `RUST_LOG`
@@ -224,45 +206,39 @@ impl Cli {
 
 impl DatArgs {
     async fn run(self) -> Result<()> {
-        self.common.run_dat(self.num_threads).await
+        self.common.run_dat().await
     }
 }
 
 impl CsvArgs {
     async fn run(self) -> Result<()> {
-        self.common.run_csv(self.delimiter, self.num_threads).await
+        self.common.run_csv(self.delimiter).await
     }
 }
 
 impl ParquetArgs {
     async fn run(self) -> Result<()> {
         self.common
-            .run_parquet(
-                self.compression,
-                self.row_group_bytes,
-                self.num_threads,
-                self.column_encoding,
-            )
+            .run_parquet(self.compression, self.row_group_bytes, self.column_encoding)
             .await
     }
 }
 
 impl CommonArgs {
-    async fn run_dat(self, num_threads: usize) -> Result<()> {
+    async fn run_dat(self) -> Result<()> {
         let output = Dat::new(
             self.output_dir.clone(),
             self.compat,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
         )?;
         let output_format = OutputFormat::Dat(output);
-        self.run_output(output_format, num_threads).await
+        self.run_output(output_format).await
     }
 
     async fn run_parquet(
         self,
         compression: Compression,
         row_group_bytes: i64,
-        num_threads: usize,
         column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
@@ -272,17 +248,17 @@ impl CommonArgs {
             column_encoding,
         );
         let output_format = OutputFormat::Parquet(output);
-        self.run_output(output_format, num_threads).await
+        self.run_output(output_format).await
     }
 
-    async fn run_csv(self, delimiter: char, num_threads: usize) -> Result<()> {
+    async fn run_csv(self, delimiter: char) -> Result<()> {
         let output = csv::Csv::new(
             self.output_dir.clone(),
             delimiter,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
         );
         let output_format = OutputFormat::Csv(output);
-        self.run_output(output_format, num_threads).await
+        self.run_output(output_format).await
     }
 
     /// Generate every requested table, in every requested part, as
@@ -291,7 +267,8 @@ impl CommonArgs {
     /// Each `(table, part)` pair becomes a [`Session`] describing the source
     /// rows it covers; the output splits those rows into chunks it generates
     /// in parallel.
-    async fn run_output(self, output_format: OutputFormat, num_threads: usize) -> Result<()> {
+    async fn run_output(self, output_format: OutputFormat) -> Result<()> {
+        let num_threads = self.num_threads;
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
 
@@ -562,6 +539,7 @@ mod tests {
             compat: CompatMode::Trino,
             parts: None,
             part: None,
+            num_threads: 1,
             verbose: false,
             quiet: false,
             progress_bars_enabled: false,
