@@ -375,9 +375,8 @@ impl RowGenerator for StoreRowGenerator {
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> Result<RowGeneratorResult> {
-        // This is an SCD table, so a row can be a later version that copies
-        // values from previous_row. Missing context means the earlier versions
-        // were skipped, so generate them before this row.
+        // Replay the missing SCD state this row inherits from.
+        // This gives it the same values to copy from as an uninterrupted run.
         if self.previous_row.is_none() {
             generate_scd_history(self, row_number, session)?;
         }
@@ -394,9 +393,8 @@ impl RowGenerator for StoreRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        // Skipping advances the RNG streams only, but this is an SCD table which
-        // needs context from previous rows. Invalidate that context so the
-        // correct history is generated for the starting row.
+        // Invalidate the retained SCD state.
+        // This tells generate_row_and_child_rows to replay it when needed.
         self.previous_row = None;
     }
 }
