@@ -18,8 +18,19 @@ use std::str::FromStr;
 #[cfg(feature = "indicatif-progress")]
 use std::sync::Arc;
 
+/// TPC-H command line interface.
+///
+/// This is used in two places:
+/// 1. As the `tpch` subcommand of `tpcgen-cli`, where the parent command
+///    supplies its own name, version, and help text.
+/// 2. As the entire command line of the compatibility `tpchgen-cli` binary,
+///    which overrides the name and version with its own (see
+///    `tpchgen-cli/bin/tpchgen_cli.rs`).
+///
+/// The examples below are therefore written in terms of `tpchgen-cli`: they are
+/// only ever shown by that binary.
 #[derive(Parser)]
-#[command(name = "tpchgen")]
+#[command(name = "tpcgen-cli")]
 #[command(version)]
 #[command(
     // -h output

@@ -358,7 +358,7 @@ impl CommonArgs {
     /// no `--part`/`--parts` were given (a single, unnumbered file per
     /// table).
     ///
-    /// Mirrors `tpchgen-cli`'s `--parts`/`--part` semantics: `--parts` alone
+    /// Mirrors `tpcgen-cli tpch`'s `--parts`/`--part` semantics: `--parts` alone
     /// generates every part as a separate file, `--part` requires `--parts`
     /// to be set alongside it and restricts generation to just that part.
     ///
