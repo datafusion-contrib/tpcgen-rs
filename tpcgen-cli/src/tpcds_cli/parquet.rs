@@ -22,6 +22,9 @@ use tpcdsgen_arrow::{
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
+/// Parquet files can have at most 32767 row groups
+pub(super) const MAX_ROW_GROUPS: u64 = 32767;
+
 fn table_schema(table: Table) -> SchemaRef {
     match table {
         Table::CallCenter => CallCenterArrow::schema_ref(),
