@@ -86,7 +86,10 @@ impl<G: RowGenerator> Iterator for RowIter<G> {
 mod tests {
     use super::*;
     use crate::config::{SessionBuilder, Table};
-    use crate::row::{ReasonRowGenerator, StoreSalesRowGenerator};
+    use crate::row::{
+        CallCenterRowGenerator, ItemRowGenerator, ReasonRowGenerator, StoreRowGenerator,
+        StoreSalesRowGenerator, WebPageRowGenerator, WebSiteRowGenerator,
+    };
 
     fn session(scale_factor: f64) -> Session {
         SessionBuilder::new()
@@ -162,5 +165,58 @@ mod tests {
         let session = session(1.0);
         let rows = rows_for(ReasonRowGenerator::new, Table::Reason, &session, &[(1, 0)]);
         assert!(rows.is_empty());
+    }
+
+    /// Assert that generating `table` one source row at a time reproduces the
+    /// unranged output. Every row is a range start, so this covers each
+    /// position of the six-row revision cycle.
+    fn scd_single_row_ranges_match<G: RowGenerator>(
+        generator: impl Fn() -> G + Copy,
+        table: Table,
+    ) {
+        let session = session(1.0);
+        // Two full revision cycles are enough; call_center only has six rows.
+        let row_count = session.get_scaling().get_row_count(table).min(12);
+        let singles: Vec<(u64, u64)> = (1..=row_count).map(|row| (row, row)).collect();
+
+        let whole = rows_for(generator, table, &session, &[(1, row_count)]);
+        assert_eq!(whole.len(), row_count as usize, "{table}");
+        assert_eq!(
+            whole,
+            rows_for(generator, table, &session, &singles),
+            "{table}"
+        );
+    }
+
+    /// A range of an SCD table can start on a revision that copies values from
+    /// the row before it, which the range never generates.
+    #[test]
+    fn scd_source_row_ranges_concatenate_to_the_unranged_output() {
+        scd_single_row_ranges_match(ItemRowGenerator::new, Table::Item);
+        scd_single_row_ranges_match(StoreRowGenerator::new, Table::Store);
+        scd_single_row_ranges_match(WebPageRowGenerator::new, Table::WebPage);
+        scd_single_row_ranges_match(WebSiteRowGenerator::new, Table::WebSite);
+        scd_single_row_ranges_match(CallCenterRowGenerator::new, Table::CallCenter);
+    }
+
+    /// Reusing one generator across seeks must not carry revision state from
+    /// the old position, including when seeking backwards or to the same row.
+    #[test]
+    fn seeking_an_scd_generator_rebuilds_its_history() {
+        let session = session(1.0);
+        let row_count = 12;
+        let whole = rows_for(
+            ItemRowGenerator::new,
+            Table::Item,
+            &session,
+            &[(1, row_count)],
+        );
+
+        let mut rows = RowIter::new(ItemRowGenerator::new(), session.clone(), row_count);
+        for start in [row_count, 6, 3, 6, 1] {
+            rows.skip_rows_until_starting_row_number(start);
+            let row = rows.next().expect("row").to_string();
+            assert_eq!(row, whole[start as usize - 1], "seek {start}");
+        }
     }
 }
