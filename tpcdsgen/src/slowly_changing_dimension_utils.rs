@@ -1,4 +1,7 @@
 use crate::business_key_generator::make_business_key;
+use crate::config::Session;
+use crate::error::Result;
+use crate::row::RowGenerator;
 use crate::table::Table;
 use crate::types::Date;
 
@@ -106,6 +109,48 @@ pub fn compute_scd_key(table: Table, row_number: u64) -> SlowlyChangingDimension
     }
 
     SlowlyChangingDimensionKey::new(business_key, start_date, end_date, is_new_key)
+}
+
+/// How many rows before `row_number` have to be replayed to rebuild its history.
+///
+/// The six-row cycle below is the one [`compute_scd_key`] uses to assign business
+/// keys, so the count reaches back to the row that begins this entity.
+fn previous_rows_needed(row_number: u64) -> u64 {
+    assert!(row_number > 0, "row number must be 1-based");
+    match row_number % 6 {
+        1 => 0, // 1 revision, needs no previous rows
+        2 => 0, // 1 of 2 revisions, needs no previous rows
+        3 => 1, // 2 of 2 revisions, needs 1 previous row
+        4 => 0, // 1 of 3 revisions, needs no previous rows
+        5 => 1, // 2 of 3 revisions, needs 1 previous row
+        0 => 2, // 3 of 3 revisions, needs 2 previous rows
+        _ => panic!(
+            "Something's wrong. Positive integers % 6 should always be covered by one of the cases"
+        ),
+    }
+}
+
+/// Rewind to where `row_number`'s entity begins and replay the rows up to it,
+/// discarding them and keeping only the state the generator retains.
+///
+/// This lets a caller skip to any `row_number` and start generating there with
+/// the same state an uninterrupted run would have reached.
+pub(crate) fn generate_scd_history<G: RowGenerator>(
+    generator: &mut G,
+    row_number: u64,
+    session: &Session,
+) -> Result<()> {
+    let previous_rows = previous_rows_needed(row_number);
+    if previous_rows == 0 {
+        return Ok(());
+    }
+    let first_revision = row_number - previous_rows;
+    generator.skip_rows_until_starting_row_number(first_revision);
+    for previous_row_number in first_revision..row_number {
+        generator.generate_row_and_child_rows(previous_row_number, session, None, None)?;
+        generator.consume_remaining_seeds_for_row();
+    }
+    Ok(())
 }
 
 pub fn get_value_for_slowly_changing_dimension<T>(
