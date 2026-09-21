@@ -14,7 +14,7 @@ repository = "https://github.com/datafusion-contrib/tpcgen-rs"
 version = "3.0.0"
 
 [workspace.dependencies]
-arrow = { version = "59", default-features = false, features = ["prettyprint"] }
+arrow = { version = "60", default-features = false, features = ["prettyprint"] }
 arrow-csv = "59"
 
 [profile.release]

@@ -18,7 +18,7 @@ name = "tpcgen-cli"
 path = "bin/tpcgen_cli.rs"
 
 [dependencies]
-arrow = "59"
+arrow = "60"
 clap = { version = "4.5.32", features = ["derive"] }
 env_logger = "0.11.7"
 futures = "0.3.31"
