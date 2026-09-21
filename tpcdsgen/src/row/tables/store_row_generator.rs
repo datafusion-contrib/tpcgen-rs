@@ -23,7 +23,7 @@ use crate::random::RandomValueGenerator;
 use crate::row::store_row::StoreRow;
 use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult};
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, get_value_for_slowly_changing_dimension,
+    compute_scd_key, generate_scd_history, get_value_for_slowly_changing_dimension,
 };
 use crate::table::Table;
 use crate::types::{Address, Date, Decimal};
@@ -375,6 +375,12 @@ impl RowGenerator for StoreRowGenerator {
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> Result<RowGeneratorResult> {
+        // This is an SCD table, so a row can be a later version that copies
+        // values from previous_row. Missing context means the earlier versions
+        // were skipped, so generate them before this row.
+        if self.previous_row.is_none() {
+            generate_scd_history(self, row_number, session)?;
+        }
         let row = self.generate_store_row(row_number, session)?;
         // Store for SCD logic on next row
         self.previous_row = Some(row.clone());
@@ -388,5 +394,9 @@ impl RowGenerator for StoreRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+        // Skipping advances the RNG streams only, but this is an SCD table which
+        // needs context from previous rows. Invalidate that context so the
+        // correct history is generated for the starting row.
+        self.previous_row = None;
     }
 }
