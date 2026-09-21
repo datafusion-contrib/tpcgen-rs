@@ -8,7 +8,7 @@
 //! ```
 //! # use tpchgen::generators::LineItemGenerator;
 //! # use tpchgen_arrow::LineItemArrow;
-//! # use arrow::util::pretty::pretty_format_batches;
+//! # use tpchgen_arrow::arrow::util::pretty::pretty_format_batches;
 //! // Create a SF=1 generator for the LineItem table
 //! let generator = LineItemGenerator::new(1.0, 1, 1);
 //! let mut arrow_generator = LineItemArrow::new(generator)
@@ -34,6 +34,20 @@
 //!   "+------------+-----------+-----------+--------------+------------+-----------------+------------+-------+--------------+--------------+------------+--------------+---------------+-------------------+------------+-------------------------------------+"
 //! ]);
 //! ```
+
+// The arrow version is selected by the `arrow_59` / `arrow_60` feature flags.
+// The dependency is renamed so both versions can be declared at once; alias the
+// selected one back to `arrow` so the rest of the crate (and downstream
+// crates, via `tpchgen_arrow::arrow`) can use it under its normal name. If
+// both features are enabled (`--all-features`, or feature unification with
+// another crate) the newer version wins.
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+pub extern crate arrow_59 as arrow;
+#[cfg(feature = "arrow_60")]
+pub extern crate arrow_60 as arrow;
+#[cfg(not(any(feature = "arrow_59", feature = "arrow_60")))]
+compile_error!("exactly one of the `arrow_59` or `arrow_60` features must be enabled");
+
 pub mod conversions;
 mod customer;
 mod lineitem;

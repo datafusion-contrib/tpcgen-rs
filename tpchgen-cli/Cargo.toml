@@ -19,9 +19,13 @@ tpcgen-cli = { path = "../tpcgen-cli", version = "0.1.0", default-features = fal
 tokio = { version = "1.44.1", features = ["full"] }
 
 [features]
-default = ["indicatif-progress"]
+default = ["indicatif-progress", "arrow_60"]
 # Enable the default CLI terminal progress bars backed by `indicatif`.
 indicatif-progress = ["tpcgen-cli/indicatif-progress"]
+# Build against arrow/parquet 59. Requires `default-features = false`.
+arrow_59 = ["tpcgen-cli/arrow_59"]
+# Build against arrow/parquet 60 (the default).
+arrow_60 = ["tpcgen-cli/arrow_60"]
 
 [dev-dependencies]
 assert_cmd = "2.0"

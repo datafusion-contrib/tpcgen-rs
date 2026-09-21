@@ -9,9 +9,21 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-arrow = { workspace = true }
+arrow_59 = { workspace = true, optional = true }
+arrow_60 = { workspace = true, optional = true }
 tpchgen = { path = "../tpchgen", version = "3.0.0" }
 
+[features]
+default = ["arrow_60"]
+# Build against arrow 59. Requires `default-features = false`.
+arrow_59 = ["dep:arrow_59"]
+# Build against arrow 60 (the default).
+arrow_60 = ["dep:arrow_60"]
+
 [dev-dependencies]
-arrow-csv = { workspace = true }
+# arrow-csv is only used by the tests. Cargo does not allow optional
+# dev-dependencies, so both versions are declared and the crate root of each
+# test picks the one matching the selected arrow version.
+arrow_csv_59 = { workspace = true }
+arrow_csv_60 = { workspace = true }
 chrono = "0.4.39"

@@ -102,6 +102,35 @@ the output of this crate with [`dbgen`] as part of every checkin. See
 [Apache Arrow]: https://arrow.apache.org/
 [`dbgen`]: https://github.com/electrum/tpch-dbgen
 
+## Arrow version
+
+The crates that depend on [arrow-rs] support two major versions, selected with
+the `arrow_59` and `arrow_60` feature flags. `arrow_60` is the default:
+
+```shell
+# build against arrow / parquet 60 (the default)
+cargo build
+
+# build against arrow / parquet 59
+cargo build --no-default-features --features arrow_59
+```
+
+Since the feature flags are additive and `arrow_60` is a default feature,
+`--no-default-features` is required to select `arrow_59`. Depending on one of
+these crates from another project works the same way:
+
+```toml
+[dependencies]
+tpchgen-arrow = { version = "3.0.0", default-features = false, features = ["arrow_59"] }
+```
+
+Each crate re-exports the arrow version it was built against (for example
+`tpchgen_arrow::arrow`), so downstream code can name the matching types without
+guessing. If both features end up enabled (such as with `--all-features`, or
+through feature unification), the newer version wins.
+
+[arrow-rs]: https://github.com/apache/arrow-rs
+
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first for

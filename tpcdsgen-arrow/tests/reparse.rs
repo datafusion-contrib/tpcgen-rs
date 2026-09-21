@@ -13,6 +13,17 @@
 //! - re-parse the output with the Arrow CSV reader using the same schema
 //! - assert that the reparsed and direct Arrow RecordBatches are equal
 
+// See this crate's `src/lib.rs` for why the arrow dependencies are renamed and
+// aliased back to their normal names here.
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+extern crate arrow_59 as arrow;
+#[cfg(feature = "arrow_60")]
+extern crate arrow_60 as arrow;
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+extern crate arrow_csv_59 as arrow_csv;
+#[cfg(feature = "arrow_60")]
+extern crate arrow_csv_60 as arrow_csv;
+
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;

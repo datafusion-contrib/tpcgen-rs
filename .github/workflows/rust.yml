@@ -32,10 +32,11 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Check
         run: cargo check --locked --verbose --workspace --all-targets
+      # An arrow version must always be selected, so these also pass --features arrow_60
       - name: Check tpchgen-cli without default features
-        run: cargo check --locked -p tpchgen-cli --all-targets --no-default-features
+        run: cargo check --locked -p tpchgen-cli --all-targets --no-default-features --features arrow_60
       - name: Check tpcgen-cli without default features
-        run: cargo check --locked -p tpcgen-cli --all-targets --no-default-features
+        run: cargo check --locked -p tpcgen-cli --all-targets --no-default-features --features arrow_60
 
   # Documentation examples tests
   test-doc-examples:
@@ -66,6 +67,23 @@ jobs:
       - name: All Tests (workspace)
         run: cargo nextest run --locked --workspace
 
+  # Library and integration tests against the previous arrow version
+  test-workspace-arrow-59:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@4076c08d76dba979c11a7285295b0716c1d67908 # v2.87.15
+        with:
+          tool: nextest@0.9.140
+      # arrow_60 is a default feature, so selecting arrow 59 means turning the
+      # defaults off and re-enabling indicatif-progress explicitly
+      - name: All Tests (workspace, arrow 59)
+        run: cargo nextest run --locked --workspace --no-default-features --features arrow_59,indicatif-progress
+
   # documentation build
   docs:
     runs-on: ubuntu-latest
@@ -95,6 +113,7 @@ jobs:
       - lint
       - test-doc-examples
       - test-workspace
+      - test-workspace-arrow-59
       - docs
       - build-packages
     runs-on: ubuntu-latest
@@ -104,6 +123,7 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           DOC_TEST_RESULT: ${{ needs.test-doc-examples.result }}
           WORKSPACE_TEST_RESULT: ${{ needs.test-workspace.result }}
+          WORKSPACE_ARROW_59_TEST_RESULT: ${{ needs.test-workspace-arrow-59.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
           PACKAGES_RESULT: ${{ needs.build-packages.result }}
           EVENT_NAME: ${{ github.event_name }}
@@ -112,6 +132,7 @@ jobs:
           test "$LINT_RESULT" = success
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
+          test "$WORKSPACE_ARROW_59_TEST_RESULT" = success
           test "$DOCS_RESULT" = success
           # build-packages runs only for merge queue and manual workflows.
           if [ "$EVENT_NAME" = merge_group ] || [ "$EVENT_NAME" = workflow_dispatch ]; then

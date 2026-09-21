@@ -1,7 +1,7 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
 use crate::generate::{generate_file, generate_in_chunks, Source};
-use crate::parquet::generate_parquet;
+use crate::parquet_output::generate_parquet;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::sink::WriterSink;

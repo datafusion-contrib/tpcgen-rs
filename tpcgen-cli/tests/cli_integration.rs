@@ -1,3 +1,14 @@
+// See `src/lib.rs` for why the arrow / parquet dependencies are renamed and
+// aliased back to their normal names here.
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+extern crate arrow_59 as arrow;
+#[cfg(feature = "arrow_60")]
+extern crate arrow_60 as arrow;
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+extern crate parquet_59 as parquet;
+#[cfg(feature = "arrow_60")]
+extern crate parquet_60 as parquet;
+
 use assert_cmd::cargo::cargo_bin_cmd;
 
 #[path = "cli_integration/test_helpers.rs"]

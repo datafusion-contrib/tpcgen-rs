@@ -1,7 +1,7 @@
 //! [`WriterSink`]: a [`Sink`] that writes buffers to a [`Write`].
 
 use crate::generate::Sink;
-use crate::parquet::IntoSize;
+use crate::parquet_output::IntoSize;
 use crate::statistics::WriteStatistics;
 use std::fs::File;
 use std::io;

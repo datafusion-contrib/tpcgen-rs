@@ -208,7 +208,7 @@ pub(super) fn validate_column_encodings(
     encodings: &[(String, Encoding)],
 ) -> io::Result<()> {
     for (col, enc) in encodings {
-        crate::parquet::reject_unsupported_encoding(*enc)?;
+        crate::parquet_output::reject_unsupported_encoding(*enc)?;
         let matches_any_table = tables.iter().any(|table| {
             table_schema(*table)
                 .fields()

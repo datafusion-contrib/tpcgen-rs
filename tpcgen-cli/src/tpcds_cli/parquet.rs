@@ -3,7 +3,7 @@
 use super::generate::output_path;
 use super::plan::TpcdsGenerationPlan;
 use super::runner::{plan_tables, run_plans, PlannedTable};
-use crate::parquet::generate_parquet;
+use crate::parquet_output::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
 use arrow::datatypes::SchemaRef;
@@ -61,7 +61,7 @@ fn table_schema(table: Table) -> SchemaRef {
 /// applies it there and skips it elsewhere.
 fn validate_column_encodings(tables: &[Table], encodings: &[(String, Encoding)]) -> io::Result<()> {
     for (col, enc) in encodings {
-        crate::parquet::reject_unsupported_encoding(*enc)?;
+        crate::parquet_output::reject_unsupported_encoding(*enc)?;
         let matches_any_table = tables.iter().any(|table| {
             table_schema(*table)
                 .fields()

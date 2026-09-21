@@ -23,7 +23,7 @@ use tpchgen::generators::{CustomerGenerator, CustomerGeneratorIterator};
 /// // Read the first 10 batches
 /// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
-/// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
+/// let formatted_batches = tpchgen_arrow::arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
 ///   .to_string();
 /// let lines = formatted_batches.lines().collect::<Vec<_>>();
