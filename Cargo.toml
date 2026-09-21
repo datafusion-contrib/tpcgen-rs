@@ -15,7 +15,7 @@ version = "3.0.0"
 
 [workspace.dependencies]
 arrow = { version = "59", default-features = false, features = ["prettyprint"] }
-arrow-csv = "59"
+arrow-csv = "60"
 
 [profile.release]
 codegen-units = 1
