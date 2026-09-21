@@ -13,7 +13,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
-use tpcdsgen_arrow::{StoreReturnsArrow, StoreSalesArrow};
+use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
@@ -1030,6 +1030,9 @@ fn read_concatenated_reference<R: RecordBatchReader>(mut reader: R) -> RecordBat
 /// store_returns is generated from the store_sales generator, so this also
 /// verifies that ranging over the *sales* source rows loses or duplicates no
 /// return rows at range boundaries.
+///
+/// Item is an SCD table, so this also verifies that range boundaries preserve
+/// the previous revision state needed by continuation rows.
 #[test]
 fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -1041,7 +1044,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
-        .arg("store_sales,store_returns")
+        .arg("store_sales,store_returns,item")
         // small row groups to force several source row ranges
         .arg("--row-group-bytes")
         .arg("250000")
@@ -1063,6 +1066,12 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     assert_eq!(num_row_groups, 3);
     let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
     assert_eq!(store_returns, expected);
+
+    let (item, num_row_groups) =
+        read_concatenated_parquet(&temp_dir.path().join("item.parquet"));
+    assert_eq!(num_row_groups, 2);
+    let expected = read_concatenated_reference(ItemArrow::new(test_session(0.001)));
+    assert_eq!(item, expected);
 }
 
 /// Test that the number of threads does not change the generated files.
