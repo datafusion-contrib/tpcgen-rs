@@ -1067,8 +1067,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
     assert_eq!(store_returns, expected);
 
-    let (item, num_row_groups) =
-        read_concatenated_parquet(&temp_dir.path().join("item.parquet"));
+    let (item, num_row_groups) = read_concatenated_parquet(&temp_dir.path().join("item.parquet"));
     assert_eq!(num_row_groups, 2);
     let expected = read_concatenated_reference(ItemArrow::new(test_session(0.001)));
     assert_eq!(item, expected);
