@@ -20,8 +20,6 @@ version = "3.0.0"
 # back to `arrow` / `parquet` in each crate root. See README.md.
 arrow_59 = { package = "arrow", version = "59", default-features = false, features = ["prettyprint"] }
 arrow_60 = { package = "arrow", version = "60", default-features = false, features = ["prettyprint"] }
-arrow_csv_59 = { package = "arrow-csv", version = "59" }
-arrow_csv_60 = { package = "arrow-csv", version = "60" }
 parquet_59 = { package = "parquet", version = "59" }
 parquet_60 = { package = "parquet", version = "60" }
 

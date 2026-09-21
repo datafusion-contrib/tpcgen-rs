@@ -13,16 +13,12 @@
 //! - re-parse the output with the Arrow CSV reader using the same schema
 //! - assert that the reparsed and direct Arrow RecordBatches are equal
 
-// See this crate's `src/lib.rs` for why the arrow dependencies are renamed and
-// aliased back to their normal names here.
+// See this crate's `src/lib.rs` for why the arrow dependency is renamed and
+// aliased back to its normal name here.
 #[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
 extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]
 extern crate arrow_60 as arrow;
-#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
-extern crate arrow_csv_59 as arrow_csv;
-#[cfg(feature = "arrow_60")]
-extern crate arrow_csv_60 as arrow_csv;
 
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -119,7 +115,7 @@ impl Format {
     ) -> impl Iterator<Item = RecordBatch> + 'a {
         let null_re = regex::Regex::new("^$").unwrap();
         let builder =
-            arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
+            arrow::csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
         let builder = match self {
             Format::Dat => builder
                 .with_delimiter(DAT_SEPARATOR as u8)

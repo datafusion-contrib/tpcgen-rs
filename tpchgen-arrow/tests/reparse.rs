@@ -1,16 +1,12 @@
 //! Verifies the correctness of the Arrow TPCH generator by parsing the canonical TBL format
 //! and comparing with the generated Arrow RecordBatches
 
-// See this crate's `src/lib.rs` for why the arrow dependencies are renamed and
-// aliased back to their normal names here.
+// See this crate's `src/lib.rs` for why the arrow dependency is renamed and
+// aliased back to its normal name here.
 #[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
 extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]
 extern crate arrow_60 as arrow;
-#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
-extern crate arrow_csv_59 as arrow_csv;
-#[cfg(feature = "arrow_60")]
-extern crate arrow_csv_60 as arrow_csv;
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;
@@ -177,7 +173,7 @@ impl Test {
     /// Parse the provided data into an Arrow RecordBatch
     fn parse(&self, data: &[u8], schema: &SchemaRef, batch_size: usize) -> RecordBatch {
         let builder =
-            arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_batch_size(batch_size);
+            arrow::csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_batch_size(batch_size);
 
         let builder = match self {
             Test::TBL => builder.with_header(false).with_delimiter(b'|'),

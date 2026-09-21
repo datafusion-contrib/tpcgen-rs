@@ -1,11 +1,24 @@
 //! This library contains both the TPCH and TPCDS command line clients.
+//!
+//! # Feature Flags
+//! This crate supports multiple versions of the Arrow/Parquet crates via
+//! feature flags.
+//! * `arrow_60` - Use [Arrow 60.x] and [Parquet 60.x] (default)
+//! * `arrow_59` - Use [Arrow 59.x] and [Parquet 59.x]
+//!
+//! Feature flags are additive and `arrow_60` is a default feature, so selecting
+//! `arrow_59` requires `default-features = false`. If both are enabled the
+//! newer version wins.
+//!
+//! The selected versions are re-exported as [`arrow`] and
+//! [`parquet`] for downstream crates to use.
+//!
+//! [Arrow 59.x]: https://crates.io/crates/arrow/59.0.0
+//! [Parquet 59.x]: https://crates.io/crates/parquet/59.0.0
+//! [Arrow 60.x]: https://crates.io/crates/arrow/60.0.0
+//! [Parquet 60.x]: https://crates.io/crates/parquet/60.0.0
 
-// The arrow / parquet versions are selected by the `arrow_59` / `arrow_60`
-// feature flags. The dependencies are renamed so both versions can be declared
-// at once; alias the selected pair back to `arrow` and `parquet` so the rest of
-// the crate can use them under their normal names. If both features are enabled
-// (`--all-features`, or feature unification with another crate) the newer
-// version wins.
+// alias the selected arrow/parquet versions as `arrow` and `parquet`
 #[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
 pub extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]

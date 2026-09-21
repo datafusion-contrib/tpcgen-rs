@@ -14,13 +14,23 @@
 //! let batch = gen.next().unwrap().unwrap();
 //! assert_eq!(batch.num_columns(), 3);
 //! ```
+//!
+//! # Feature Flags
+//! This crate supports multiple versions of the Arrow crate via feature flags.
+//! * `arrow_60` - Use [Arrow 60.x] (default)
+//! * `arrow_59` - Use [Arrow 59.x]
+//!
+//! Feature flags are additive and `arrow_60` is a default feature, so selecting
+//! `arrow_59` requires `default-features = false`. If both are enabled the
+//! newer version wins.
+//!
+//! The selected version is re-exported as [`arrow`] for
+//! downstream crates to use.
+//!
+//! [Arrow 59.x]: https://crates.io/crates/arrow/59.0.0
+//! [Arrow 60.x]: https://crates.io/crates/arrow/60.0.0
 
-// The arrow version is selected by the `arrow_59` / `arrow_60` feature flags.
-// The dependency is renamed so both versions can be declared at once; alias the
-// selected one back to `arrow` so the rest of the crate (and downstream
-// crates, via `tpcdsgen_arrow::arrow`) can use it under its normal name. If
-// both features are enabled (`--all-features`, or feature unification with
-// another crate) the newer version wins.
+// alias the selected arrow version as `arrow`
 #[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
 pub extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]
