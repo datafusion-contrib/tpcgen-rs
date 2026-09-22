@@ -17,7 +17,7 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tpcdsgen::config::{CompatMode, Session, SessionBuilder, Table};
-use tpcdsgen::error::TpcdsError;
+use tpcdsgen::error::{InvalidOptionError, TpcdsError};
 
 pub mod csv;
 pub mod dat;
@@ -233,7 +233,7 @@ impl ParquetArgs {
 impl CommonArgs {
     async fn run_dat(self) -> Result<()> {
         let output = Dat::new(
-            self.destination(),
+            self.destination()?,
             self.compat,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
         )?;
@@ -248,7 +248,7 @@ impl CommonArgs {
         column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
-            self.destination(),
+            self.destination()?,
             compression,
             row_group_bytes,
             column_encoding,
@@ -258,7 +258,11 @@ impl CommonArgs {
     }
 
     async fn run_csv(self, delimiter: char) -> Result<()> {
-        let output = csv::Csv::new(self.destination(), delimiter, DEFAULT_TEXT_CHUNK_SIZE_BYTES);
+        let output = csv::Csv::new(
+            self.destination()?,
+            delimiter,
+            DEFAULT_TEXT_CHUNK_SIZE_BYTES,
+        );
         let output_format = OutputFormat::Csv(output);
         self.run_output(output_format).await
     }
@@ -316,8 +320,16 @@ impl CommonArgs {
     }
 
     /// Return where the generated tables are written.
-    fn destination(&self) -> OutputDestination {
-        OutputDestination::new(self.stdout, self.output_dir.clone())
+    fn destination(&self) -> Result<OutputDestination> {
+        let destination = OutputDestination::new(self.stdout, self.output_dir.clone());
+        if destination.is_empty_dir() {
+            Err(
+                InvalidOptionError::with_message("directory", "", "Directory cannot be empty")
+                    .into(),
+            )
+        } else {
+            Ok(destination)
+        }
     }
 
     fn progress_tracker(

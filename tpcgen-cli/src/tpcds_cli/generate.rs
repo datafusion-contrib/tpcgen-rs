@@ -67,6 +67,14 @@ impl OutputDestination {
         };
         Ok(OutputLocation::File(path))
     }
+
+    /// Returns true if the output destination is an empty path
+    pub(super) fn is_empty_dir(&self) -> bool {
+        match self {
+            Self::Dir(output_dir) => output_dir.as_os_str().is_empty(),
+            Self::Stdout => false,
+        }
+    }
 }
 
 /// Trait for formatting text output for the TPC-DS row generators (DAT or CSV).

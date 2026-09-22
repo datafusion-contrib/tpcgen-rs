@@ -24,7 +24,6 @@ use std::io;
 use std::sync::Arc;
 
 use tpcdsgen::config::{CompatMode, Session, Table};
-use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::DatWriter;
 use tpcdsgen::row::GeneratedRow;
 
@@ -47,16 +46,6 @@ impl Dat {
         compat_mode: CompatMode,
         chunk_size_bytes: i64,
     ) -> Result<Self> {
-        if let OutputDestination::Dir(output_dir) = &destination {
-            if output_dir.as_os_str().is_empty() {
-                return Err(InvalidOptionError::with_message(
-                    "directory",
-                    "",
-                    "Directory cannot be empty",
-                )
-                .into());
-            }
-        }
         Ok(Self {
             destination,
             compat_mode,
