@@ -9,7 +9,6 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-# arrow 60 is used by default; the `arrow_59` feature switches to arrow 59.
 arrow_59 = { workspace = true, optional = true }
 arrow_60 = { workspace = true }
 tpchgen = { path = "../tpchgen", version = "3.0.0" }

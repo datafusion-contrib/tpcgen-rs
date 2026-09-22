@@ -18,7 +18,6 @@ name = "tpcgen-cli"
 path = "bin/tpcgen_cli.rs"
 
 [dependencies]
-# arrow/parquet 60 are used by default; the `arrow_59` feature switches to 59.
 arrow_59 = { workspace = true, optional = true }
 arrow_60 = { workspace = true }
 clap = { version = "4.5.32", features = ["derive"] }

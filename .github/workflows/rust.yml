@@ -32,7 +32,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Check
         run: cargo check --locked --verbose --workspace --all-targets
-      # The default is arrow 60; check that the arrow 59 code paths compile too
+      # check that the arrow 59 code paths compile too
       - name: Check with arrow 59
         run: cargo check --locked --workspace --all-targets --features arrow_59
       - name: Check tpchgen-cli without default features

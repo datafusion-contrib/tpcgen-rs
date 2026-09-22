@@ -2,15 +2,12 @@
 //!
 //! # Feature Flags
 //!
-//! This crate builds against [arrow-rs] and [parquet] 60 by default. Two
-//! feature flags change what is built:
 //! * `arrow_59` - build against [Arrow 59.x] and [Parquet 59.x] instead of
 //!   [Arrow 60.x] and [Parquet 60.x]
 //! * `indicatif-progress` - draw terminal progress bars with [indicatif]
 //!   (default)
 //!
-//! The selected versions are re-exported as [`arrow`] and [`parquet`], so
-//! downstream crates can name the matching types without guessing.
+//! The selected versions are re-exported as [`arrow`] and [`parquet`].
 //!
 //! [arrow-rs]: https://github.com/apache/arrow-rs
 //! [parquet]: https://docs.rs/parquet

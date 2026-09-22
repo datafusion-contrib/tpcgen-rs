@@ -17,12 +17,10 @@
 //!
 //! # Feature Flags
 //!
-//! This crate builds against [arrow-rs] 60 by default. One feature flag changes
-//! that:
-//! * `arrow_59` - build against [Arrow 59.x] instead of [Arrow 60.x]
+//! * `arrow_59` - build against [Arrow 59.x] instead of [Arrow 60.x] (the default)
 //!
-//! The selected version is re-exported as [`arrow`], so downstream crates can
-//! name the matching types without guessing.
+//! Note that the arrow dependency is re-exported as [`arrow`] so downstream
+//! crates can use it without an explicit dependence.
 //!
 //! [arrow-rs]: https://github.com/apache/arrow-rs
 //! [Arrow 59.x]: https://docs.rs/arrow/59
