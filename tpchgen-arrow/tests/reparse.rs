@@ -1,16 +1,15 @@
 //! Verifies the correctness of the Arrow TPCH generator by parsing the canonical TBL format
 //! and comparing with the generated Arrow RecordBatches
 
-// See the `tpchgen_arrow` crate documentation for the `arrow_59` / `arrow_60`
-// feature flags; the selected versions are aliased back to `arrow` and
-// `arrow_csv` here.
+// See the `tpchgen_arrow` crate documentation for the `arrow_59` feature flag;
+// the selected versions are aliased back to `arrow` and `arrow_csv` here.
 #[cfg(feature = "arrow_59")]
 extern crate arrow_59 as arrow;
-#[cfg(feature = "arrow_60")]
+#[cfg(not(feature = "arrow_59"))]
 extern crate arrow_60 as arrow;
 #[cfg(feature = "arrow_59")]
 extern crate arrow_csv_59 as arrow_csv;
-#[cfg(feature = "arrow_60")]
+#[cfg(not(feature = "arrow_59"))]
 extern crate arrow_csv_60 as arrow_csv;
 
 use arrow::array::RecordBatch;
