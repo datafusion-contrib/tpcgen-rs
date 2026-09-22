@@ -6,6 +6,7 @@ use crate::parquet::parse_column_encoding_pair;
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpcds_cli::dat::Dat;
+use crate::tpcds_cli::generate::OutputDestination;
 use crate::tpch_cli::{Compression, Encoding, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
@@ -186,9 +187,14 @@ pub struct CommonArgs {
     #[arg(short, long, default_value_t = false, conflicts_with = "verbose")]
     quiet: bool,
 
+    /// Write the output to stdout instead of a file.
+    #[arg(long, default_value_t = false)]
+    stdout: bool,
+
     /// Disable progress bars during data generation.
     ///
-    /// Bars are also auto-suppressed by `--quiet` or when stderr is not a terminal.
+    /// Bars are also auto-suppressed by `--quiet`, `--stdout`, or when
+    /// stderr is not a terminal.
     #[arg(long = "no-progress", action = ArgAction::SetFalse, default_value_t = true)]
     progress_bars_enabled: bool,
 }
@@ -227,7 +233,7 @@ impl ParquetArgs {
 impl CommonArgs {
     async fn run_dat(self) -> Result<()> {
         let output = Dat::new(
-            self.output_dir.clone(),
+            self.destination(),
             self.compat,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
         )?;
@@ -242,7 +248,7 @@ impl CommonArgs {
         column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
-            self.output_dir.clone(),
+            self.destination(),
             compression,
             row_group_bytes,
             column_encoding,
@@ -252,11 +258,7 @@ impl CommonArgs {
     }
 
     async fn run_csv(self, delimiter: char) -> Result<()> {
-        let output = csv::Csv::new(
-            self.output_dir.clone(),
-            delimiter,
-            DEFAULT_TEXT_CHUNK_SIZE_BYTES,
-        );
+        let output = csv::Csv::new(self.destination(), delimiter, DEFAULT_TEXT_CHUNK_SIZE_BYTES);
         let output_format = OutputFormat::Csv(output);
         self.run_output(output_format).await
     }
@@ -275,7 +277,11 @@ impl CommonArgs {
         let tables = self.tables()?;
         let parts = self.part_list()?;
 
-        std::fs::create_dir_all(&self.output_dir)?;
+        // Create the output directory if it doesn't exist and we are not
+        // writing to stdout
+        if !self.stdout {
+            std::fs::create_dir_all(&self.output_dir)?;
+        }
 
         // Every output generates all of its tables in one call so that
         // multiple tables can be generated concurrently
@@ -309,14 +315,22 @@ impl CommonArgs {
         Ok(())
     }
 
+    /// Return where the generated tables are written.
+    fn destination(&self) -> OutputDestination {
+        OutputDestination::new(self.stdout, self.output_dir.clone())
+    }
+
     fn progress_tracker(
         &self,
     ) -> (
         Arc<dyn ProgressTracker>,
         Option<Box<dyn io::Write + Send + 'static>>,
     ) {
+        // Show progress only on an interactive terminal and when no flag
+        // suppresses it. `--stdout` is included so piped data isn't
+        // interleaved with bar redraws on shared shells.
         #[cfg(feature = "indicatif-progress")]
-        if self.progress_bars_enabled && !self.quiet && io::stderr().is_terminal() {
+        if self.progress_bars_enabled && !self.quiet && !self.stdout && io::stderr().is_terminal() {
             let progress = Arc::new(IndicatifProgress::new());
             let tracker: Arc<dyn ProgressTracker> = progress.clone();
             return (tracker, Some(progress.log_writer()));
@@ -542,6 +556,7 @@ mod tests {
             num_threads: 1,
             verbose: false,
             quiet: false,
+            stdout: false,
             progress_bars_enabled: false,
         }
     }

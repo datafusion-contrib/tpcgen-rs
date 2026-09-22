@@ -1,8 +1,9 @@
 //! TPC-DS Parquet output.
 
-use super::generate::output_path;
+use super::generate::OutputDestination;
 use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::runner::{plan_tables, run_plans, PlannedTable};
+use crate::output_location::OutputLocation;
 use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
@@ -11,7 +12,6 @@ use arrow::record_batch::RecordBatchReader;
 use parquet::basic::{Compression, Encoding};
 use std::fs::File;
 use std::io::{self, BufWriter};
-use std::path::PathBuf;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
@@ -96,7 +96,7 @@ fn column_encodings_for_table(
 /// Parquet output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
-    output_dir: PathBuf,
+    destination: OutputDestination,
     compression: Compression,
     row_group_bytes: i64,
     column_encodings: Option<Vec<(String, Encoding)>>,
@@ -104,13 +104,13 @@ pub(super) struct Parquet {
 
 impl Parquet {
     pub(super) fn new(
-        output_dir: PathBuf,
+        destination: OutputDestination,
         compression: Compression,
         row_group_bytes: i64,
         column_encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {
         Self {
-            output_dir,
+            destination,
             compression,
             row_group_bytes,
             column_encodings,
@@ -516,30 +516,49 @@ impl Parquet {
             .as_ref()
             .map(|encodings| column_encodings_for_table(table, encodings));
 
-        let path = output_path(&self.output_dir, table, "parquet", &session)?;
+        let location = self
+            .destination
+            .output_location(table, "parquet", &session)?;
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
-        // write to a temp file and then rename to avoid partial files
-        let temp_path = inprogress_path(&path);
-        let file = File::create(&temp_path)
-            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        generate_parquet(
-            writer,
-            sources,
-            num_threads,
-            self.compression,
-            column_encodings.as_deref(),
-            progress.clone(),
-        )
-        .await?;
-        std::fs::rename(&temp_path, &path).map_err(|err| {
-            io::Error::other(format!(
-                "Failed to rename {temp_path:?} to {path:?} file: {err}"
-            ))
-        })?;
+        match &location {
+            OutputLocation::Stdout => {
+                let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
+                generate_parquet(
+                    writer,
+                    sources,
+                    num_threads,
+                    self.compression,
+                    column_encodings.as_deref(),
+                    progress.clone(),
+                )
+                .await?;
+            }
+            OutputLocation::File(path) => {
+                // write to a temp file and then rename to avoid partial files
+                let temp_path = inprogress_path(path);
+                let file = File::create(&temp_path).map_err(|err| {
+                    io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
+                })?;
+                let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
+                generate_parquet(
+                    writer,
+                    sources,
+                    num_threads,
+                    self.compression,
+                    column_encodings.as_deref(),
+                    progress.clone(),
+                )
+                .await?;
+                std::fs::rename(&temp_path, path).map_err(|err| {
+                    io::Error::other(format!(
+                        "Failed to rename {temp_path:?} to {path:?} file: {err}"
+                    ))
+                })?;
+            }
+        }
         progress.complete();
 
         Ok(())

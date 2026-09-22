@@ -2,6 +2,8 @@
 //! * [`OutputPlan`]: an output file that will be generated
 //! * [`OutputPlanGenerator`]: plans the output files to be generated
 
+pub use crate::output_location::OutputLocation;
+
 use crate::tpch_cli::plan::GenerationPlan;
 use crate::tpch_cli::{OutputFormat, Table};
 use log::debug;
@@ -10,30 +12,6 @@ use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io;
 use std::path::PathBuf;
-
-/// Where a partition will be output
-#[derive(Debug, Clone, PartialEq)]
-pub enum OutputLocation {
-    /// Output to a file
-    File(PathBuf),
-    /// Output to stdout
-    Stdout,
-}
-
-impl Display for OutputLocation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OutputLocation::File(path) => {
-                let Some(file) = path.file_name() else {
-                    return write!(f, "{}", path.display());
-                };
-                // Display the file name only, not the full path
-                write!(f, "{}", file.to_string_lossy())
-            }
-            OutputLocation::Stdout => write!(f, "Stdout"),
-        }
-    }
-}
 
 /// Parquet writer settings applied when generating parquet output.
 #[derive(Debug, Clone, PartialEq)]

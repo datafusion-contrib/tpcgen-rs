@@ -2,6 +2,7 @@
 mod args;
 pub mod generate;
 mod logging;
+pub mod output_location;
 mod parquet;
 pub mod progress;
 pub mod sink;

@@ -16,12 +16,11 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use super::generate::{generate_table, RowFormat};
+use super::generate::{generate_table, OutputDestination, RowFormat};
 use super::plan::ChunkFormat;
 use super::runner::{plan_tables, run_plans};
 use crate::progress::ProgressTracker;
 use std::io;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tpcdsgen::config::{CompatMode, Session, Table};
@@ -35,7 +34,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug, Clone)]
 pub(super) struct Dat {
     /// Where to write the output
-    output_dir: PathBuf,
+    destination: OutputDestination,
     /// Which reference implementation to match.
     compat_mode: CompatMode,
     /// Target size of each generated buffer
@@ -44,20 +43,22 @@ pub(super) struct Dat {
 
 impl Dat {
     pub(super) fn new(
-        output_dir: PathBuf,
+        destination: OutputDestination,
         compat_mode: CompatMode,
         chunk_size_bytes: i64,
     ) -> Result<Self> {
-        if output_dir.as_os_str().is_empty() {
-            return Err(InvalidOptionError::with_message(
-                "directory",
-                "",
-                "Directory cannot be empty",
-            )
-            .into());
+        if let OutputDestination::Dir(output_dir) = &destination {
+            if output_dir.as_os_str().is_empty() {
+                return Err(InvalidOptionError::with_message(
+                    "directory",
+                    "",
+                    "Directory cannot be empty",
+                )
+                .into());
+            }
         }
         Ok(Self {
-            output_dir,
+            destination,
             compat_mode,
             chunk_size_bytes,
         })
@@ -81,8 +82,8 @@ impl Dat {
         let this = self.clone();
         run_plans(work, num_threads, move |planned, num_threads| {
             let format = this.clone();
-            let output_dir = this.output_dir.clone();
-            async move { generate_table(format, output_dir, planned, num_threads).await }
+            let destination = this.destination.clone();
+            async move { generate_table(format, destination, planned, num_threads).await }
         })
         .await
     }

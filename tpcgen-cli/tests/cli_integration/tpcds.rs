@@ -1617,3 +1617,65 @@ fn test_parquet_parts(table_name: &str, scale_factor: f64, parts: usize, expecte
         "Expected concatenated --parts Parquet batches to match the unsplit Parquet batch"
     );
 }
+
+/// Test that `--stdout` writes the exact bytes that would have been written to
+/// a file, for every output format.
+#[test]
+fn test_tpcgen_cli_tpcds_stdout_matches_file_output() {
+    // The default `dat` output has no subcommand, so also cover invoking
+    // `tpcds --stdout` without one.
+    for (subcommand, extension) in [
+        (None, "dat"),
+        (Some("dat"), "dat"),
+        (Some("csv"), "csv"),
+        (Some("parquet"), "parquet"),
+    ] {
+        let file_dir = tempdir().expect("Failed to create temporary directory");
+        let mut to_file = cargo_bin_cmd!("tpcgen-cli");
+        to_file.arg("tpcds");
+        if let Some(subcommand) = subcommand {
+            to_file.arg(subcommand);
+        }
+        to_file
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("reason")
+            .arg("--output-dir")
+            .arg(file_dir.path())
+            .assert()
+            .success();
+        let expected = fs::read(file_dir.path().join(format!("reason.{extension}")))
+            .expect("Failed to read generated file");
+
+        // `--output-dir` points at a directory that does not exist: writing to
+        // stdout must not create it (or anything else) on disk.
+        let stdout_dir = tempdir().expect("Failed to create temporary directory");
+        let unused_dir = stdout_dir.path().join("unused");
+        let mut to_stdout = cargo_bin_cmd!("tpcgen-cli");
+        to_stdout.arg("tpcds");
+        if let Some(subcommand) = subcommand {
+            to_stdout.arg(subcommand);
+        }
+        let assert = to_stdout
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("reason")
+            .arg("--output-dir")
+            .arg(&unused_dir)
+            .arg("--stdout")
+            .assert()
+            .success();
+
+        assert_eq!(
+            assert.get_output().stdout,
+            expected,
+            "Expected --stdout {subcommand:?} output to match the generated file"
+        );
+        assert!(
+            !unused_dir.exists(),
+            "Expected --stdout to write no files, but {unused_dir:?} was created"
+        );
+    }
+}
