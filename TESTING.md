@@ -80,6 +80,22 @@ same data as a single pass, `--num-threads 1` and `--num-threads 4` produce
 byte-identical files, and the Arrow schema survives the round trip, including
 types with no exact Parquet equivalent such as `Time32(Second)`.
 
+### Validating multi-part generation
+
+`--parts N` splits a table across N files. The reference implementations have
+nothing to say about that — `dsdgen` only ever partitions tables with at least
+1,000,000 rows, and the checked-in `MD5SUMS` describe whole tables — so the
+property to check is that concatenating the parts, in part order, reproduces
+byte for byte what a single-pass run produces, and therefore still matches the
+reference hash.
+
+`compare-table.sh --parts N` does that for one table and
+`compare-all-tables.sh --parts N` for all 24:
+
+```sh
+./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10
+```
+
 ## Conformance in CI
 
 All the conformance tests described above run on every CI run.
@@ -89,6 +105,11 @@ MD5-only check on every pull request.
 [`full-conformance.yml`](.github/workflows/full-conformance.yml) rebuilds the
 reference data from the reference implementations themselves and re-checks it
 byte for byte on every merge to main.
+
+Multi-part generation is slower than either, so
+[`tpcds-parts-conformance.yml`](.github/workflows/tpcds-parts-conformance.yml)
+runs it in the merge queue and on manual dispatch rather than per pull request:
+all 24 tables, 10 parts, scale factor 10, in both compat modes.
 
 ## Known coverage limits
 
@@ -104,9 +125,18 @@ The suites do not cover everything:
   end to end.
 - Parquet is compared against Arrow for `store_sales` and `store_returns` only.
   Other tables rely on the writer path being shared.
-- `MD5SUMS` are committed for `scale-10-trino`, `scale-5-c` and `scale-10-c`, but
-  no workflow currently checks them. CI verifies TPC-DS at scale factor 1
-  (both compat modes) and, in the full pass, scale factor 2 for C.
+- TPC-DS is verified per pull request at scale factors 1, 4 and 7 in both
+  compat modes, plus scale factor 2 for C in the full pass and scale factor 10
+  in both modes in the merge queue. Nothing checks `scale-5-c`.
+- The byte-for-byte `--full` comparison against C is limited to the scale
+  factors [alamb/tpcds-data] publishes full `.dat` archives for (1, 2 and 5).
+  Scale factors 4, 7 and 10 are checked against the committed `MD5SUMS` only.
+- Multi-part generation is only really exercised for tables with at least
+  1,000,000 source rows, since smaller tables are never split. At scale factor
+  10 that is six tables — `store_sales`, `store_returns`, `catalog_sales`,
+  `catalog_returns`, `inventory` and `customer_demographics`. The other 18,
+  including `web_sales` and `web_returns`, pass the multi-part check trivially,
+  as a single part.
 - The reparse tests run in Trino compat mode only, since that is
   `Session::default()`. The `--compat c` corrections are covered at the `.dat`
   level but not through the Arrow, CSV and Parquet paths.

@@ -1,0 +1,78 @@
+name: TPC-DS Multi-Part Conformance
+
+# Checks that generating a TPC-DS table as several parts produces exactly the
+# same data as generating it in one pass: each table is generated as 10 parts
+# at scale factor 10, concatenated back together in part order, and compared
+# against the scale-10 MD5SUMS committed to the repo.
+#
+# This is too slow for every pull request, so it runs in the merge queue and on
+# demand rather than on `pull_request`. See issue #457.
+
+on:
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      scale:
+        description: Scale factor to generate
+        required: false
+        default: '10'
+      parts:
+        description: Number of parts to split each table into
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.merge_group.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # workflow_dispatch can override these; the merge queue always uses SF10 / 10 parts.
+  TPCDS_PARTS_SCALE: ${{ github.event.inputs.scale || '10' }}
+  TPCDS_PARTS_COUNT: ${{ github.event.inputs.parts || '10' }}
+
+jobs:
+  parts-conformance:
+    name: Multi-part (${{ matrix.compat }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      # Report both compat modes, not just the first one that fails.
+      fail-fast: false
+      matrix:
+        compat: [trino, c]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Free up disk space
+        # The scale factor 10 fact tables run to several GB each.
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Build Rust table generators
+        run: cargo build --locked --release -p tpcgen-cli
+
+      - name: Compare multi-part output against the reference
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/compare-all-tables.sh \
+            --scale "$TPCDS_PARTS_SCALE" \
+            --parts "$TPCDS_PARTS_COUNT" \
+            --compat "${{ matrix.compat }}"

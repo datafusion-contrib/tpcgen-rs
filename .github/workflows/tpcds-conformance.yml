@@ -50,6 +50,19 @@ jobs:
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh
 
+    # Scale factors 4 and 7 are cheap to generate but land the internal chunk
+    # boundaries in different places than scale factor 1 does, which is how
+    # boundary-dependent bugs like #475 show up.
+    - name: Run conformance tests (Rust vs Java, scale factor 4)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --scale 4 --quiet
+
+    - name: Run conformance tests (Rust vs Java, scale factor 7)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --scale 7 --quiet
+
   # Conformance testing against the C dsdgen reference implementation.
   conformance-tests-c:
     name: Conformance Tests (C dsdgen)
@@ -76,3 +89,16 @@ jobs:
       run: |
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh --compat c
+
+    # As above: different chunk boundaries than scale factor 1. These are
+    # MD5-only — alamb/tpcds-data publishes the full .dat archives for a few
+    # scale factors and 4 and 7 are not among them, so --full cannot run here.
+    - name: Run conformance tests (Rust --compat c, scale factor 4)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --compat c --scale 4 --quiet
+
+    - name: Run conformance tests (Rust --compat c, scale factor 7)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --compat c --scale 7 --quiet

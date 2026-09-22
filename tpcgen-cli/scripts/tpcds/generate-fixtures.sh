@@ -273,6 +273,51 @@ generate_trino_fixtures() {
     if [[ $fail_count -gt 0 ]]; then
         exit 1
     fi
+
+    # MD5SUMS is what the conformance suite actually compares against and the
+    # only part of the fixture directory checked into git, so refresh it
+    # whenever a full set was generated. A partial run would truncate it, so
+    # leave it alone in that case.
+    if [[ ${#tables_to_generate[@]} -eq ${#ALL_TABLES[@]} ]]; then
+        write_md5sums "$fixture_dir"
+    else
+        log_info "Partial run; leaving $fixture_dir/MD5SUMS untouched"
+    fi
+}
+
+# Write $fixture_dir/MD5SUMS: one "<md5> <table>.dat" line per table.
+#
+# dbgen_version is skipped. It records the generation timestamp and the command
+# line that produced it, so its hash changes on every run — which is also why
+# the conformance suite never compares it. Hashing it would make every
+# regeneration look like a data change.
+#
+# Lines are sorted the way the MD5SUMS already in the repo are, so
+# regenerating an existing fixture directory shows only real hash changes.
+# The hash itself is computed with whichever of md5sum (Linux) or md5 (macOS)
+# is present.
+write_md5sums() {
+    local fixture_dir=$1
+    local md5sums="$fixture_dir/MD5SUMS"
+
+    local lines=() table file hash
+    for table in "${ALL_TABLES[@]}"; do
+        [[ "$table" == "dbgen_version" ]] && continue
+        file="$fixture_dir/${table}.dat"
+        if [[ ! -f "$file" ]]; then
+            log_error "Cannot hash missing fixture: $file"
+            exit 1
+        fi
+        if command -v md5sum >/dev/null 2>&1; then
+            hash=$(md5sum "$file" | cut -d' ' -f1)
+        else
+            hash=$(md5 -q "$file")
+        fi
+        lines+=("$hash ${table}.dat")
+    done
+
+    printf '%s\n' "${lines[@]}" | LC_ALL=en_US.UTF-8 sort -k2 > "$md5sums"
+    log_success "Wrote $md5sums"
 }
 
 # -----------------------------------------------------------------------------
