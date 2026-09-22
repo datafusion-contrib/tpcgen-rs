@@ -1063,7 +1063,12 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     assert_eq!(store_returns, expected);
 
     let (item, num_row_groups) = read_concatenated_parquet(&temp_dir.path().join("item.parquet"));
+    // 2,000 source rows over 2 row groups starts the second range at row 1,001,
+    // a continuation revision that copies from row 1,000. Pin both numbers: if
+    // either drifts the split can land on a row that starts a new Item, where
+    // nothing is copied and the SCD case silently goes untested.
     assert_eq!(num_row_groups, 2);
+    assert_eq!(item.num_rows(), 2_000);
     let expected = read_concatenated_reference(ItemArrow::new(test_session(0.001)));
     assert_eq!(item, expected);
 }
