@@ -1,3 +1,33 @@
+//! Utilities for slowly changing dimension (SCD) tables.
+//!
+//! An SCD table keeps history. Rather than one row per entity, it holds
+//! several revisions of the same entity, each covering a date range.
+//!
+//! In TPC-DS, `call_center`, `item`, `store`, `web_page` and `web_site` are
+//! SCD tables.
+//!
+//! Revisions follow a six-row cycle. [`compute_scd_key`] maps a source row to
+//! its business key and date range, so six source rows hold three entities:
+//!
+//! ```text
+//! row % 6 = 1          1 revision
+//! row % 6 = 2, 3       1 of 2, 2 of 2 revisions
+//! row % 6 = 4, 5, 0    1 of 3, 2 of 3, 3 of 3 revisions
+//! ```
+//!
+//! The first revision of an entity generates its values. Every later revision
+//! reuses the same business key, and
+//! [`get_value_for_slowly_changing_dimension`] copies forward the fields that
+//! do not change, so each generator keeps the row it generated last.
+//!
+//! Generating a range of source rows fast forwards the random number streams
+//! to the first row of the range. The skipped rows are never generated. A
+//! range that starts on a later revision has no previous revision to copy
+//! from, so `generate_scd_history` replays the earlier ones to restore the
+//! generator state.
+//!
+//! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
+
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::error::Result;
