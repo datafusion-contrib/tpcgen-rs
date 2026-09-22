@@ -1,6 +1,6 @@
 //! TPC-DS Parquet output.
 
-use super::generate::OutputDestination;
+use super::generate::output_location;
 use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::runner::{plan_tables, run_plans, PlannedTable};
 use crate::output_location::OutputLocation;
@@ -96,7 +96,7 @@ fn column_encodings_for_table(
 /// Parquet output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
-    destination: OutputDestination,
+    base_location: OutputLocation,
     compression: Compression,
     row_group_bytes: i64,
     column_encodings: Option<Vec<(String, Encoding)>>,
@@ -104,13 +104,13 @@ pub(super) struct Parquet {
 
 impl Parquet {
     pub(super) fn new(
-        destination: OutputDestination,
+        base_location: OutputLocation,
         compression: Compression,
         row_group_bytes: i64,
         column_encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {
         Self {
-            destination,
+            base_location,
             compression,
             row_group_bytes,
             column_encodings,
@@ -516,9 +516,7 @@ impl Parquet {
             .as_ref()
             .map(|encodings| column_encodings_for_table(table, encodings));
 
-        let location = self
-            .destination
-            .output_location(table, "parquet", &session)?;
+        let location = output_location(&self.base_location, table, "parquet", &session)?;
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));

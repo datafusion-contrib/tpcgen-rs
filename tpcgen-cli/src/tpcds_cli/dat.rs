@@ -16,9 +16,10 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use super::generate::{generate_table, OutputDestination, RowFormat};
+use super::generate::{generate_table, RowFormat};
 use super::plan::ChunkFormat;
 use super::runner::{plan_tables, run_plans};
+use crate::output_location::OutputLocation;
 use crate::progress::ProgressTracker;
 use std::io;
 use std::sync::Arc;
@@ -33,7 +34,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug, Clone)]
 pub(super) struct Dat {
     /// Where to write the output
-    destination: OutputDestination,
+    base_location: OutputLocation,
     /// Which reference implementation to match.
     compat_mode: CompatMode,
     /// Target size of each generated buffer
@@ -42,12 +43,12 @@ pub(super) struct Dat {
 
 impl Dat {
     pub(super) fn new(
-        destination: OutputDestination,
+        base_location: OutputLocation,
         compat_mode: CompatMode,
         chunk_size_bytes: i64,
     ) -> Result<Self> {
         Ok(Self {
-            destination,
+            base_location,
             compat_mode,
             chunk_size_bytes,
         })
@@ -71,8 +72,8 @@ impl Dat {
         let this = self.clone();
         run_plans(work, num_threads, move |planned, num_threads| {
             let format = this.clone();
-            let destination = this.destination.clone();
-            async move { generate_table(format, destination, planned, num_threads).await }
+            let base_location = this.base_location.clone();
+            async move { generate_table(format, base_location, planned, num_threads).await }
         })
         .await
     }

@@ -8,72 +8,38 @@ use log::info;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
-use std::path::PathBuf;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::*;
 
-/// Where the generated tables are written, as selected on the command line.
-#[derive(Debug, Clone)]
-pub(super) enum OutputDestination {
-    /// Write one file per table into this directory (`--output-dir`)
-    Dir(PathBuf),
-    /// Write every table to stdout (`--stdout`)
-    Stdout,
-}
-
-impl OutputDestination {
-    /// Return the destination selected by the command line arguments.
-    pub(super) fn new(stdout: bool, output_dir: PathBuf) -> Self {
-        if stdout {
-            Self::Stdout
-        } else {
-            Self::Dir(output_dir)
-        }
-    }
-
-    /// Return the output location for `table`, following `tpchgen-cli`'s
-    /// `--parts`/`--part` naming convention:
-    ///
-    /// When `--parts` was not requested creates a single `<table>.<ext>` file, otherwise
-    /// written into a subdirectory like `<table>/<table>.<chunk>.<ext>`.
-    ///
-    /// Note that `--parts 1` is also written to a subdirectory.
-    ///
-    /// This function creates the per-table subdirectory as needed.
-    pub(super) fn output_location(
-        &self,
-        table: Table,
-        ext: &str,
-        session: &Session,
-    ) -> io::Result<OutputLocation> {
-        // `--stdout` writes every table to the same stream, so there are no
-        // paths (and no directories) to create
-        let Self::Dir(output_dir) = self else {
-            return Ok(OutputLocation::Stdout);
-        };
-
-        // sub directory `<table>/<table>.<chunk>.<ext>`
-        let path = if session.is_partitioned() {
-            let dir = output_dir.join(table.get_name());
-            std::fs::create_dir_all(&dir)?;
-            dir.join(format!(
-                "{}.{}.{ext}",
-                table.get_name(),
-                session.get_chunk_number()
-            ))
-        } else {
-            // single `<table>.<ext>` file
-            output_dir.join(format!("{}.{ext}", table.get_name()))
-        };
-        Ok(OutputLocation::File(path))
-    }
-
-    /// Returns true if the output destination is an empty path
-    pub(super) fn is_empty_dir(&self) -> bool {
-        match self {
-            Self::Dir(output_dir) => output_dir.as_os_str().is_empty(),
-            Self::Stdout => false,
-        }
+/// Return the output location for `table`, relative to `base_location` (the
+/// output directory, or stdout), following `tpchgen-cli`'s `--parts`/`--part`
+/// naming convention:
+///
+/// When `--parts` was not requested creates a single `<table>.<ext>` file, otherwise
+/// written into a subdirectory like `<table>/<table>.<chunk>.<ext>`.
+///
+/// Note that `--parts 1` is also written to a subdirectory.
+///
+/// This function creates the per-table subdirectory as needed. Writing to
+/// stdout creates no directories: every table shares the one stream.
+pub(super) fn output_location(
+    base_location: &OutputLocation,
+    table: Table,
+    ext: &str,
+    session: &Session,
+) -> io::Result<OutputLocation> {
+    // sub directory `<table>/<table>.<chunk>.<ext>`
+    if session.is_partitioned() {
+        let dir = base_location.join(table.get_name());
+        dir.create_dir_all()?;
+        Ok(dir.join(format!(
+            "{}.{}.{ext}",
+            table.get_name(),
+            session.get_chunk_number()
+        )))
+    } else {
+        // single `<table>.<ext>` file
+        Ok(base_location.join(format!("{}.{ext}", table.get_name())))
     }
 }
 
@@ -138,19 +104,19 @@ impl_factory!(
 );
 
 /// Generate one planned table (one `--parts` chunk of one table) into
-/// `output_dir`, using up to `num_threads` threads.
+/// `base_location`, using up to `num_threads` threads.
 ///
 /// A sales generator emits rows for its returns table too; each output keeps
 /// only its own rows, the same way the Arrow generators produce them.
 pub(super) async fn generate_table<F: RowFormat>(
     format: F,
-    destination: OutputDestination,
+    base_location: OutputLocation,
     planned: PlannedTable,
     num_threads: usize,
 ) -> io::Result<()> {
     macro_rules! generate {
         ($GENERATOR:ty) => {
-            write_table::<F, $GENERATOR>(format, &destination, planned, num_threads).await
+            write_table::<F, $GENERATOR>(format, &base_location, planned, num_threads).await
         };
     }
 
@@ -192,7 +158,7 @@ pub(super) async fn generate_table<F: RowFormat>(
 /// [`super::runner::plan_tables`]
 async fn write_table<F, G>(
     format: F,
-    destination: &OutputDestination,
+    base_location: &OutputLocation,
     planned: PlannedTable,
     num_threads: usize,
 ) -> io::Result<()>
@@ -207,7 +173,7 @@ where
         progress,
     } = planned;
 
-    let location = destination.output_location(table, F::EXTENSION, &session)?;
+    let location = output_location(base_location, table, F::EXTENSION, &session)?;
     info!("Writing {location} using {num_threads} threads");
 
     let source_rows = session.get_scaling().get_row_count(table.source_table());

@@ -1,6 +1,7 @@
 use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
+use crate::output_location::OutputLocation;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
 use arrow::datatypes::SchemaRef;
@@ -106,6 +107,17 @@ pub enum OutputFormat {
     Csv,
     /// Apache Parquet format (columnar, compressed)
     Parquet,
+}
+
+impl OutputFormat {
+    /// return the file extension for this output format
+    pub fn extension(&self) -> &'static str {
+        match self {
+            OutputFormat::Tbl => "tbl",
+            OutputFormat::Csv => "csv",
+            OutputFormat::Parquet => "parquet",
+        }
+    }
 }
 
 impl FromStr for OutputFormat {
@@ -258,9 +270,8 @@ impl TpchGenerator {
         let progress_tracker = self.progress_tracker;
 
         // Create output directory if it doesn't exist and we are not writing to stdout
-        if !config.stdout {
-            std::fs::create_dir_all(&config.output_dir)?;
-        }
+        let base_location = OutputLocation::new(config.stdout, config.output_dir);
+        base_location.create_dir_all()?;
 
         // Determine which tables to generate
         let tables: Vec<Table> = if let Some(tables) = config.tables {
@@ -295,8 +306,7 @@ impl TpchGenerator {
                 column_encodings: config.parquet_column_encodings,
             },
             config.parquet_row_group_bytes,
-            config.stdout,
-            config.output_dir,
+            base_location,
             config.csv_delimiter,
         );
 

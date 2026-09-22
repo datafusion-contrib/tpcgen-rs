@@ -1,12 +1,12 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
 use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
+use crate::output_location::OutputLocation;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpcds_cli::dat::Dat;
-use crate::tpcds_cli::generate::OutputDestination;
 use crate::tpch_cli::{Compression, Encoding, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
@@ -233,7 +233,7 @@ impl ParquetArgs {
 impl CommonArgs {
     async fn run_dat(self) -> Result<()> {
         let output = Dat::new(
-            self.destination()?,
+            self.base_location()?,
             self.compat,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
         )?;
@@ -248,7 +248,7 @@ impl CommonArgs {
         column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
-            self.destination()?,
+            self.base_location()?,
             compression,
             row_group_bytes,
             column_encoding,
@@ -259,7 +259,7 @@ impl CommonArgs {
 
     async fn run_csv(self, delimiter: char) -> Result<()> {
         let output = csv::Csv::new(
-            self.destination()?,
+            self.base_location()?,
             delimiter,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
         );
@@ -281,11 +281,9 @@ impl CommonArgs {
         let tables = self.tables()?;
         let parts = self.part_list()?;
 
-        // Create the output directory if it doesn't exist and we are not
-        // writing to stdout
-        if !self.stdout {
-            std::fs::create_dir_all(&self.output_dir)?;
-        }
+        // Create the output directory if it doesn't exist (writing to stdout
+        // creates no directories)
+        self.base_location()?.create_dir_all()?;
 
         // Every output generates all of its tables in one call so that
         // multiple tables can be generated concurrently
@@ -320,15 +318,15 @@ impl CommonArgs {
     }
 
     /// Return where the generated tables are written.
-    fn destination(&self) -> Result<OutputDestination> {
-        let destination = OutputDestination::new(self.stdout, self.output_dir.clone());
-        if destination.is_empty_dir() {
+    fn base_location(&self) -> Result<OutputLocation> {
+        let base_location = OutputLocation::new(self.stdout, self.output_dir.clone());
+        if base_location.is_empty_dir() {
             Err(
                 InvalidOptionError::with_message("directory", "", "Directory cannot be empty")
                     .into(),
             )
         } else {
-            Ok(destination)
+            Ok(base_location)
         }
     }
 

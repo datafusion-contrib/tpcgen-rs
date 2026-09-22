@@ -15,8 +15,9 @@
 //!   `--delimiter` is only safe for delimiters that no unquoted column
 //!   contains (`,`, `|`, tab, `;`).
 
+use crate::output_location::OutputLocation;
 use crate::progress::ProgressTracker;
-use crate::tpcds_cli::generate::{generate_table, OutputDestination, RowFormat};
+use crate::tpcds_cli::generate::{generate_table, RowFormat};
 use crate::tpcds_cli::plan::ChunkFormat;
 use crate::tpcds_cli::runner::{plan_tables, run_plans};
 use std::io::{self, Write};
@@ -28,19 +29,19 @@ use tpcdsgen::row::GeneratedRow;
 /// CSV output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Csv {
-    destination: OutputDestination,
+    base_location: OutputLocation,
     delimiter: char,
     chunk_size_bytes: i64,
 }
 
 impl Csv {
     pub(super) fn new(
-        destination: OutputDestination,
+        base_location: OutputLocation,
         delimiter: char,
         chunk_size_bytes: i64,
     ) -> Self {
         Self {
-            destination,
+            base_location,
             delimiter,
             chunk_size_bytes,
         }
@@ -75,8 +76,8 @@ impl Csv {
         let this = self.clone();
         run_plans(work, num_threads, move |planned, num_threads| {
             let format = this.clone();
-            let destination = this.destination.clone();
-            async move { generate_table(format, destination, planned, num_threads).await }
+            let base_location = this.base_location.clone();
+            async move { generate_table(format, base_location, planned, num_threads).await }
         })
         .await
     }

@@ -1618,64 +1618,66 @@ fn test_parquet_parts(table_name: &str, scale_factor: f64, parts: usize, expecte
     );
 }
 
-/// Test that `--stdout` writes the exact bytes that would have been written to
-/// a file, for every output format.
+/// Generate the `reason` table with `subcommand`, once to a file and once with
+/// `--stdout`, and assert the stdout bytes are exactly the bytes of the
+/// generated file.
+///
+/// `--output-dir` is pointed at a directory that does not exist, so the
+/// `--stdout` run also proves that nothing is written to disk.
+fn assert_stdout_matches_file_output(subcommand: Option<&str>, extension: &str) {
+    let command = |output_dir: &Path| {
+        let mut command = cargo_bin_cmd!("tpcgen-cli");
+        command.arg("tpcds");
+        if let Some(subcommand) = subcommand {
+            command.arg(subcommand);
+        }
+        command
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("reason")
+            .arg("--output-dir")
+            .arg(output_dir);
+        command
+    };
+
+    let file_dir = tempdir().expect("Failed to create temporary directory");
+    command(file_dir.path()).assert().success();
+    let expected = fs::read(file_dir.path().join(format!("reason.{extension}")))
+        .expect("Failed to read generated file");
+
+    let stdout_dir = tempdir().expect("Failed to create temporary directory");
+    let unused_dir = stdout_dir.path().join("unused");
+    let assert = command(&unused_dir).arg("--stdout").assert().success();
+
+    assert_eq!(
+        assert.get_output().stdout,
+        expected,
+        "Expected --stdout output to match the generated reason.{extension}"
+    );
+    assert!(
+        !unused_dir.exists(),
+        "Expected --stdout to write no files, but {unused_dir:?} was created"
+    );
+}
+
+/// `tpcds --stdout` with no subcommand writes the default DAT output to stdout.
 #[test]
-fn test_tpcgen_cli_tpcds_stdout_matches_file_output() {
-    // The default `dat` output has no subcommand, so also cover invoking
-    // `tpcds --stdout` without one.
-    for (subcommand, extension) in [
-        (None, "dat"),
-        (Some("dat"), "dat"),
-        (Some("csv"), "csv"),
-        (Some("parquet"), "parquet"),
-    ] {
-        let file_dir = tempdir().expect("Failed to create temporary directory");
-        let mut to_file = cargo_bin_cmd!("tpcgen-cli");
-        to_file.arg("tpcds");
-        if let Some(subcommand) = subcommand {
-            to_file.arg(subcommand);
-        }
-        to_file
-            .arg("--scale-factor")
-            .arg("0.001")
-            .arg("--tables")
-            .arg("reason")
-            .arg("--output-dir")
-            .arg(file_dir.path())
-            .assert()
-            .success();
-        let expected = fs::read(file_dir.path().join(format!("reason.{extension}")))
-            .expect("Failed to read generated file");
+fn test_tpcgen_cli_tpcds_stdout_matches_file_output_default() {
+    assert_stdout_matches_file_output(None, "dat");
+}
 
-        // `--output-dir` points at a directory that does not exist: writing to
-        // stdout must not create it (or anything else) on disk.
-        let stdout_dir = tempdir().expect("Failed to create temporary directory");
-        let unused_dir = stdout_dir.path().join("unused");
-        let mut to_stdout = cargo_bin_cmd!("tpcgen-cli");
-        to_stdout.arg("tpcds");
-        if let Some(subcommand) = subcommand {
-            to_stdout.arg(subcommand);
-        }
-        let assert = to_stdout
-            .arg("--scale-factor")
-            .arg("0.001")
-            .arg("--tables")
-            .arg("reason")
-            .arg("--output-dir")
-            .arg(&unused_dir)
-            .arg("--stdout")
-            .assert()
-            .success();
+#[test]
+fn test_tpcgen_cli_tpcds_stdout_matches_file_output_dat() {
+    assert_stdout_matches_file_output(Some("dat"), "dat");
+}
 
-        assert_eq!(
-            assert.get_output().stdout,
-            expected,
-            "Expected --stdout {subcommand:?} output to match the generated file"
-        );
-        assert!(
-            !unused_dir.exists(),
-            "Expected --stdout to write no files, but {unused_dir:?} was created"
-        );
-    }
+#[test]
+fn test_tpcgen_cli_tpcds_stdout_matches_file_output_csv() {
+    assert_stdout_matches_file_output(Some("csv"), "csv");
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_stdout_matches_file_output_parquet() {
+    assert_stdout_matches_file_output(Some("parquet"), "parquet");
 }
