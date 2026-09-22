@@ -22,7 +22,7 @@ use tpcdsgen::row::*;
 ///
 /// This function creates the per-table subdirectory as needed. Writing to
 /// stdout creates no directories: every table shares the one stream.
-pub(super) fn output_location(
+pub(super) fn output_location_for_table(
     base_location: &OutputLocation,
     table: Table,
     ext: &str,
@@ -173,7 +173,7 @@ where
         progress,
     } = planned;
 
-    let location = output_location(base_location, table, F::EXTENSION, &session)?;
+    let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
     info!("Writing {location} using {num_threads} threads");
 
     let source_rows = session.get_scaling().get_row_count(table.source_table());

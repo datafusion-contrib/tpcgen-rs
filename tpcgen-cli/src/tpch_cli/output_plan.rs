@@ -133,7 +133,7 @@ pub struct OutputPlanGenerator {
     scale_factor: f64,
     parquet: ParquetWriterOptions,
     parquet_row_group_bytes: i64,
-    /// Where output is written: the output directory, or stdout
+    /// Where output is written
     base_location: OutputLocation,
     csv_delimiter: char,
     /// The generated output plans
