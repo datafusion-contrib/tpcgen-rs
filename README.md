@@ -104,31 +104,32 @@ the output of this crate with [`dbgen`] as part of every checkin. See
 
 ## Arrow version
 
-The crates that depend on [arrow-rs] support two major versions, selected with
-the `arrow_59` and `arrow_60` feature flags. `arrow_60` is the default:
+The crates that depend on [arrow-rs] build against arrow / parquet 60 by
+default. The `arrow_59` feature switches them to arrow / parquet 59:
 
 ```shell
 # build against arrow / parquet 60 (the default)
 cargo build
 
 # build against arrow / parquet 59
-cargo build --no-default-features --features arrow_59
+cargo build --features arrow_59
 ```
 
-Since the feature flags are additive and `arrow_60` is a default feature,
-`--no-default-features` is required to select `arrow_59`. Depending on one of
-these crates from another project works the same way:
+Depending on one of these crates from another project works the same way:
 
 ```toml
 [dependencies]
-tpchgen-arrow = { version = "3.0.0", default-features = false, features = ["arrow_59"] }
+tpchgen-arrow = { version = "3.0.0", features = ["arrow_59"] }
 ```
 
 Each crate re-exports the arrow version it was built against (for example
 `tpchgen_arrow::arrow`), so downstream code can name the matching types without
-guessing. Exactly one version must be selected: enabling both features at once
-is a compile error, which also means these crates cannot be built with
-`--all-features`.
+guessing.
+
+Because a feature can only add to a build, never subtract from it, arrow 60
+remains a required dependency: `--features arrow_59` compiles arrow 60 as well
+and leaves it unused. That costs build time, but it keeps the flag additive, so
+`--all-features` and `--no-default-features` both work.
 
 [arrow-rs]: https://github.com/apache/arrow-rs
 
