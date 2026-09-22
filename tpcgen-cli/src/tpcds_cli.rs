@@ -32,7 +32,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 ///
 /// Changing this value this trades off scheduling granularity against peak
 /// memory use.
-const DEFAULT_TEXT_CHUNK_SIZE_BYTES: i64 = 8 * 1024 * 1024;
+pub const DEFAULT_TEXT_CHUNK_SIZE_BYTES: i64 = 8 * 1024 * 1024;
 
 enum OutputFormat {
     Dat(dat::Dat),

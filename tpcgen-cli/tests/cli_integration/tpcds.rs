@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
+use tpcgen_cli::tpcds_cli::DEFAULT_TEXT_CHUNK_SIZE_BYTES;
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
@@ -1069,11 +1070,13 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
 /// Item is an SCD table, so this also verifies that range boundaries preserve
 /// the previous revision state needed by continuation rows.
 ///
-/// DAT is generated from the same rows through the same chunking, so covering
-/// CSV covers both text formats.
+/// DAT shares this row range and SCD revision state logic, through the same
+/// generic `write_table`, so covering CSV covers that logic for both text
+/// formats. The two keep separate size estimates, so their chunk boundaries
+/// can still differ at other sizes.
 #[test]
 fn test_tpcgen_cli_tpcds_csv_matches_single_pass_generation() {
-    // Item at scale factor 3.2, against the 8 MiB text chunk size:
+    // Item at scale factor 3.2, against DEFAULT_TEXT_CHUNK_SIZE_BYTES (8 MiB):
     //
     //   Item rows:                  38,000
     //   Estimated size:             38,000 * 283.89 = 10,787,820 bytes
@@ -1110,11 +1113,13 @@ fn test_tpcgen_cli_tpcds_csv_matches_single_pass_generation() {
     // split above.
     let written = fs::metadata(&path).expect("item.csv exists").len();
     assert!(
-        written > 8 * 1024 * 1024,
-        "item must outgrow the 8 MiB chunk size to be generated as several row ranges"
+        written > DEFAULT_TEXT_CHUNK_SIZE_BYTES as u64,
+        "item must outgrow the {DEFAULT_TEXT_CHUNK_SIZE_BYTES} byte chunk size \
+         to be generated as several row ranges"
     );
     let reader = arrow::csv::ReaderBuilder::new(expected.schema())
         .with_header(true)
+        .with_header_validation(true)
         .build(File::open(&path).expect("Failed to open item.csv"))
         .expect("Failed to read item.csv");
     let item = read_concatenated_reference(reader);
