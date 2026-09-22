@@ -7,6 +7,10 @@
 extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]
 extern crate arrow_60 as arrow;
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+extern crate arrow_csv_59 as arrow_csv;
+#[cfg(feature = "arrow_60")]
+extern crate arrow_csv_60 as arrow_csv;
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;

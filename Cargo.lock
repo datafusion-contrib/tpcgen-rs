@@ -130,7 +130,6 @@ dependencies = [
  "arrow-array 59.3.0",
  "arrow-buffer 59.3.0",
  "arrow-cast 59.3.0",
- "arrow-csv 59.3.0",
  "arrow-data 59.3.0",
  "arrow-ord 59.3.0",
  "arrow-row 59.3.0",
@@ -149,7 +148,6 @@ dependencies = [
  "arrow-array 60.0.0",
  "arrow-buffer 60.0.0",
  "arrow-cast 60.0.0",
- "arrow-csv 60.0.0",
  "arrow-data 60.0.0",
  "arrow-ord 60.0.0",
  "arrow-row 60.0.0",
@@ -1826,6 +1824,8 @@ version = "0.1.0"
 dependencies = [
  "arrow 59.3.0",
  "arrow 60.0.0",
+ "arrow-csv 59.3.0",
+ "arrow-csv 60.0.0",
  "regex",
  "tpcdsgen",
 ]
@@ -1868,6 +1868,8 @@ version = "3.0.0"
 dependencies = [
  "arrow 59.3.0",
  "arrow 60.0.0",
+ "arrow-csv 59.3.0",
+ "arrow-csv 60.0.0",
  "chrono",
  "tpchgen",
 ]

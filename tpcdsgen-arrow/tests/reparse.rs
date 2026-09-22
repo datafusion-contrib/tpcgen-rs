@@ -19,6 +19,10 @@
 extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]
 extern crate arrow_60 as arrow;
+#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+extern crate arrow_csv_59 as arrow_csv;
+#[cfg(feature = "arrow_60")]
+extern crate arrow_csv_60 as arrow_csv;
 
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -115,7 +119,7 @@ impl Format {
     ) -> impl Iterator<Item = RecordBatch> + 'a {
         let null_re = regex::Regex::new("^$").unwrap();
         let builder =
-            arrow::csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
+            arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
         let builder = match self {
             Format::Dat => builder
                 .with_delimiter(DAT_SEPARATOR as u8)

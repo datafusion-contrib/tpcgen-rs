@@ -9,10 +9,8 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-# The `csv` feature (for `arrow::csv`) is only needed by the reparse tests, but
-# Cargo does not allow optional dev-dependencies, so it is enabled here.
-arrow_59 = { workspace = true, optional = true, features = ["csv"] }
-arrow_60 = { workspace = true, optional = true, features = ["csv"] }
+arrow_59 = { workspace = true, optional = true }
+arrow_60 = { workspace = true, optional = true }
 tpchgen = { path = "../tpchgen", version = "3.0.0" }
 
 [features]
@@ -23,4 +21,6 @@ arrow_59 = ["dep:arrow_59"]
 arrow_60 = ["dep:arrow_60"]
 
 [dev-dependencies]
+arrow_csv_59 = { workspace = true }
+arrow_csv_60 = { workspace = true }
 chrono = "0.4.39"
