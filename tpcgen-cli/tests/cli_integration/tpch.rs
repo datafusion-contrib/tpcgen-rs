@@ -1,4 +1,6 @@
-use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
+use super::test_helpers::{
+    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
@@ -1180,4 +1182,25 @@ fn test_tbl_subcommand_rejects_delimiter() {
         .assert()
         .failure()
         .stderr(predicates::str::contains("unexpected argument"));
+}
+
+/// `tpch --stdout` with no subcommand writes the default TBL output to stdout.
+#[test]
+fn test_tpcgen_cli_tpch_stdout_matches_file_output_default() {
+    assert_stdout_matches_file_output("tpch", None, "region", "tbl");
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_stdout_matches_file_output_tbl() {
+    assert_stdout_matches_file_output("tpch", Some("tbl"), "region", "tbl");
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_stdout_matches_file_output_csv() {
+    assert_stdout_matches_file_output("tpch", Some("csv"), "region", "csv");
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_stdout_matches_file_output_parquet() {
+    assert_stdout_matches_file_output("tpch", Some("parquet"), "region", "parquet");
 }

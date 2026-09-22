@@ -1,7 +1,10 @@
+use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::basic::Encoding;
 use parquet::file::metadata::ParquetMetaDataReader;
+use std::fs;
 use std::fs::File;
 use std::path::Path;
+use tempfile::tempdir;
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct RowGroups {
@@ -68,5 +71,52 @@ pub(crate) fn expect_column_encoding(path: &Path, column: &str, expected: Encodi
         found_in_any_row_group,
         "column {column} not found in {}",
         path.display()
+    );
+}
+
+/// Generate `table` from `benchmark` (`tpch` or `tpcds`) with `subcommand`
+/// (the benchmark's default output format when `None`), once to a file and
+/// once with `--stdout`, and assert the bytes written to stdout are exactly
+/// the bytes of the generated file.
+pub(crate) fn assert_stdout_matches_file_output(
+    benchmark: &str,
+    subcommand: Option<&str>,
+    table: &str,
+    extension: &str,
+) {
+    let command = |output_dir: &Path| {
+        let mut command = cargo_bin_cmd!("tpcgen-cli");
+        command.arg(benchmark);
+        if let Some(subcommand) = subcommand {
+            command.arg(subcommand);
+        }
+        command
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg(table)
+            .arg("--output-dir")
+            .arg(output_dir);
+        command
+    };
+
+    let file_dir = tempdir().expect("Failed to create temporary directory");
+    command(file_dir.path()).assert().success();
+    let expected = fs::read(file_dir.path().join(format!("{table}.{extension}")))
+        .expect("Failed to read generated file");
+
+    let stdout_dir = tempdir().expect("Failed to create temporary directory");
+    // run the --stdout version with a directory that doesn't exist
+    let unused_dir = stdout_dir.path().join("unused");
+    let assert = command(&unused_dir).arg("--stdout").assert().success();
+
+    assert_eq!(
+        assert.get_output().stdout,
+        expected,
+        "Expected --stdout output to match the generated {table}.{extension}"
+    );
+    assert!(
+        !unused_dir.exists(),
+        "Expected --stdout to write no files, but {unused_dir:?} was created"
     );
 }
