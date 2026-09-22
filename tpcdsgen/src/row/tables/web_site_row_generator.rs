@@ -54,7 +54,7 @@ impl RowGenerator for WebSiteRowGenerator {
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> crate::error::Result<RowGeneratorResult> {
         // Replay the missing slowly changing dimension (SCD) state this row
-        // inherits from, which skip_rows_until_starting_row_number cleared.
+        // inherits from, which `skip_rows_until_starting_row_number` cleared.
         // This gives it the same values to copy from as an uninterrupted run.
         if self.previous_row.is_none() {
             generate_scd_history(self, row_number, session)?;
@@ -378,7 +378,7 @@ impl RowGenerator for WebSiteRowGenerator {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
         // Invalidate the retained slowly changing dimension (SCD) state.
-        // This tells generate_row_and_child_rows to replay it when needed.
+        // This tells `generate_row_and_child_rows` to replay it when needed.
         // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
         self.previous_row = None;
     }
