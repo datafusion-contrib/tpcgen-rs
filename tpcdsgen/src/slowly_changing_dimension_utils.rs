@@ -111,10 +111,11 @@ pub fn compute_scd_key(table: Table, row_number: u64) -> SlowlyChangingDimension
     SlowlyChangingDimensionKey::new(business_key, start_date, end_date, is_new_key)
 }
 
-/// How many rows before `row_number` have to be replayed to rebuild its history.
+/// Returns how many revisions before `row_number` must be replayed to restore
+/// the generator state.
 ///
-/// The six-row cycle below is the one [`compute_scd_key`] uses to assign business
-/// keys, so the count reaches back to the row that begins this entity.
+/// Counts back to the row that starts the entity. Follows the same
+/// [six-row revision cycle](self) as [`compute_scd_key`].
 fn previous_rows_needed(row_number: u64) -> u64 {
     assert!(row_number > 0, "row number must be 1-based");
     match row_number % 6 {
@@ -130,11 +131,14 @@ fn previous_rows_needed(row_number: u64) -> u64 {
     }
 }
 
-/// Rewind to where `row_number`'s entity begins and replay the rows up to it,
-/// discarding them and keeping only the state the generator retains.
+/// Restores the generator state for `row_number` by rewinding to where its
+/// entity begins and replaying the revisions up to it, according to the
+/// [six-row revision cycle](self).
 ///
-/// This lets a caller skip to any `row_number` and start generating there with
-/// the same state an uninterrupted run would have reached.
+/// [`previous_rows_needed`] calculates how many revisions to restore.
+///
+/// Lets a caller skip to any row and generate from there as if the run had
+/// never been interrupted.
 pub(crate) fn generate_scd_history<G: RowGenerator>(
     generator: &mut G,
     row_number: u64,
