@@ -126,8 +126,9 @@ tpchgen-arrow = { version = "3.0.0", default-features = false, features = ["arro
 
 Each crate re-exports the arrow version it was built against (for example
 `tpchgen_arrow::arrow`), so downstream code can name the matching types without
-guessing. If both features end up enabled (such as with `--all-features`, or
-through feature unification), the newer version wins.
+guessing. Exactly one version must be selected: enabling both features at once
+is a compile error, which also means these crates cannot be built with
+`--all-features`.
 
 [arrow-rs]: https://github.com/apache/arrow-rs
 

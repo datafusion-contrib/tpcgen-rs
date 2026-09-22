@@ -1,10 +1,11 @@
-// See `src/lib.rs` for why the arrow / parquet dependencies are renamed and
-// aliased back to their normal names here.
-#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+// See the `tpcgen_cli` crate documentation for the `arrow_59` / `arrow_60`
+// feature flags; the selected versions are aliased back to `arrow` and
+// `parquet` here.
+#[cfg(feature = "arrow_59")]
 extern crate arrow_59 as arrow;
 #[cfg(feature = "arrow_60")]
 extern crate arrow_60 as arrow;
-#[cfg(all(feature = "arrow_59", not(feature = "arrow_60")))]
+#[cfg(feature = "arrow_59")]
 extern crate parquet_59 as parquet;
 #[cfg(feature = "arrow_60")]
 extern crate parquet_60 as parquet;

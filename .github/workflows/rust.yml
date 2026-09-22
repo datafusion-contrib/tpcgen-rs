@@ -28,8 +28,14 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Run cargo-clippy
-        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+      # arrow_59 and arrow_60 are mutually exclusive, so clippy runs once per
+      # arrow version rather than with --all-features. arrow_60 is a default
+      # feature; selecting arrow_59 means turning the defaults off and
+      # re-enabling indicatif-progress explicitly.
+      - name: Run cargo-clippy (arrow 60)
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Run cargo-clippy (arrow 59)
+        run: cargo clippy --locked --workspace --all-targets --no-default-features --features arrow_59,indicatif-progress -- -D warnings
       - name: Check
         run: cargo check --locked --verbose --workspace --all-targets
       # Note: An arrow version must always be selected, so these also pass --features arrow_60
