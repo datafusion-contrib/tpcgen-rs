@@ -176,9 +176,9 @@ fn estimated_parquet_bytes_per_source_row(table: Table) -> f64 {
     match table {
         Table::CallCenter => 229.80,
         Table::CatalogPage => 108.21,
-        Table::CatalogReturns => 65.97,
-        Table::CatalogSales => 668.72,
-        Table::Customer => 76.65,
+        Table::CatalogReturns => 66.08,
+        Table::CatalogSales => 670.21,
+        Table::Customer => 77.61,
         Table::CustomerAddress => 35.63,
         Table::CustomerDemographics => 5.06,
         Table::DateDim => 52.56,
@@ -186,21 +186,21 @@ fn estimated_parquet_bytes_per_source_row(table: Table) -> f64 {
         // and the size depends on the command line args.
         Table::DbgenVersion => 448.00,
         Table::HouseholdDemographics => 6.44,
-        Table::IncomeBand => 20.05,
-        Table::Inventory => 3.45,
+        Table::IncomeBand => 20.10,
+        Table::Inventory => 3.46,
         Table::Item => 188.84,
-        Table::Promotion => 85.67,
+        Table::Promotion => 85.66,
         Table::Reason => 45.85,
-        Table::ShipMode => 71.65,
+        Table::ShipMode => 71.70,
         Table::Store => 131.99,
-        Table::StoreReturns => 66.27,
-        Table::StoreSales => 578.47,
+        Table::StoreReturns => 66.36,
+        Table::StoreSales => 579.41,
         Table::TimeDim => 34.03,
-        Table::Warehouse => 156.93,
+        Table::Warehouse => 156.80,
         Table::WebPage => 27.57,
-        Table::WebReturns => 86.25,
-        Table::WebSales => 799.19,
-        Table::WebSite => 231.17,
+        Table::WebReturns => 86.53,
+        Table::WebSales => 798.89,
+        Table::WebSite => 231.21,
         // Not a main table; never generated as Parquet output
         _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
     }
@@ -209,20 +209,34 @@ fn estimated_parquet_bytes_per_source_row(table: Table) -> f64 {
 /// Estimated DAT bytes written per *source* row (see [`TpcdsGenerationPlan`]
 /// for what a source row is).
 ///
-/// Measured at scale factor 10 as each `<table>.dat` file's size divided by
-/// the table's source row count:
+/// Measured at scale factor 100, like the Parquet estimates, as each
+/// `<table>.dat` file's size divided by the table's source row count.
+///
+/// The whole scale factor 100 dataset is about 103 GB of DAT, so measure one
+/// table at a time and delete it afterwards; peak disk then stays near the
+/// largest single file (`store_sales.dat`, about 41 GB):
 /// ```shell
-/// cargo run --release --bin tpcgen-cli -- tpcds dat \
-///   --scale-factor 10 --output-dir /tmp/tpcds-sf10-dat
+/// for table in call_center catalog_page catalog_returns catalog_sales customer customer_address \
+///   customer_demographics date_dim dbgen_version household_demographics income_band inventory \
+///   item promotion reason ship_mode store store_returns store_sales time_dim warehouse web_page \
+///   web_returns web_sales web_site; do
+///   rm -rf /tmp/tpcds-sf100-dat && mkdir -p /tmp/tpcds-sf100-dat
+///   cargo run --release --bin tpcgen-cli -- tpcds dat \
+///     --scale-factor 100 --tables "$table" --output-dir /tmp/tpcds-sf100-dat
+///   echo "$table $(stat -f %z "/tmp/tpcds-sf100-dat/$table.dat")"
+/// done
 /// ```
+///
+/// Divide each size by the same source row count the Parquet estimates use,
+/// not by the output row count.
 fn estimated_dat_bytes_per_source_row(table: Table) -> f64 {
     match table {
-        Table::CallCenter => 314.33,
-        Table::CatalogPage => 139.25,
-        Table::CatalogReturns => 138.49,
-        Table::CatalogSales => 1898.68,
-        Table::Customer => 133.75,
-        Table::CustomerAddress => 110.83,
+        Table::CallCenter => 311.87,
+        Table::CatalogPage => 140.09,
+        Table::CatalogReturns => 142.45,
+        Table::CatalogSales => 1938.53,
+        Table::Customer => 134.76,
+        Table::CustomerAddress => 111.15,
         Table::CustomerDemographics => 41.99,
         Table::DateDim => 141.24,
         // Note: this value is not performance critical as this is a 1 row table
@@ -230,20 +244,20 @@ fn estimated_dat_bytes_per_source_row(table: Table) -> f64 {
         Table::DbgenVersion => 229.00,
         Table::HouseholdDemographics => 21.06,
         Table::IncomeBand => 16.40,
-        Table::Inventory => 20.76,
-        Table::Item => 282.90,
-        Table::Promotion => 124.32,
-        Table::Reason => 36.64,
+        Table::Inventory => 21.60,
+        Table::Item => 286.11,
+        Table::Promotion => 124.97,
+        Table::Reason => 35.62,
         Table::ShipMode => 55.65,
-        Table::Store => 265.54,
-        Table::StoreReturns => 140.98,
-        Table::StoreSales => 1666.22,
+        Table::Store => 265.72,
+        Table::StoreReturns => 145.16,
+        Table::StoreSales => 1706.65,
         Table::TimeDim => 59.12,
-        Table::Warehouse => 118.60,
-        Table::WebPage => 96.66,
-        Table::WebReturns => 170.09,
-        Table::WebSales => 2519.04,
-        Table::WebSite => 289.69,
+        Table::Warehouse => 118.80,
+        Table::WebPage => 97.57,
+        Table::WebReturns => 175.59,
+        Table::WebSales => 2577.25,
+        Table::WebSite => 286.42,
         // Not a main table; never generated as DAT output
         _ => unreachable!("DAT generation plans are only defined for main TPC-DS tables"),
     }
@@ -252,17 +266,17 @@ fn estimated_dat_bytes_per_source_row(table: Table) -> f64 {
 /// Estimated CSV bytes written per *source* row (see [`TpcdsGenerationPlan`]
 /// for what a source row is).
 ///
-/// Measured like [`estimated_dat_bytes_per_source_row`], from scale factor 10
+/// Measured like [`estimated_dat_bytes_per_source_row`], from scale factor 100
 /// `<table>.csv` files. CSV rows are close to DAT rows in size: they drop
 /// DAT's trailing separator but quote the free text columns.
 fn estimated_csv_bytes_per_source_row(table: Table) -> f64 {
     match table {
-        Table::CallCenter => 334.50,
-        Table::CatalogPage => 140.25,
-        Table::CatalogReturns => 137.59,
-        Table::CatalogSales => 1889.68,
-        Table::Customer => 134.69,
-        Table::CustomerAddress => 109.83,
+        Table::CallCenter => 328.60,
+        Table::CatalogPage => 141.08,
+        Table::CatalogReturns => 141.55,
+        Table::CatalogSales => 1929.53,
+        Table::Customer => 135.70,
+        Table::CustomerAddress => 110.15,
         Table::CustomerDemographics => 40.99,
         Table::DateDim => 140.24,
         // Note: this value is not performance critical as this is a 1 row table
@@ -270,20 +284,20 @@ fn estimated_csv_bytes_per_source_row(table: Table) -> f64 {
         Table::DbgenVersion => 285.00,
         Table::HouseholdDemographics => 20.07,
         Table::IncomeBand => 17.80,
-        Table::Inventory => 19.76,
-        Table::Item => 283.89,
-        Table::Promotion => 125.85,
-        Table::Reason => 36.49,
+        Table::Inventory => 20.60,
+        Table::Item => 287.11,
+        Table::Promotion => 126.22,
+        Table::Reason => 35.31,
         Table::ShipMode => 58.20,
-        Table::Store => 270.27,
-        Table::StoreReturns => 139.79,
-        Table::StoreSales => 1654.22,
+        Table::Store => 267.65,
+        Table::StoreReturns => 143.96,
+        Table::StoreSales => 1694.65,
         Table::TimeDim => 58.12,
-        Table::Warehouse => 137.10,
-        Table::WebPage => 96.69,
-        Table::WebReturns => 168.90,
-        Table::WebSales => 2507.04,
-        Table::WebSite => 301.40,
+        Table::Warehouse => 131.47,
+        Table::WebPage => 96.67,
+        Table::WebReturns => 174.39,
+        Table::WebSales => 2565.25,
+        Table::WebSite => 304.67,
         // Not a main table; never generated as CSV output
         _ => unreachable!("CSV generation plans are only defined for main TPC-DS tables"),
     }
@@ -411,8 +425,8 @@ mod tests {
 
     #[test]
     fn text_chunks_are_sized_from_text_bytes() {
-        // store_sales is ~381 MiB of DAT and ~379 MiB of CSV at SF 1, far
-        // more than its ~132 MiB of uncompressed Parquet.
+        // store_sales is ~391 MiB of DAT and ~388 MiB of CSV at SF 1, far
+        // more than its ~133 MiB of uncompressed Parquet.
         let parquet = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
         for format in [ChunkFormat::Dat, ChunkFormat::Csv] {
             let text = plan_with_format(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES, format);
