@@ -145,6 +145,11 @@ pub(crate) fn generate_scd_history<G: RowGenerator>(
         return Ok(());
     }
     let first_revision = row_number - previous_rows;
+    debug_assert_eq!(
+        previous_rows_needed(first_revision),
+        0,
+        "replay must start on a new business key or generate_row_and_child_rows recurses"
+    );
     generator.skip_rows_until_starting_row_number(first_revision);
     for previous_row_number in first_revision..row_number {
         generator.generate_row_and_child_rows(previous_row_number, session, None, None)?;
