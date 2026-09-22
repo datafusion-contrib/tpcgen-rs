@@ -13,7 +13,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
-use tpcdsgen_arrow::{StoreReturnsArrow, StoreSalesArrow};
+use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
@@ -1058,6 +1058,69 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     assert_eq!(num_row_groups, 3);
     let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
     assert_eq!(store_returns, expected);
+}
+
+/// CSV files are generated using multiple source row ranges. Each chunk comes
+/// from a particular row range, potentially formatted in parallel.
+///
+/// This test ensures that the result of this row range generation is the same
+/// as generating the data in a single pass.
+///
+/// Item is an SCD table, so this also verifies that range boundaries preserve
+/// the previous revision state needed by continuation rows.
+///
+/// DAT is generated from the same rows through the same chunking, so covering
+/// CSV covers both text formats.
+#[test]
+fn test_tpcgen_cli_tpcds_csv_matches_single_pass_generation() {
+    // Item at scale factor 3.2, against the 8 MiB text chunk size:
+    //
+    //   Item rows:                  38,000
+    //   Estimated size:             38,000 * 283.89 = 10,787,820 bytes
+    //   Chunks:                     ceil(10,787,820 / 8,388,608) = 2
+    //   Rows per chunk:             ceil(38,000 / 2) = 19,000
+    //   Second chunk starts at row: 19,001
+    //
+    // `19_001 % 6 == 5` makes that a continuation revision, so it copies from
+    // row 19,000, which its chunk skips. Pin both numbers below: if either
+    // drifts the split can land on a row that starts a new Item, where nothing
+    // is copied and the SCD case silently goes untested.
+    let scale_factor = 3.2;
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // write csv data using CLI
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg(scale_factor.to_string())
+        .arg("--tables")
+        .arg("item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    // regenerate same data directly from arrow generator
+    let expected = read_concatenated_reference(ItemArrow::new(test_session(scale_factor)));
+
+    // CSV data, reparsed with the generated schema
+    let path = temp_dir.path().join("item.csv");
+    // A CSV file records no chunk boundaries, so pin the size that forces the
+    // split above.
+    let written = fs::metadata(&path).expect("item.csv exists").len();
+    assert!(
+        written > 8 * 1024 * 1024,
+        "item must outgrow the 8 MiB chunk size to be generated as several row ranges"
+    );
+    let reader = arrow::csv::ReaderBuilder::new(expected.schema())
+        .with_header(true)
+        .build(File::open(&path).expect("Failed to open item.csv"))
+        .expect("Failed to read item.csv");
+    let item = read_concatenated_reference(reader);
+
+    assert_eq!(item.num_rows(), 38_000);
+    assert_eq!(item, expected);
 }
 
 /// Test that the number of threads does not change the generated files.
