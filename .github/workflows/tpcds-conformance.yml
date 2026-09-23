@@ -77,10 +77,9 @@ jobs:
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh --compat c
 
-    # Scale factor 4 puts the internal chunk boundaries somewhere other than
-    # scale factor 1 does, which is what exposes generators whose output
-    # depends on where a chunk starts. It is regression coverage for #478:
-    # before that fix `item` differed here while scale factor 1 passed.
+    # Scale factor 4 has different internal chunk boundaries  than scale factor
+    # 1, testing different boundary conditions. This is a regression test for
+    # https://github.com/datafusion-contrib/tpcgen-rs/pull/478
     - name: Run conformance tests (Rust --compat c, scale factor 4)
       run: |
         cd tpcgen-cli
