@@ -52,6 +52,7 @@ jobs:
 
     # Only tables with at least 1,000,000 source rows are split, so scale
     # factor 10 is the smallest that exercises a part boundary.
+    # See https://github.com/datafusion-contrib/tpcgen-rs/issues/457
     - name: Run conformance tests (Rust vs Java, SF10, 10 parts)
       run: |
         cd tpcgen-cli

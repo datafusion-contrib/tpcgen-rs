@@ -91,6 +91,7 @@ the data in a single part. You can use the `--parts` option to do this:
 
 Note: only tables with at least 1,000,000 source rows are split, so scale factor
 10 is the smallest that exercises a part boundary.
+See https://github.com/datafusion-contrib/tpcgen-rs/issues/457.
 
 ## Conformance in CI
 
