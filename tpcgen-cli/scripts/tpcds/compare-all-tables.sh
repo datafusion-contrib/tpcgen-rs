@@ -44,19 +44,18 @@ Usage:
 Options:
     --scale N           Scale factor (default: 1).
     --compat trino|c    Reference implementation (default: trino).
-    --parts N           Generate each table as N parts and compare their
-                        concatenation (default: a single file per table).
+    --parts N           Generate each table as N parts (default: single file).
     --full              Byte-for-byte vs. .dat fixtures (slow; diff on
                         mismatch). Default: MD5-only.
     --quiet             Quiet mode (show only summary).
     --help              Show this help message.
 
 Examples:
-    compare-all-tables.sh                  # MD5-only, all tables, scale 1, Trino.
-    compare-all-tables.sh --scale 10       # MD5-only, scale 10, Trino.
-    compare-all-tables.sh --compat c       # MD5-only, scale 1, C dsdgen.
-    compare-all-tables.sh --full           # Byte-for-byte (requires fixtures).
-    compare-all-tables.sh --quiet          # Summary-only output.
+    compare-all-tables.sh                         # MD5-only, all tables, scale 1, Trino.
+    compare-all-tables.sh --scale 10              # MD5-only, scale 10, Trino.
+    compare-all-tables.sh --compat c              # MD5-only, scale 1, C dsdgen.
+    compare-all-tables.sh --full                  # Byte-for-byte (requires fixtures).
+    compare-all-tables.sh --quiet                 # Summary-only output.
     compare-all-tables.sh --scale 10 --parts 10   # Multi-part generation.
 
 Exit codes:

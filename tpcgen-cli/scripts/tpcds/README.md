@@ -87,13 +87,13 @@ Each script is self-documenting — open it and read the header comment for
 full usage, flags, environment variables, output, and exit codes. The
 table below is just a roadmap.
 
-| Script                    | Purpose                                                                                                                         |
-|---------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `bootstrap-trino.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
-| `generate-fixtures.sh`    | Populate `tests/fixtures/tpcds/scale-N-{trino,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
-| `compare-table.sh`        | Compare one table's Rust output against the selected reference. Default: MD5-only against `MD5SUMS`. `--full`: byte-for-byte against the `.dat` fixture (MD5 + diff). `--parts N`: generate in N parts and compare their concatenation. |
-| `compare-all-tables.sh`   | Run the full conformance suite for one compat mode (the main CI entry point). Default: MD5-only. `--full`: byte-for-byte. `--parts` is passed through to `compare-table.sh`. Honors per-mode skip lists at the top of the script. |
-| `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/tpcds/`.                                                                          |
+| Script                    | Purpose                                                                       |
+|---------------------------|-------------------------------------------------------------------------------|
+| `bootstrap-trino.sh`      | Clone and build the Java / Trino reference implementation into `../tpcds/`.   |
+| `generate-fixtures.sh`    | Populate `tests/fixtures/tpcds/scale-N-{trino,c}/` with reference data.       |
+| `compare-table.sh`        | Compare one table's Rust output against the selected reference.               |
+| `compare-all-tables.sh`   | Run the full conformance suite for one compat mode (the main CI entry point). |
+| `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/tpcds/`.                  |
 
 Run any script with `--help` to print its usage block.
 
@@ -122,26 +122,6 @@ Use when an MD5 mismatch needs a row-level diff.
 ./scripts/tpcds/generate-fixtures.sh --compat c         # one-time
 ./scripts/tpcds/compare-all-tables.sh --compat c --full
 ```
-
-### Multi-part generation (`--parts`)
-Checks that splitting a table across parts does not change the data: `--parts
-N` generates `<table>/<table>.<i>.dat` for each part, concatenates them back
-together in part order, and compares the result against the same `MD5SUMS` a
-single-pass run is compared against.
-
-```bash
-# All 24 tables, 10 parts, scale factor 10.
-./scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10
-
-# Or a single table.
-./scripts/tpcds/compare-table.sh store_sales --scale 10 --parts 10
-```
-
-Note `tpcgen-cli` only splits tables with at least 1,000,000 source rows, so at
-a given scale factor most tables land entirely in part 1 and `--parts` is a
-no-op for them. At scale factor 10 the six that really split are `store_sales`,
-`store_returns`, `catalog_sales`, `catalog_returns`, `inventory` and
-`customer_demographics`; the other 18 come out as a single part.
 
 ### Cleanup
 ```bash

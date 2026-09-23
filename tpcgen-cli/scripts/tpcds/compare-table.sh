@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 #
 # compare-table.sh — Compare a single table's Rust output to a reference.
-# Default: MD5-only against MD5SUMS. --full: byte-for-byte (MD5 + diff).
-# --parts N: generate in N parts and compare their concatenation.
 #
 # Please see print_usage() below for details.
 
@@ -28,13 +26,11 @@ Two reference implementations are supported, selected by --compat:
                                (MD5SUMS: tests/fixtures/tpcds/scale-N-c/MD5SUMS;
                                 fixtures: same dir, --full only)
 
-Pass --parts N to generate the table as N parts
-(`<table>/<table>.<i>.dat`, the tpcgen-cli --parts layout) and concatenate
-them back together, in part order, before comparing. The reference is
-unchanged: a correctly split table has to hash the same as one generated in
-a single pass. Note tpcgen-cli only splits tables with at least 1,000,000
-source rows, so smaller tables land entirely in part 1 and --parts is a
-no-op for them.
+To generate the table as in multiple parts:
+    --parts N                  Generate the table as N parts and concatenate
+                               them before comparing. Note tpcgen-cli only splits
+                               TPC-DS tables with at least 1,000,000 source rows,
+                               so smaller tables remain a single part
 
 Usage:
     compare-table.sh TABLE_NAME [OPTIONS]
@@ -45,17 +41,16 @@ Arguments:
 Options:
     --scale N           Scale factor (default: 1).
     --compat trino|c    Reference implementation (default: trino).
-    --parts N           Generate in N parts and compare their concatenation
-                        (default: a single, unpartitioned file).
+    --parts N           Generate in N parts (default: single file).
     --full              Compare byte-for-byte against the full .dat fixture
                         (MD5 + diff). Requires the fixture to exist locally.
     --quiet             Quiet mode (minimal output).
     --help              Show this help message.
 
 Examples:
-    compare-table.sh call_center                  # MD5-only, vs. Trino, scale 1
-    compare-table.sh reason --compat c            # MD5-only, vs. C dsdgen
-    compare-table.sh inventory --scale 10 --full  # byte-for-byte, vs. Trino
+    compare-table.sh call_center                         # MD5-only, vs. Trino, scale 1
+    compare-table.sh reason --compat c                   # MD5-only, vs. C dsdgen
+    compare-table.sh inventory --scale 10 --full         # byte-for-byte, vs. Trino
     compare-table.sh customer_demographics --quiet
     compare-table.sh store_sales --scale 10 --parts 10   # multi-part
 
@@ -196,15 +191,9 @@ generate_rust_table() {
 }
 
 # Concatenate the parts of $table written under $parts_dir into $output_file,
-# in part order.
+# in order.
 #
-# Each part is removed once it has been appended, so the concatenation and the
-# parts it came from never both need full disk. That matters at scale factor
-# 10, where store_sales.dat alone is 3.7 GB.
-#
-# Parts that would hold no rows are not written at all — which is every table
-# under the 1,000,000 source row split threshold, whose rows all land in part
-# 1 — so a missing part is skipped rather than an error.
+# Each part is removed once it has been appended to minimize disk space usage
 concat_parts() {
     local table=$1
     local parts_dir=$2
