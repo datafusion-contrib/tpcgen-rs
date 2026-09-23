@@ -7,7 +7,7 @@ use crate::parquet::parse_column_encoding_pair;
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpcds_cli::dat::Dat;
-use crate::tpch_cli::{Compression, Encoding, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+use crate::tpch_cli::{Compression, Encoding};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
 use std::collections::HashSet;
@@ -104,22 +104,14 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Approximate target row-group size in uncompressed bytes
+    /// Approximate uncompressed size of each row group (e.g. 8000000, 8MB, 512KB)
     ///
-    /// Row groups are the typical unit of parallel processing and compression
-    /// with many query engines. Therefore, smaller row groups enable better
-    /// parallelism and lower peak memory use but may reduce compression
-    /// efficiency.
-    ///
-    /// Note: Parquet files are limited to 32k row groups, so at high scale
-    /// factors, the row group size may be increased to keep the number of row
-    /// groups under this limit.
-    ///
-    /// Typical values range from 10MB to 100MB.
-    /// Accepts raw byte counts and human-readable sizes.
+    /// Smaller row groups improve parallelism and lower peak memory use but
+    /// may reduce compression efficiency. At high scale factors the size may
+    /// be increased so a file stays within Parquet's 32,767 row-group limit.
     #[arg(
         long,
-        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
+        default_value = "7MiB",
         value_parser = parse_row_group_bytes
     )]
     row_group_bytes: i64,
@@ -555,6 +547,21 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parquet_row_group_bytes_default_matches_constant() {
+        let command = Cli::augment_args(clap::Command::new("tpcds"));
+        let matches = command.try_get_matches_from(["tpcds", "parquet"]).unwrap();
+        let cli = <Cli as clap::FromArgMatches>::from_arg_matches(&matches).unwrap();
+        let Some(Commands::Parquet(args)) = cli.command else {
+            panic!("expected parquet command")
+        };
+
+        assert_eq!(
+            args.row_group_bytes,
+            crate::tpch_cli::DEFAULT_PARQUET_ROW_GROUP_BYTES
+        );
+    }
 
     fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
         CommonArgs {

@@ -129,7 +129,7 @@ fn estimated_bytes_per_source_row(table: Table, format: ChunkFormat) -> f64 {
 /// ```shell
 /// cargo run --release --bin tpcgen-cli -- tpcds parquet \
 ///   --scale-factor 100 \
-///   --row-group-bytes 134217728 \
+///   --row-group-bytes 128MiB \
 ///   --output-dir /tmp/tpcds-sf100
 /// cd /tmp/tpcds-sf100
 /// ```

@@ -750,7 +750,7 @@ async fn test_write_parquet_row_group_size_20mb() {
         .arg("--output-dir")
         .arg(output_dir.path())
         .arg("--row-group-bytes")
-        .arg("20000000") // 20 MB
+        .arg("20MB")
         .assert()
         .success();
 

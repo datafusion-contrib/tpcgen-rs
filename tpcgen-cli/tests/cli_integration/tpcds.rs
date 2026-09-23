@@ -1044,7 +1044,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
         .arg("store_sales,store_returns,item")
         // small row groups to force several source row ranges
         .arg("--row-group-bytes")
-        .arg("250000")
+        .arg("250KB")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .assert()
@@ -1091,7 +1091,7 @@ fn test_tpcgen_cli_tpcds_parquet_num_threads_equivalence() {
             .arg("store_sales")
             // small row groups so multiple row groups are encoded in parallel
             .arg("--row-group-bytes")
-            .arg("1000000")
+            .arg("1MB")
             .arg("--num-threads")
             .arg(num_threads)
             .arg("--output-dir")
