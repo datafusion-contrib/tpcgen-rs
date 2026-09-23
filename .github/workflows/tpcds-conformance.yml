@@ -45,14 +45,14 @@ jobs:
       run: |
         cargo build --locked --release -p tpcgen-cli
 
-    - name: Run conformance tests (Rust vs Java)
+    - name: Run conformance tests (Rust vs Java, SF1)
       run: |
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh
 
     # Only tables with at least 1,000,000 source rows are split, so scale
     # factor 10 is the smallest that exercises a part boundary.
-    - name: Run conformance tests (Rust vs Java, 10 parts)
+    - name: Run conformance tests (Rust vs Java, SF10, 10 parts)
       run: |
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10 --quiet
@@ -79,7 +79,7 @@ jobs:
       run: |
         cargo build --locked --release -p tpcgen-cli
 
-    - name: Run conformance tests (Rust --compat c vs C dsdgen)
+    - name: Run conformance tests (Rust vs dsdgen, SF1)
       run: |
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh --compat c
