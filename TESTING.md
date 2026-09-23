@@ -80,6 +80,19 @@ same data as a single pass, `--num-threads 1` and `--num-threads 4` produce
 byte-identical files, and the Arrow schema survives the round trip, including
 types with no exact Parquet equivalent such as `Time32(Second)`.
 
+### Validating multi-part generation
+
+Concatenating `--parts N` output, in part order, must reproduce a single-pass
+run and so still match the reference hash:
+
+```sh
+./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10
+```
+
+Only tables with at least 1,000,000 source rows are split, so scale factor 10
+is the smallest that exercises a part boundary. Six tables split there; the
+rest pass as a single part.
+
 ## Conformance in CI
 
 All the conformance tests described above run on every CI run.

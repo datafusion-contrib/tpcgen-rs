@@ -50,6 +50,13 @@ jobs:
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh
 
+    # Only tables with at least 1,000,000 source rows are split, so scale
+    # factor 10 is the smallest that exercises a part boundary.
+    - name: Run conformance tests (Rust vs Java, 10 parts)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10 --quiet
+
   # Conformance testing against the C dsdgen reference implementation.
   conformance-tests-c:
     name: Conformance Tests (C dsdgen)
