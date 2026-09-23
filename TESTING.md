@@ -82,16 +82,15 @@ types with no exact Parquet equivalent such as `Time32(Second)`.
 
 ### Validating multi-part generation
 
-Concatenating `--parts N` output, in part order, must reproduce a single-pass
-run and so still match the reference hash:
+Concatenating `--parts N` output, in part order, must be the same as generating
+the data in a single part. You can use the `--parts` option to do this:
 
 ```sh
 ./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10
 ```
 
-Only tables with at least 1,000,000 source rows are split, so scale factor 10
-is the smallest that exercises a part boundary. Six tables split there; the
-rest pass as a single part.
+Note: only tables with at least 1,000,000 source rows are split, so scale factor
+10 is the smallest that exercises a part boundary.
 
 ## Conformance in CI
 
