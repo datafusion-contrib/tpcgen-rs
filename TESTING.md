@@ -85,7 +85,9 @@ types with no exact Parquet equivalent such as `Time32(Second)`.
 All the conformance tests described above run on every CI run.
 [`tpch-conformance.yml`](.github/workflows/tpch-conformance.yml) and
 [`tpcds-conformance.yml`](.github/workflows/tpcds-conformance.yml) run the
-MD5-only check on every pull request.
+MD5-only check on every pull request — TPC-DS at scale factor 1 in both compat
+modes, plus scale factor 4 against C, which lands the internal chunk boundaries
+somewhere scale factor 1 does not.
 [`full-conformance.yml`](.github/workflows/full-conformance.yml) rebuilds the
 reference data from the reference implementations themselves and re-checks it
 byte for byte on every merge to main.
@@ -104,9 +106,14 @@ The suites do not cover everything:
   end to end.
 - Parquet is compared against Arrow for `store_sales` and `store_returns` only.
   Other tables rely on the writer path being shared.
-- `MD5SUMS` are committed for `scale-10-trino`, `scale-5-c` and `scale-10-c`, but
-  no workflow currently checks them. CI verifies TPC-DS at scale factor 1
-  (both compat modes) and, in the full pass, scale factor 2 for C.
+- CI verifies TPC-DS at scale factor 1 in both compat modes, scale factor 4
+  against C, and, in the full pass, scale factor 2 for C. `MD5SUMS` are
+  committed for many more scale factors against C (1-10, 50, 100, 200, 500) and
+  for `scale-10-trino`, but nothing checks those automatically; they are there
+  for running a wider sweep by hand.
+- The byte-for-byte `--full` comparison against C only covers the scale factors
+  [alamb/tpcds-data] publishes full `.dat` archives for. Everything else is
+  MD5-only.
 - The reparse tests run in Trino compat mode only, since that is
   `Session::default()`. The `--compat c` corrections are covered at the `.dat`
   level but not through the Arrow, CSV and Parquet paths.

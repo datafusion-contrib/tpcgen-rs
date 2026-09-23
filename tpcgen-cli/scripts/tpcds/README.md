@@ -67,6 +67,12 @@ checked-in `MD5SUMS` is enough; only `--full` needs the actual data,
 which `generate-fixtures.sh --compat c` clones with `--depth 1` and
 extracts into `tests/fixtures/tpcds/scale-N-c/`.
 
+The `scale-N-c/MD5SUMS` files are transcribed from that repository's
+[MD5SUMS.md](https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md), which
+publishes hashes for many more scale factors than it has data branches. So
+scale factors 1 through 10 plus 50, 100, 200 and 500 can all be checked by
+MD5, while `--full` is limited to the few that have a branch.
+
 ```bash
 # Default (MD5-only): no download needed.
 ./scripts/tpcds/compare-all-tables.sh --compat c
