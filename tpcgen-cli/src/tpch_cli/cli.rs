@@ -243,7 +243,7 @@ struct ParquetArgs {
     /// be increased so a file stays within Parquet's 32,767 row-group limit.
     #[arg(
         long,
-        default_value = "7MiB",
+        default_value = "7MiB", // DEFAULT_PARQUET_ROW_GROUP_BYTES
         value_parser = parse_row_group_bytes
     )]
     row_group_bytes: i64,
