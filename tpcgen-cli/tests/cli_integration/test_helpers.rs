@@ -77,7 +77,7 @@ pub(crate) fn expect_column_encoding(path: &Path, column: &str, expected: Encodi
 /// Generate `table` from `benchmark` (`tpch` or `tpcds`) with `subcommand`
 /// (the benchmark's default output format when `None`), once to a file and
 /// once with `--stdout`, and assert the bytes written to stdout are exactly
-/// the bytes of the generated file.
+/// the bytes of the generated file. Also check the reported byte counts.
 pub(crate) fn assert_stdout_matches_file_output(
     benchmark: &str,
     subcommand: Option<&str>,
@@ -91,6 +91,8 @@ pub(crate) fn assert_stdout_matches_file_output(
             command.arg(subcommand);
         }
         command
+            .env("RUST_LOG", "debug")
+            .arg("--no-progress")
             .arg("--scale-factor")
             .arg("0.001")
             .arg("--tables")
@@ -101,7 +103,7 @@ pub(crate) fn assert_stdout_matches_file_output(
     };
 
     let file_dir = tempdir().expect("Failed to create temporary directory");
-    command(file_dir.path()).assert().success();
+    let file_assert = command(file_dir.path()).assert().success().stdout("");
     let expected = fs::read(file_dir.path().join(format!("{table}.{extension}")))
         .expect("Failed to read generated file");
 
@@ -119,4 +121,11 @@ pub(crate) fn assert_stdout_matches_file_output(
         !unused_dir.exists(),
         "Expected --stdout to write no files, but {unused_dir:?} was created"
     );
+
+    for output in [file_assert, assert] {
+        output.stderr(predicates::str::contains(format!(
+            "Wrote {} bytes in ",
+            expected.len()
+        )));
+    }
 }

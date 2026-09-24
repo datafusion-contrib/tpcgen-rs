@@ -19,11 +19,6 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
 
-pub trait IntoSize {
-    /// Convert the object into a size
-    fn into_size(self) -> Result<usize, io::Error>;
-}
-
 pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
     let Some((name, encoding)) = s.split_once('=') else {
         return Err(format!("expected COLUMN=ENCODING, got: '{s}'"));
@@ -103,7 +98,7 @@ pub async fn generate_parquet<W, I>(
     progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
-    W: Write + Send + IntoSize + 'static,
+    W: Write + Send + 'static,
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
 {
@@ -184,8 +179,8 @@ where
             statistics.increment_chunks(1);
             progress.increment(1);
         }
-        let size = writer.into_inner()?.into_size()?;
-        statistics.increment_bytes(size);
+        writer.finish()?;
+        statistics.increment_bytes(writer.bytes_written());
         Ok(()) as Result<(), io::Error>
     });
 
@@ -292,6 +287,34 @@ mod tests {
 
     fn region_source() -> RegionArrow {
         RegionArrow::new(RegionGenerator::default()).with_batch_size(5)
+    }
+
+    #[tokio::test]
+    async fn parquet_flush_failure_is_propagated() {
+        struct FlushFails;
+
+        impl Write for FlushFails {
+            fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+                Ok(buffer.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Err(io::Error::other("flush failed"))
+            }
+        }
+
+        let err = generate_parquet(
+            BufWriter::new(FlushFails),
+            vec![region_source()].into_iter(),
+            1,
+            Compression::UNCOMPRESSED,
+            None,
+            ProgressHandle::new(|_| {}),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("flush failed"), "{err}");
     }
 
     #[tokio::test]
