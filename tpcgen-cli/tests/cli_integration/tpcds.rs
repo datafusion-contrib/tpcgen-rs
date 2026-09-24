@@ -1,6 +1,6 @@
 use super::test_helpers::{
-    assert_overwrites_existing_file, assert_stdout_matches_file_output, expect_column_encoding,
-    expect_row_group_sizes, RowGroups,
+    assert_flags_under_help_heading, assert_overwrites_existing_file,
+    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
 };
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -1757,4 +1757,27 @@ fn test_tpcgen_cli_tpcds_dat_parts_generates_missing_parts() {
     );
     assert_eq!(fs::read(&existing).unwrap(), b"existing output");
     assert!(missing.is_file());
+}
+
+/// Test that format-specific options are grouped under their own help heading.
+#[test]
+fn test_tpcgen_cli_tpcds_help_groups_format_specific_options() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        (
+            "parquet",
+            "Parquet Options",
+            &["--compression", "--row-group-bytes", "--column-encoding"],
+        ),
+        ("csv", "CSV Options", &["--delimiter"]),
+    ];
+    for (format, heading, flags) in cases {
+        for help_flag in ["-h", "--help"] {
+            let assert = cargo_bin_cmd!("tpcgen-cli")
+                .args(["tpcds", format, help_flag])
+                .assert()
+                .success();
+            let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+            assert_flags_under_help_heading(&stdout, heading, flags);
+        }
+    }
 }
