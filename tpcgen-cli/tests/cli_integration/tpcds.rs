@@ -1,5 +1,6 @@
 use super::test_helpers::{
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_flags_under_help_heading, assert_stdout_matches_file_output, expect_column_encoding,
+    expect_row_group_sizes, RowGroups,
 };
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -1067,7 +1068,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
         .arg("store_sales,store_returns,item")
         // small row groups to force several source row ranges
         .arg("--row-group-bytes")
-        .arg("250000")
+        .arg("250KB")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .assert()
@@ -1114,7 +1115,7 @@ fn test_tpcgen_cli_tpcds_parquet_num_threads_equivalence() {
             .arg("store_sales")
             // small row groups so multiple row groups are encoded in parallel
             .arg("--row-group-bytes")
-            .arg("1000000")
+            .arg("1MB")
             .arg("--num-threads")
             .arg(num_threads)
             .arg("--output-dir")
@@ -1706,4 +1707,122 @@ fn test_tpcgen_cli_tpcds_stdout_matches_file_output_csv() {
 #[test]
 fn test_tpcgen_cli_tpcds_stdout_matches_file_output_parquet() {
     assert_stdout_matches_file_output("tpcds", Some("parquet"), "reason", "parquet");
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_dat_no_overwrite() {
+    assert_tpcds_no_overwrite("dat");
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_no_overwrite() {
+    assert_tpcds_no_overwrite("csv");
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_no_overwrite() {
+    assert_tpcds_no_overwrite("parquet");
+}
+
+/// Check that an existing TPC-DS `format` output of the reason table is not
+/// overwritten, and a warning is logged instead.
+fn assert_tpcds_no_overwrite(format: &str) {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let path = temp_dir.path().join(format!("reason.{format}"));
+    fs::write(&path, b"existing output").expect("Failed to seed existing output");
+
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            format,
+            "--scale-factor",
+            "0.001",
+            "--tables",
+            "reason",
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--verbose")
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    let warning = format!("{} already exists, skipping generation", path.display());
+    assert!(
+        stderr.contains(&warning),
+        "Expected {warning:?}, got stderr: {stderr}"
+    );
+    assert!(!stderr.contains("Writing table"), "{stderr}");
+    assert!(!stderr.contains("Generated table"), "{stderr}");
+    assert_eq!(fs::read(&path).unwrap(), b"existing output");
+    let mut inprogress_path = path.into_os_string();
+    inprogress_path.push(".inprogress");
+    assert!(!Path::new(&inprogress_path).exists());
+}
+
+/// Test that with `--parts`, only the parts that already exist are skipped:
+/// the missing parts are still generated into the table's directory.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_generates_missing_parts() {
+    // customer_demographics is large enough (1.9M rows at any scale factor) to
+    // be split into two non-empty parts
+    let table_name = "customer_demographics";
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let parts_dir = temp_dir.path().join(table_name);
+    let existing = parts_dir.join(format!("{table_name}.1.dat"));
+    let missing = parts_dir.join(format!("{table_name}.2.dat"));
+    fs::create_dir_all(&parts_dir).expect("Failed to create parts directory");
+    fs::write(&existing, b"existing output").expect("Failed to seed existing part");
+
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            "dat",
+            "--scale-factor",
+            "0.001",
+            "--tables",
+            table_name,
+        ])
+        .args(["--parts", "2"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    // exactly the existing part is skipped
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    let skipped: Vec<&str> = stderr
+        .lines()
+        .filter(|line| line.contains("already exists, skipping generation"))
+        .collect();
+    assert_eq!(skipped.len(), 1, "Expected one skipped part, got: {stderr}");
+    assert!(
+        skipped[0].contains(&existing.display().to_string()),
+        "Expected {existing:?} to be skipped, got: {stderr}"
+    );
+    assert_eq!(fs::read(&existing).unwrap(), b"existing output");
+    assert!(missing.is_file());
+}
+
+/// Test that format-specific options are grouped under their own help heading.
+#[test]
+fn test_tpcgen_cli_tpcds_help_groups_format_specific_options() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        (
+            "parquet",
+            "Parquet Options",
+            &["--compression", "--row-group-bytes", "--column-encoding"],
+        ),
+        ("csv", "CSV Options", &["--delimiter"]),
+    ];
+    for (format, heading, flags) in cases {
+        for help_flag in ["-h", "--help"] {
+            let assert = cargo_bin_cmd!("tpcgen-cli")
+                .args(["tpcds", format, help_flag])
+                .assert()
+                .success();
+            let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+            assert_flags_under_help_heading(&stdout, heading, flags);
+        }
+    }
 }

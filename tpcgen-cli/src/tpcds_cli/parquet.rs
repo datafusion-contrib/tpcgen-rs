@@ -523,6 +523,11 @@ impl Parquet {
             .map(|encodings| column_encodings_for_table(table, encodings));
 
         let location = output_location_for_table(&self.base_location, table, "parquet", &session)?;
+        if location.skip_existing() {
+            progress.increment(plan.chunk_count() as u64);
+            progress.complete();
+            return Ok(());
+        }
         let part = session.get_chunk_number();
         let parts = session.get_total_chunks();
         let partition = if session.is_partitioned() {

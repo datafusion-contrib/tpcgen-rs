@@ -45,10 +45,18 @@ jobs:
       run: |
         cargo build --locked --release -p tpcgen-cli
 
-    - name: Run conformance tests (Rust vs Java)
+    - name: Run conformance tests (Rust vs Java, SF1)
       run: |
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh
+
+    # Only tables with at least 1,000,000 source rows are split, so scale
+    # factor 10 is the smallest that exercises a part boundary.
+    # See https://github.com/datafusion-contrib/tpcgen-rs/issues/457
+    - name: Run conformance tests (Rust vs Java, SF10, 10 parts)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10 --quiet
 
   # Conformance testing against the C dsdgen reference implementation.
   conformance-tests-c:
@@ -72,7 +80,15 @@ jobs:
       run: |
         cargo build --locked --release -p tpcgen-cli
 
-    - name: Run conformance tests (Rust --compat c vs C dsdgen)
+    - name: Run conformance tests (Rust vs dsdgen, SF1)
       run: |
         cd tpcgen-cli
         ./scripts/tpcds/compare-all-tables.sh --compat c
+
+    # Scale factor 4 has different internal chunk boundaries  than scale factor
+    # 1, testing different boundary conditions. This is a regression test for
+    # https://github.com/datafusion-contrib/tpcgen-rs/pull/478
+    - name: Run conformance tests (Rust --compat c, scale factor 4)
+      run: |
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --compat c --scale 4 --quiet

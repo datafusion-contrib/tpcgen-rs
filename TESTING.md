@@ -27,9 +27,10 @@ checked, directly or transitively, against that text output.
 using [`compare-all-tables.sh`](tpcgen-cli/scripts/tpch/compare-all-tables.sh)
 (TPC-H) and
 [`compare-all-tables.sh`](tpcgen-cli/scripts/tpcds/compare-all-tables.sh)
-(TPC-DS). Comparison is by MD5 of the whole file. The expected hashes live in
-`tpcgen-cli/tests/fixtures/` and are committed to the repo, so the common case
-needs neither a container runtime nor a reference build.
+(TPC-DS).  
+To improve efficiency, precomputed MD5 sums (see [tpcds-data](https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md))
+and stored `tpcgen-cli/tests/fixtures/` https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md 
+to check correctness without needing the (slow) reference implementation.
 
 Please see the comparison scripts for more details:
 
@@ -80,12 +81,25 @@ same data as a single pass, `--num-threads 1` and `--num-threads 4` produce
 byte-identical files, and the Arrow schema survives the round trip, including
 types with no exact Parquet equivalent such as `Time32(Second)`.
 
+### Validating multi-part generation
+
+Concatenating `--parts N` output, in part order, must be the same as generating
+the data in a single part. You can use the `--parts` option to do this:
+
+```sh
+./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10
+```
+
+Note: only tables with at least 1,000,000 source rows are split, so scale factor
+10 is the smallest that exercises a part boundary.
+See https://github.com/datafusion-contrib/tpcgen-rs/issues/457.
+
 ## Conformance in CI
 
 All the conformance tests described above run on every CI run.
 [`tpch-conformance.yml`](.github/workflows/tpch-conformance.yml) and
-[`tpcds-conformance.yml`](.github/workflows/tpcds-conformance.yml) run the
-MD5-only check on every pull request.
+[`tpcds-conformance.yml`](.github/workflows/tpcds-conformance.yml) runs
+MD5-only checks on every pull request.
 [`full-conformance.yml`](.github/workflows/full-conformance.yml) rebuilds the
 reference data from the reference implementations themselves and re-checks it
 byte for byte on every merge to main.
@@ -104,9 +118,8 @@ The suites do not cover everything:
   end to end.
 - Parquet is compared against Arrow for `store_sales` and `store_returns` only.
   Other tables rely on the writer path being shared.
-- `MD5SUMS` are committed for `scale-10-trino`, `scale-5-c` and `scale-10-c`, but
-  no workflow currently checks them. CI verifies TPC-DS at scale factor 1
-  (both compat modes) and, in the full pass, scale factor 2 for C.
+- CI verifies TPC-DS at scale factor 1 in both compat modes, scale factor 4
+  against C, and, in the full pass, scale factor 2 for C. 
 - The reparse tests run in Trino compat mode only, since that is
   `Session::default()`. The `--compat c` corrections are covered at the `.dat`
   level but not through the Arrow, CSV and Parquet paths.

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
 # compare-table.sh — Compare a single table's Rust output to a reference.
-# Default: MD5-only against MD5SUMS. --full: byte-for-byte (MD5 + diff).
 #
 # Please see print_usage() below for details.
 
@@ -27,6 +26,12 @@ Two reference implementations are supported, selected by --compat:
                                (MD5SUMS: tests/fixtures/tpcds/scale-N-c/MD5SUMS;
                                 fixtures: same dir, --full only)
 
+To generate the table as in multiple parts:
+    --parts N                  Generate the table as N parts and concatenate
+                               them before comparing. Note tpcgen-cli only splits
+                               TPC-DS tables with at least 1,000,000 source rows,
+                               so smaller tables remain a single part
+
 Usage:
     compare-table.sh TABLE_NAME [OPTIONS]
 
@@ -36,16 +41,18 @@ Arguments:
 Options:
     --scale N           Scale factor (default: 1).
     --compat trino|c    Reference implementation (default: trino).
+    --parts N           Generate in N parts (default: single file).
     --full              Compare byte-for-byte against the full .dat fixture
                         (MD5 + diff). Requires the fixture to exist locally.
     --quiet             Quiet mode (minimal output).
     --help              Show this help message.
 
 Examples:
-    compare-table.sh call_center                  # MD5-only, vs. Trino, scale 1
-    compare-table.sh reason --compat c            # MD5-only, vs. C dsdgen
-    compare-table.sh inventory --scale 10 --full  # byte-for-byte, vs. Trino
+    compare-table.sh call_center                         # MD5-only, vs. Trino, scale 1
+    compare-table.sh reason --compat c                   # MD5-only, vs. C dsdgen
+    compare-table.sh inventory --scale 10 --full         # byte-for-byte, vs. Trino
     compare-table.sh customer_demographics --quiet
+    compare-table.sh store_sales --scale 10 --parts 10   # multi-part
 
 Exit codes:
     0 - Hashes (or full fixtures, with --full) match.
@@ -72,6 +79,8 @@ SCALE_FACTOR=${TPCDS_SCALE:-1}
 COMPAT=${TPCDS_COMPAT:-trino}
 QUIET=0
 FULL=0
+# Empty means "generate a single, unpartitioned file"
+PARTS=""
 
 # Logging functions
 log_info() {
@@ -142,18 +151,30 @@ generate_rust_table() {
         return 1
     fi
 
+    local args=(tpcds dat --compat "$COMPAT" --tables "$table" --scale-factor "$SCALE_FACTOR")
+    if [[ -n "$PARTS" ]]; then
+        args+=(--parts "$PARTS")
+    fi
+
     log_info "Generating $table with Rust..."
-    log_info "Using binary: $binary tpcds dat --compat $COMPAT --tables $table --scale-factor $SCALE_FACTOR"
+    log_info "Using binary: $binary ${args[*]}"
 
     # Create temp directory for generation
     local temp_dir
     temp_dir=$(mktemp -d)
 
     # Run Rust generator with --compat, --tables, --scale-factor, and --output-dir flags
-    if ! "$binary" tpcds dat --compat "$COMPAT" --tables "$table" --scale-factor "$SCALE_FACTOR" --output-dir "$temp_dir" >/dev/null 2>&1; then
+    if ! "$binary" "${args[@]}" --output-dir "$temp_dir" >/dev/null 2>&1; then
         log_error "Failed to generate $table with Rust"
         rm -rf "$temp_dir"
         return 1
+    fi
+
+    if [[ -n "$PARTS" ]]; then
+        concat_parts "$table" "$temp_dir" "$output_file"
+        local result=$?
+        rm -rf "$temp_dir"
+        return $result
     fi
 
     # Move the generated file
@@ -167,6 +188,35 @@ generate_rust_table() {
         rm -rf "$temp_dir"
         return 1
     fi
+}
+
+# Concatenate the parts of $table written under $parts_dir into $output_file,
+# in order.
+#
+# Each part is removed once it has been appended to minimize disk space usage
+concat_parts() {
+    local table=$1
+    local parts_dir=$2
+    local output_file=$3
+
+    : > "$output_file"
+
+    local found=0 i part
+    for ((i = 1; i <= PARTS; i++)); do
+        part="$parts_dir/$table/$table.$i.dat"
+        [[ -f "$part" ]] || continue
+        cat "$part" >> "$output_file"
+        rm -f "$part"
+        found=$((found + 1))
+    done
+
+    if [[ $found -eq 0 ]]; then
+        log_error "No part files were written under $parts_dir/$table"
+        return 1
+    fi
+
+    log_info "Concatenated $found nonempty part(s) of the $PARTS requested"
+    return 0
 }
 
 # Compute MD5 hash (works on both macOS and Linux)
@@ -291,6 +341,10 @@ main() {
                 COMPAT="$2"
                 shift 2
                 ;;
+            --parts)
+                PARTS="$2"
+                shift 2
+                ;;
             --full)
                 FULL=1
                 shift
@@ -331,6 +385,11 @@ main() {
             ;;
     esac
 
+    if [[ -n "$PARTS" ]] && { ! [[ "$PARTS" =~ ^[0-9]+$ ]] || [[ "$PARTS" -lt 1 ]]; }; then
+        log_error "Invalid --parts value: $PARTS (expected a number greater than zero)"
+        exit 1
+    fi
+
     # Validate table argument
     if [[ -z "$table" ]]; then
         log_error "Table name required"
@@ -339,6 +398,7 @@ main() {
 
     local mode_label="MD5-only"
     [[ $FULL -eq 1 ]] && mode_label="full byte-for-byte"
+    [[ -n "$PARTS" ]] && mode_label="$mode_label, $PARTS parts"
 
     log_info "========================================="
     log_info "Table Comparison: $table ($mode_label)"

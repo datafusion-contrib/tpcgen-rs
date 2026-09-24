@@ -55,7 +55,7 @@ tpchgen-cli -s 10 --output-dir sf10
 # Scale Factor 1000, lineitem table, in Apache Parquet format in sf1000 directory, 
 # 20 part(itions), 100MB row groups
 # (220GB, 20 files, 6B lineitem rows, 3.5 minutes on a modern laptop)
-tpchgen-cli parquet -s 1000 --tables lineitem --parts 20 --row-group-bytes=100000000 --output-dir sf1000
+tpchgen-cli parquet -s 1000 --tables lineitem --parts 20 --row-group-bytes=100MB --output-dir sf1000
 
 # Per-column encodings (overrides Parquet writer defaults for named columns)
 tpchgen-cli parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY

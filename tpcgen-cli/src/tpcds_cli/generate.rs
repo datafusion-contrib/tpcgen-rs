@@ -174,6 +174,11 @@ where
     } = planned;
 
     let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
+    if location.skip_existing() {
+        progress.increment(plan.chunk_count() as u64);
+        progress.complete();
+        return Ok(());
+    }
     let part = session.get_chunk_number();
     let parts = session.get_total_chunks();
     let partition = if session.is_partitioned() {

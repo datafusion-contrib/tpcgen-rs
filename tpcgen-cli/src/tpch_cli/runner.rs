@@ -115,10 +115,9 @@ async fn run_plan(
     num_threads: usize,
     progress: ProgressHandle,
 ) -> io::Result<usize> {
-    if let OutputLocation::File(path) = plan.output_location() {
-        if maybe_skip_existing(path, &plan, &progress) {
-            return Ok(num_threads);
-        }
+    if plan.output_location().skip_existing() {
+        progress.increment(plan.chunk_count() as u64);
+        return Ok(num_threads);
     }
     info!(
         "Writing {plan} using {num_threads} thread{}",
@@ -140,22 +139,6 @@ async fn run_plan(
         plan.output_location()
     );
     Ok(num_threads)
-}
-
-/// If `path` already exists, log a warning, advance progress by the full
-/// output-unit count for this plan, and return `true` so the caller can skip
-/// generation. Returns `false` otherwise.
-fn maybe_skip_existing(
-    path: &std::path::Path,
-    plan: &OutputPlan,
-    progress: &ProgressHandle,
-) -> bool {
-    if !path.exists() {
-        return false;
-    }
-    log::warn!("{} already exists, skipping generation", path.display());
-    progress.increment(plan.chunk_count() as u64);
-    true
 }
 
 /// Writes a CSV/TSV output from the sources
@@ -404,8 +387,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn skip_existing_advances_progress_by_full_plan() {
+    #[tokio::test]
+    async fn skip_existing_advances_progress_by_full_plan() {
         let output_dir = tempfile::tempdir().unwrap();
         let output_path = output_dir.path().join("lineitem.tbl");
         std::fs::write(&output_path, b"already here").unwrap();
@@ -435,7 +418,8 @@ mod tests {
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
         let progress = progress.register(plan.table().name(), expected_units);
 
-        assert!(maybe_skip_existing(&output_path, &plan, &progress));
+        run_plan(plan, 1, progress).await.unwrap();
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);
+        assert_eq!(std::fs::read(&output_path).unwrap(), b"already here");
     }
 }
