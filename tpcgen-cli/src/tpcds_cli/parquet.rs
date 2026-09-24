@@ -4,7 +4,7 @@ use super::generate::output_location_for_table;
 use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::runner::{plan_tables, run_plans, PlannedTable};
 use crate::output_location::OutputLocation;
-use crate::parquet::{format_compression, generate_parquet};
+use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
 use arrow::datatypes::SchemaRef;
@@ -98,8 +98,8 @@ fn column_encodings_for_table(
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
     base_location: OutputLocation,
-    compression: Compression,
-    row_group_bytes: i64,
+    pub(super) compression: Compression,
+    pub(super) row_group_bytes: i64,
     column_encodings: Option<Vec<(String, Encoding)>>,
 }
 
@@ -135,11 +135,6 @@ impl Parquet {
             validate_column_encodings(&selected_tables, encodings)?;
         }
 
-        info!(
-            "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
-            format_compression(self.compression),
-            self.row_group_bytes
-        );
         let work = plan_tables(
             table_sessions,
             self.row_group_bytes,

@@ -160,11 +160,15 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
             && stderr.contains(", parts=1 (all)) to"),
         "Expected TPC-DS startup log with compatibility mode and partition selection, got stderr: {stderr}"
     );
+    let settings =
+        "Parquet settings: compression=ZSTD(1), row-group target=1000000 bytes (uncompressed)";
+    assert_eq!(stderr.matches("Parquet settings:").count(), 1, "{stderr}");
     assert!(
-        stderr.contains(
-            "Parquet settings: compression=ZSTD(1), row-group target=1000000 bytes (uncompressed)"
-        ),
-        "Expected Parquet settings log, got stderr: {stderr}"
+        stderr
+            .lines()
+            .nth(1)
+            .is_some_and(|line| line.ends_with(settings)),
+        "Expected Parquet settings immediately after startup summary, got stderr: {stderr}"
     );
     assert!(
         stderr.contains("Generated table reason (part 1/1) to reason.1.parquet"),
@@ -859,7 +863,7 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
 fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpcgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("csv")
         .arg("--delimiter")
@@ -871,9 +875,19 @@ fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--verbose")
+        .env_remove("RUST_LOG")
         .assert()
-        .success()
-        .stderr(predicates::str::contains("CSV settings: delimiter='\\t'"));
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert_eq!(stderr.matches("CSV settings:").count(), 1, "{stderr}");
+    assert!(
+        stderr
+            .lines()
+            .nth(1)
+            .is_some_and(|line| line.ends_with("CSV settings: delimiter='\\t'")),
+        "Expected CSV settings immediately after startup summary, got stderr: {stderr}"
+    );
 
     let contents =
         fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");

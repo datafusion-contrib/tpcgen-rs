@@ -71,9 +71,55 @@ pub(crate) fn assert_format_options_grouped(
     }
 }
 
+/// Requires an explicit info-logging decision for every format-specific option.
+#[cfg(test)]
+pub(crate) fn assert_format_options_have_logging_policy(
+    commands: clap::Command,
+    common: clap::Command,
+) {
+    use std::collections::BTreeSet;
+
+    let common_ids: BTreeSet<_> = common
+        .get_arguments()
+        .map(|arg| arg.get_id().as_str())
+        .collect();
+
+    for subcommand in commands.get_subcommands() {
+        let name = subcommand.get_name();
+        let (logged, omitted): (&[&str], &[&str]) = match name {
+            "tbl" | "dat" => (&[], &[]),
+            "csv" => (&["delimiter"], &[]),
+            // Per-column overrides are too detailed for the info-level summary.
+            "parquet" => (&["compression", "row_group_bytes"], &["column_encoding"]),
+            other => panic!("add a logging policy for the `{other}` subcommand"),
+        };
+        let expected: BTreeSet<_> = logged.iter().chain(omitted).copied().collect();
+        let actual: BTreeSet<_> = subcommand
+            .get_arguments()
+            .map(|arg| arg.get_id().as_str())
+            .filter(|id| !common_ids.contains(id))
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "`{name}` options changed: decide whether to log each option at info or intentionally omit it"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[should_panic(expected = "decide whether to log each option")]
+    fn format_logging_policy_rejects_new_options() {
+        let commands = clap::Command::new("test").subcommand(
+            clap::Command::new("csv")
+                .arg(clap::Arg::new("delimiter"))
+                .arg(clap::Arg::new("new_option")),
+        );
+        assert_format_options_have_logging_policy(commands, clap::Command::new("common"));
+    }
 
     #[test]
     fn row_group_bytes_parses_and_validates_values() {

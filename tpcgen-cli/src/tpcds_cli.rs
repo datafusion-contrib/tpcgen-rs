@@ -2,7 +2,7 @@
 use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
-use crate::parquet::parse_column_encoding_pair;
+use crate::parquet::{format_compression, parse_column_encoding_pair};
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
@@ -319,6 +319,15 @@ impl CommonArgs {
             self.compat,
             tables.len()
         );
+        match &output_format {
+            OutputFormat::Dat(_) => {}
+            OutputFormat::Csv(output) => info!("CSV settings: delimiter={:?}", output.delimiter),
+            OutputFormat::Parquet(output) => info!(
+                "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
+                format_compression(output.compression),
+                output.row_group_bytes
+            ),
+        }
 
         // Every output generates all of its tables in one call so that
         // multiple tables can be generated concurrently
@@ -591,6 +600,14 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_specific_options_have_logging_policy() {
+        crate::args::assert_format_options_have_logging_policy(
+            Commands::augment_subcommands(clap::Command::new("tpcds")),
+            CommonArgs::augment_args(clap::Command::new("common")),
+        );
+    }
 
     #[test]
     fn format_specific_options_are_grouped_in_help() {
