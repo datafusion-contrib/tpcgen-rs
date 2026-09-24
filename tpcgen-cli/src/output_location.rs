@@ -8,7 +8,11 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum OutputLocation {
     /// Output to a file in the specified directory
-    File(PathBuf),
+    File {
+        path: PathBuf,
+        /// Whether existing files at or under `path` are overwritten
+        overwrite: bool,
+    },
     /// Output to stdout
     Stdout,
 }
@@ -16,11 +20,14 @@ pub enum OutputLocation {
 impl OutputLocation {
     /// Return the location selected on the command line: stdout when
     /// `--stdout` was given, and `output_dir` otherwise.
-    pub fn new(stdout: bool, output_dir: PathBuf) -> Self {
+    pub fn new(stdout: bool, output_dir: PathBuf, overwrite: bool) -> Self {
         if stdout {
             Self::Stdout
         } else {
-            Self::File(output_dir)
+            Self::File {
+                path: output_dir,
+                overwrite,
+            }
         }
     }
 
@@ -29,7 +36,13 @@ impl OutputLocation {
     /// [`Self::Stdout`] has no path to join onto, so it is returned unchanged.
     pub fn join(&self, path: impl AsRef<Path>) -> Self {
         match self {
-            Self::File(base) => Self::File(base.join(path)),
+            Self::File {
+                path: base,
+                overwrite,
+            } => Self::File {
+                path: base.join(path),
+                overwrite: *overwrite,
+            },
             Self::Stdout => Self::Stdout,
         }
     }
@@ -39,7 +52,7 @@ impl OutputLocation {
     ///
     /// Does nothing for [`Self::Stdout`]
     pub fn create_dir_all(&self) -> io::Result<()> {
-        let Self::File(dir) = self else {
+        let Self::File { path: dir, .. } = self else {
             return Ok(());
         };
         std::fs::create_dir_all(dir).map_err(|e| {
@@ -50,14 +63,15 @@ impl OutputLocation {
         })
     }
 
-    /// If this location is a file that already exists, log a warning and
-    /// return `true` so the caller can skip generation. Returns `false`
-    /// otherwise, including for [`Self::Stdout`].
+    /// Return true if generation should be skipped because this location's
+    /// file already exists, and log a warning saying so.
+    ///
+    /// Always false when `overwrite` is set, and for [`Self::Stdout`].
     pub(crate) fn skip_existing(&self) -> bool {
-        let Self::File(path) = self else {
+        let Self::File { path, overwrite } = self else {
             return false;
         };
-        if !path.exists() {
+        if *overwrite || !path.exists() {
             return false;
         }
         log::warn!("{} already exists, skipping generation", path.display());
@@ -68,7 +82,7 @@ impl OutputLocation {
     /// which names no directory.
     pub fn is_empty_dir(&self) -> bool {
         match self {
-            Self::File(path) => path.as_os_str().is_empty(),
+            Self::File { path, .. } => path.as_os_str().is_empty(),
             Self::Stdout => false,
         }
     }
@@ -77,7 +91,7 @@ impl OutputLocation {
 impl Display for OutputLocation {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            OutputLocation::File(path) => {
+            OutputLocation::File { path, .. } => {
                 let Some(file) = path.file_name() else {
                     return write!(f, "{}", path.display());
                 };

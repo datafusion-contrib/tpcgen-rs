@@ -173,6 +173,8 @@ pub struct GeneratorConfig {
     pub part: Option<i32>,
     /// Write output to stdout instead of files
     pub stdout: bool,
+    /// Overwrite output files that already exist
+    pub overwrite: bool,
     /// CSV delimiter character (only applies to CSV format)
     pub csv_delimiter: char,
 }
@@ -191,6 +193,7 @@ impl Default for GeneratorConfig {
             parts: None,
             part: None,
             stdout: false,
+            overwrite: false,
             csv_delimiter: ',',
         }
     }
@@ -270,7 +273,7 @@ impl TpchGenerator {
         let progress_tracker = self.progress_tracker;
 
         // Create output directory if it doesn't exist and we are not writing to stdout
-        let base_location = OutputLocation::new(config.stdout, config.output_dir);
+        let base_location = OutputLocation::new(config.stdout, config.output_dir, config.overwrite);
         base_location.create_dir_all()?;
 
         // Determine which tables to generate
@@ -418,6 +421,12 @@ impl TpchGeneratorBuilder {
     /// Write output to stdout instead of files.
     pub fn with_stdout(mut self, stdout: bool) -> Self {
         self.config.stdout = stdout;
+        self
+    }
+
+    /// Overwrite output files that already exist.
+    pub fn with_overwrite(mut self, overwrite: bool) -> Self {
+        self.config.overwrite = overwrite;
         self
     }
 

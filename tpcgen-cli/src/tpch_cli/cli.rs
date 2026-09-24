@@ -119,6 +119,10 @@ struct CommonArgs {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
+    /// Overwrite output files that already exist.
+    #[arg(long, default_value_t = false)]
+    overwrite: bool,
+
     /// Disable progress bars during data generation.
     ///
     /// Bars are also auto-suppressed by `--quiet`, `--stdout`, or when
@@ -143,7 +147,8 @@ impl CommonArgs {
             .with_output_dir(self.output_dir)
             .with_format(format)
             .with_num_threads(self.num_threads)
-            .with_stdout(self.stdout);
+            .with_stdout(self.stdout)
+            .with_overwrite(self.overwrite);
 
         if let Some(tables) = tables {
             builder = builder.with_tables(tables);
@@ -448,6 +453,7 @@ mod tests {
             verbose: false,
             quiet: false,
             stdout: false,
+            overwrite: false,
             progress_bars_enabled: false,
         }
     }

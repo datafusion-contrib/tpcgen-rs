@@ -144,7 +144,7 @@ where
             let sink = WriterSink::new(io::stdout());
             generate_in_chunks(sink, sources, num_threads, progress).await
         }
-        OutputLocation::File(path) => {
+        OutputLocation::File { path, .. } => {
             if plan.output_location().skip_existing() {
                 progress.increment(plan.chunk_count() as u64);
                 return Ok(());
@@ -184,7 +184,7 @@ where
             )
             .await
         }
-        OutputLocation::File(path) => {
+        OutputLocation::File { path, .. } => {
             if plan.output_location().skip_existing() {
                 progress.increment(plan.chunk_count() as u64);
                 return Ok(());
@@ -404,7 +404,10 @@ mod tests {
             1.0,
             OutputFormat::Tbl,
             ParquetWriterOptions::default(),
-            OutputLocation::File(output_path.clone()),
+            OutputLocation::File {
+                path: output_path.clone(),
+                overwrite: false,
+            },
             generation_plan,
             ',',
         );
