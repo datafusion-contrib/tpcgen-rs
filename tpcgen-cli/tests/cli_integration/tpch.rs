@@ -1,5 +1,6 @@
 use super::test_helpers::{
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_flags_under_help_heading, assert_stdout_matches_file_output, expect_column_encoding,
+    expect_row_group_sizes, RowGroups,
 };
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -1237,4 +1238,27 @@ fn test_tpcgen_cli_tpch_stdout_matches_file_output_csv() {
 #[test]
 fn test_tpcgen_cli_tpch_stdout_matches_file_output_parquet() {
     assert_stdout_matches_file_output("tpch", Some("parquet"), "region", "parquet");
+}
+
+/// Test that format-specific options are grouped under their own help heading.
+#[test]
+fn test_tpcgen_cli_tpch_help_groups_format_specific_options() {
+    let cases: &[(&str, &str, &[&str])] = &[
+        (
+            "parquet",
+            "Parquet Options",
+            &["--compression", "--row-group-bytes", "--column-encoding"],
+        ),
+        ("csv", "CSV Options", &["--delimiter"]),
+    ];
+    for (format, heading, flags) in cases {
+        for help_flag in ["-h", "--help"] {
+            let assert = cargo_bin_cmd!("tpcgen-cli")
+                .args(["tpch", format, help_flag])
+                .assert()
+                .success();
+            let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+            assert_flags_under_help_heading(&stdout, heading, flags);
+        }
+    }
 }

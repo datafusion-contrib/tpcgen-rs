@@ -79,7 +79,7 @@ struct CsvArgs {
     ///
     /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
     /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
-    #[arg(long, default_value = ",", value_parser = parse_delimiter)]
+    #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
     delimiter: char,
 }
 
@@ -101,7 +101,12 @@ struct ParquetArgs {
     ///   ZSTD(1):      1.9G  (0.52 GB/sec)
     ///   SNAPPY:       2.4G  (0.75 GB/sec)
     ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
-    #[arg(short = 'c', long, default_value = "SNAPPY")]
+    #[arg(
+        short = 'c',
+        long,
+        default_value = "SNAPPY",
+        help_heading = "Parquet Options"
+    )]
     compression: Compression,
 
     /// Approximate uncompressed size of each row group (e.g. 8000000, 8MB, 512KB)
@@ -112,7 +117,8 @@ struct ParquetArgs {
     #[arg(
         long,
         default_value = "7MiB", // DEFAULT_PARQUET_ROW_GROUP_BYTES
-        value_parser = parse_row_group_bytes
+        value_parser = parse_row_group_bytes,
+        help_heading = "Parquet Options"
     )]
     row_group_bytes: i64,
 
@@ -130,7 +136,12 @@ struct ParquetArgs {
     /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
     /// dictionary encoding is the writer default and cannot be requested
     /// through this flag, and BIT_PACKED is not supported for writing.
-    #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_parser = parse_column_encoding_pair,
+        help_heading = "Parquet Options"
+    )]
     column_encoding: Option<Vec<(String, Encoding)>>,
 }
 
@@ -547,6 +558,20 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_specific_options_are_grouped_in_help() {
+        crate::args::assert_format_options_grouped(
+            Commands::augment_subcommands(clap::Command::new("tpcds")),
+            CommonArgs::augment_args(clap::Command::new("common")),
+            |format| match format {
+                "dat" => "DAT Options",
+                "csv" => "CSV Options",
+                "parquet" => "Parquet Options",
+                other => panic!("add a help heading for the `{other}` subcommand"),
+            },
+        );
+    }
 
     #[test]
     fn parquet_row_group_bytes_default_matches_constant() {

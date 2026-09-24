@@ -37,6 +37,40 @@ pub(crate) fn parse_row_group_bytes(value: &str) -> Result<i64, String> {
         .ok_or_else(|| "byte value is too large".to_string())
 }
 
+/// Asserts that each format subcommand in `commands` lists its format-specific
+/// options under the heading returned by `heading_for` (e.g. "Parquet Options"),
+/// while options shared via `common` stay under the default heading.
+#[cfg(test)]
+pub(crate) fn assert_format_options_grouped(
+    commands: clap::Command,
+    common: clap::Command,
+    heading_for: impl Fn(&str) -> &'static str,
+) {
+    let common_ids: std::collections::HashSet<_> =
+        common.get_arguments().map(|arg| arg.get_id()).collect();
+
+    for subcommand in commands.get_subcommands() {
+        let name = subcommand.get_name();
+        let expected = heading_for(name);
+        for arg in subcommand.get_arguments() {
+            let id = arg.get_id();
+            let heading = arg.get_help_heading();
+            if common_ids.contains(id) {
+                assert_eq!(
+                    heading, None,
+                    "shared option `{id}` on `{name}` should not have a help heading"
+                );
+            } else {
+                assert_eq!(
+                    heading,
+                    Some(expected),
+                    "`{name}` option `{id}` should set `help_heading = \"{expected}\"`"
+                );
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

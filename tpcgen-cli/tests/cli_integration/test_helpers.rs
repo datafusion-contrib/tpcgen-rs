@@ -129,3 +129,30 @@ pub(crate) fn assert_stdout_matches_file_output(
         )));
     }
 }
+
+/// Assert that `help` lists each of `flags` only under the `heading` section.
+pub fn assert_flags_under_help_heading(help: &str, heading: &str, flags: &[&str]) {
+    let (before, section) = help
+        .split_once(&format!("\n{heading}:\n"))
+        .unwrap_or_else(|| panic!("Expected `{heading}:` heading in help output: {help}"));
+    // The section ends at the next unindented line (another heading).
+    let section = section
+        .match_indices('\n')
+        .find(|(index, _)| {
+            section[index + 1..]
+                .chars()
+                .next()
+                .is_some_and(|c| !c.is_whitespace())
+        })
+        .map_or(section, |(index, _)| &section[..index]);
+    for flag in flags {
+        assert!(
+            section.contains(flag),
+            "Expected {flag} under `{heading}:`, got help output: {help}"
+        );
+        assert!(
+            !before.contains(flag),
+            "Expected {flag} only under `{heading}:`, got help output: {help}"
+        );
+    }
+}
