@@ -449,6 +449,40 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
     );
 }
 
+/// Test that with `--parts`, only the parts that already exist are skipped:
+/// the missing parts are still generated into the table's directory.
+#[test]
+fn test_tpchgen_cli_tbl_parts_generates_missing_parts() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let parts_dir = temp_dir.path().join("part");
+    let existing = parts_dir.join("part.1.tbl");
+    let missing = parts_dir.join("part.2.tbl");
+    fs::create_dir_all(&parts_dir).expect("Failed to create parts directory");
+    fs::write(&existing, b"existing output").expect("Failed to seed existing part");
+
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "--scale-factor", "0.001", "--tables", "part"])
+        .args(["--parts", "2"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    // exactly the existing part is skipped
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    let skipped: Vec<&str> = stderr
+        .lines()
+        .filter(|line| line.contains("already exists, skipping generation"))
+        .collect();
+    assert_eq!(skipped.len(), 1, "Expected one skipped part, got: {stderr}");
+    assert!(
+        skipped[0].contains(&existing.display().to_string()),
+        "Expected {existing:?} to be skipped, got: {stderr}"
+    );
+    assert_eq!(fs::read(&existing).unwrap(), b"existing output");
+    assert!(missing.is_file());
+}
+
 /// Test that --quiet flag suppresses stdout output
 #[test]
 fn test_tpchgen_cli_quiet_flag() {
