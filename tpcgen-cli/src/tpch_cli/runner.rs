@@ -158,7 +158,9 @@ where
             let sink = WriterSink::new(io::stdout());
             generate_in_chunks(sink, sources, num_threads, progress).await
         }
-        OutputLocation::File(path) => generate_file(path, sources, num_threads, progress).await,
+        OutputLocation::File { path, .. } => {
+            generate_file(path, sources, num_threads, progress).await
+        }
     }
 }
 
@@ -192,7 +194,7 @@ where
             )
             .await
         }
-        OutputLocation::File(path) => {
+        OutputLocation::File { path, .. } => {
             // write to a temp file and then rename to avoid partial files
             let temp_path = inprogress_path(path);
             let file = std::fs::File::create(&temp_path).map_err(|err| {
@@ -407,7 +409,10 @@ mod tests {
             1.0,
             OutputFormat::Tbl,
             ParquetWriterOptions::default(),
-            OutputLocation::File(output_path.clone()),
+            OutputLocation::File {
+                path: output_path.clone(),
+                overwrite: false,
+            },
             generation_plan,
             ',',
         );

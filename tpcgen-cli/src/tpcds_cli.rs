@@ -207,6 +207,10 @@ pub struct CommonArgs {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
+    /// Overwrite output files that already exist.
+    #[arg(long, default_value_t = false)]
+    overwrite: bool,
+
     /// Disable progress bars during data generation.
     ///
     /// Bars are also auto-suppressed by `--quiet`, `--stdout`, or when
@@ -351,7 +355,8 @@ impl CommonArgs {
 
     /// Return where the generated tables are written.
     fn base_location(&self) -> Result<OutputLocation> {
-        let base_location = OutputLocation::new(self.stdout, self.output_dir.clone());
+        let base_location =
+            OutputLocation::new(self.stdout, self.output_dir.clone(), self.overwrite);
         if base_location.is_empty_dir() {
             Err(
                 InvalidOptionError::with_message("directory", "", "Directory cannot be empty")
@@ -628,6 +633,7 @@ mod tests {
             verbose: false,
             quiet: false,
             stdout: false,
+            overwrite: false,
             progress_bars_enabled: false,
         }
     }
