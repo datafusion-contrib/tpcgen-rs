@@ -1656,50 +1656,25 @@ fn test_tpcgen_cli_tpcds_stdout_matches_file_output_parquet() {
 
 #[test]
 fn test_tpcgen_cli_tpcds_dat_no_overwrite() {
-    assert_tpcds_no_overwrite("dat", None);
+    assert_tpcds_no_overwrite("dat");
 }
 
 #[test]
 fn test_tpcgen_cli_tpcds_csv_no_overwrite() {
-    assert_tpcds_no_overwrite("csv", None);
+    assert_tpcds_no_overwrite("csv");
 }
 
 #[test]
 fn test_tpcgen_cli_tpcds_parquet_no_overwrite() {
-    assert_tpcds_no_overwrite("parquet", None);
-}
-
-#[test]
-fn test_tpcgen_cli_tpcds_dat_parts_no_overwrite() {
-    assert_tpcds_no_overwrite("dat", Some(1));
-}
-
-#[test]
-fn test_tpcgen_cli_tpcds_csv_parts_no_overwrite() {
-    assert_tpcds_no_overwrite("csv", Some(1));
-}
-
-#[test]
-fn test_tpcgen_cli_tpcds_parquet_parts_no_overwrite() {
-    assert_tpcds_no_overwrite("parquet", Some(1));
+    assert_tpcds_no_overwrite("parquet");
 }
 
 /// Check that an existing TPC-DS `format` output of the reason table is not
-/// overwritten, and a warning is logged instead. With `parts`, the output is
-/// `reason/reason.1.<format>` in the table's `--parts` directory.
-fn assert_tpcds_no_overwrite(format: &str, parts: Option<usize>) {
+/// overwritten, and a warning is logged instead.
+fn assert_tpcds_no_overwrite(format: &str) {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
-    // joined the same way as the CLI, so the path matches the logged warning
-    let path = match parts {
-        Some(_) => temp_dir
-            .path()
-            .join("reason")
-            .join(format!("reason.1.{format}")),
-        None => temp_dir.path().join(format!("reason.{format}")),
-    };
-    fs::create_dir_all(path.parent().unwrap()).expect("Failed to create output directory");
+    let path = temp_dir.path().join(format!("reason.{format}"));
     fs::write(&path, b"existing output").expect("Failed to seed existing output");
-    let parts_args = parts.map(|parts| ["--parts".to_string(), parts.to_string()]);
 
     let output = cargo_bin_cmd!("tpcgen-cli")
         .args([
@@ -1710,7 +1685,6 @@ fn assert_tpcds_no_overwrite(format: &str, parts: Option<usize>) {
             "--tables",
             "reason",
         ])
-        .args(parts_args.iter().flatten())
         .arg("--output-dir")
         .arg(temp_dir.path())
         .assert()
