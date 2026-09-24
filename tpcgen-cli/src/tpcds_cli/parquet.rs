@@ -4,11 +4,12 @@ use super::generate::output_location_for_table;
 use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::runner::{plan_tables, run_plans, PlannedTable};
 use crate::output_location::OutputLocation;
-use crate::parquet::generate_parquet;
+use crate::parquet::{format_compression, generate_parquet};
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
+use log::info;
 use parquet::basic::{Compression, Encoding};
 use std::fs::File;
 use std::io::{self, BufWriter};
@@ -134,6 +135,11 @@ impl Parquet {
             validate_column_encodings(&selected_tables, encodings)?;
         }
 
+        info!(
+            "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
+            format_compression(self.compression),
+            self.row_group_bytes
+        );
         let work = plan_tables(
             table_sessions,
             self.row_group_bytes,
@@ -517,6 +523,20 @@ impl Parquet {
             .map(|encodings| column_encodings_for_table(table, encodings));
 
         let location = output_location_for_table(&self.base_location, table, "parquet", &session)?;
+        let part = session.get_chunk_number();
+        let parts = session.get_total_chunks();
+        let partition = if session.is_partitioned() {
+            format!(" (part {part}/{parts})")
+        } else {
+            String::new()
+        };
+        info!(
+            "Writing table {table} (SF={}, {} chunk{}){partition} to {location} using {num_threads} thread{}",
+            session.get_scaling().get_scale(),
+            plan.chunk_count(),
+            if plan.chunk_count() == 1 { "" } else { "s" },
+            if num_threads == 1 { "" } else { "s" }
+        );
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
@@ -559,6 +579,7 @@ impl Parquet {
         }
         progress.complete();
 
+        info!("Generated table {table}{partition} to {location}");
         Ok(())
     }
 }

@@ -174,7 +174,20 @@ where
     } = planned;
 
     let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
-    info!("Writing {location} using {num_threads} threads");
+    let part = session.get_chunk_number();
+    let parts = session.get_total_chunks();
+    let partition = if session.is_partitioned() {
+        format!(" (part {part}/{parts})")
+    } else {
+        String::new()
+    };
+    info!(
+        "Writing table {table} (SF={}, {} chunk{}){partition} to {location} using {num_threads} thread{}",
+        session.get_scaling().get_scale(),
+        plan.chunk_count(),
+        if plan.chunk_count() == 1 { "" } else { "s" },
+        if num_threads == 1 { "" } else { "s" }
+    );
 
     let source_rows = session.get_scaling().get_row_count(table.source_table());
     let sources = plan.into_iter().map(move |range| RowSource::<F, G> {
@@ -199,7 +212,7 @@ where
     }
     progress.complete();
 
-    info!("Generated {location}");
+    info!("Generated table {table}{partition} to {location}");
     Ok(())
 }
 

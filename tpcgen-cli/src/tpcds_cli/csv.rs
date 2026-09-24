@@ -20,6 +20,7 @@ use crate::progress::ProgressTracker;
 use crate::tpcds_cli::generate::{generate_table, RowFormat};
 use crate::tpcds_cli::plan::ChunkFormat;
 use crate::tpcds_cli::runner::{plan_tables, run_plans};
+use log::info;
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
@@ -65,6 +66,7 @@ impl Csv {
             }
         }
 
+        info!("CSV settings: delimiter={:?}", self.delimiter);
         let work = plan_tables(
             table_sessions,
             self.chunk_size_bytes,

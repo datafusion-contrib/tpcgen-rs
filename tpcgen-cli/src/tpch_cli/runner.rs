@@ -115,16 +115,31 @@ async fn run_plan(
     num_threads: usize,
     progress: ProgressHandle,
 ) -> io::Result<usize> {
-    match plan.table() {
-        Table::Nation => run_nation_plan(plan, num_threads, progress).await,
-        Table::Region => run_region_plan(plan, num_threads, progress).await,
-        Table::Part => run_part_plan(plan, num_threads, progress).await,
-        Table::Supplier => run_supplier_plan(plan, num_threads, progress).await,
-        Table::Partsupp => run_partsupp_plan(plan, num_threads, progress).await,
-        Table::Customer => run_customer_plan(plan, num_threads, progress).await,
-        Table::Orders => run_orders_plan(plan, num_threads, progress).await,
-        Table::Lineitem => run_lineitem_plan(plan, num_threads, progress).await,
+    if let OutputLocation::File(path) = plan.output_location() {
+        if maybe_skip_existing(path, &plan, &progress) {
+            return Ok(num_threads);
+        }
     }
+    info!(
+        "Writing {plan} using {num_threads} thread{}",
+        if num_threads == 1 { "" } else { "s" }
+    );
+    match plan.table() {
+        Table::Nation => run_nation_plan(&plan, num_threads, progress).await,
+        Table::Region => run_region_plan(&plan, num_threads, progress).await,
+        Table::Part => run_part_plan(&plan, num_threads, progress).await,
+        Table::Supplier => run_supplier_plan(&plan, num_threads, progress).await,
+        Table::Partsupp => run_partsupp_plan(&plan, num_threads, progress).await,
+        Table::Customer => run_customer_plan(&plan, num_threads, progress).await,
+        Table::Orders => run_orders_plan(&plan, num_threads, progress).await,
+        Table::Lineitem => run_lineitem_plan(&plan, num_threads, progress).await,
+    }?;
+    info!(
+        "Generated table {} to {}",
+        plan.table(),
+        plan.output_location()
+    );
+    Ok(num_threads)
 }
 
 /// If `path` already exists, log a warning, advance progress by the full
@@ -145,7 +160,7 @@ fn maybe_skip_existing(
 
 /// Writes a CSV/TSV output from the sources
 async fn write_file<I>(
-    plan: OutputPlan,
+    plan: &OutputPlan,
     num_threads: usize,
     sources: I,
     progress: ProgressHandle,
@@ -160,18 +175,13 @@ where
             let sink = WriterSink::new(io::stdout());
             generate_in_chunks(sink, sources, num_threads, progress).await
         }
-        OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
-                return Ok(());
-            }
-            generate_file(path, sources, num_threads, progress).await
-        }
+        OutputLocation::File(path) => generate_file(path, sources, num_threads, progress).await,
     }
 }
 
 /// Generates an output parquet file from the sources
 async fn write_parquet<I>(
-    plan: OutputPlan,
+    plan: &OutputPlan,
     num_threads: usize,
     sources: I,
     progress: ProgressHandle,
@@ -200,9 +210,6 @@ where
             .await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
-                return Ok(());
-            }
             // write to a temp file and then rename to avoid partial files
             let temp_path = inprogress_path(path);
             let file = std::fs::File::create(&temp_path).map_err(|err| {
@@ -240,13 +247,12 @@ where
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(
-            plan: OutputPlan,
+            plan: &OutputPlan,
             num_threads: usize,
             progress: ProgressHandle,
         ) -> io::Result<usize> {
             use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
-            info!("Writing {plan} using {num_threads} threads");
 
             /// These interior functions are used to tell the compiler that the lifetime is 'static
             /// (when these were closures, the compiler could not figure out the lifetime) and
