@@ -127,22 +127,6 @@ async fn run_plan(
     }
 }
 
-/// If `path` already exists, log a warning, advance progress by the full
-/// output-unit count for this plan, and return `true` so the caller can skip
-/// generation. Returns `false` otherwise.
-fn maybe_skip_existing(
-    path: &std::path::Path,
-    plan: &OutputPlan,
-    progress: &ProgressHandle,
-) -> bool {
-    if !path.exists() {
-        return false;
-    }
-    log::warn!("{} already exists, skipping generation", path.display());
-    progress.increment(plan.chunk_count() as u64);
-    true
-}
-
 /// Writes a CSV/TSV output from the sources
 async fn write_file<I>(
     plan: OutputPlan,
@@ -161,7 +145,8 @@ where
             generate_in_chunks(sink, sources, num_threads, progress).await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
+            if plan.output_location().skip_existing() {
+                progress.increment(plan.chunk_count() as u64);
                 return Ok(());
             }
             generate_file(path, sources, num_threads, progress).await
@@ -200,7 +185,8 @@ where
             .await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
+            if plan.output_location().skip_existing() {
+                progress.increment(plan.chunk_count() as u64);
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
@@ -398,8 +384,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn skip_existing_advances_progress_by_full_plan() {
+    #[tokio::test]
+    async fn skip_existing_advances_progress_by_full_plan() {
         let output_dir = tempfile::tempdir().unwrap();
         let output_path = output_dir.path().join("lineitem.tbl");
         std::fs::write(&output_path, b"already here").unwrap();
@@ -429,7 +415,10 @@ mod tests {
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
         let progress = progress.register(plan.table().name(), expected_units);
 
-        assert!(maybe_skip_existing(&output_path, &plan, &progress));
+        write_file(plan, 1, std::iter::empty::<LineItemTblSource>(), progress)
+            .await
+            .unwrap();
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);
+        assert_eq!(std::fs::read(&output_path).unwrap(), b"already here");
     }
 }

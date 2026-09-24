@@ -1653,3 +1653,121 @@ fn test_tpcgen_cli_tpcds_stdout_matches_file_output_csv() {
 fn test_tpcgen_cli_tpcds_stdout_matches_file_output_parquet() {
     assert_stdout_matches_file_output("tpcds", Some("parquet"), "reason", "parquet");
 }
+
+#[test]
+fn test_tpcgen_cli_tpcds_dat_no_overwrite() {
+    assert_tpcds_no_overwrite("dat", None);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_no_overwrite() {
+    assert_tpcds_no_overwrite("csv", None);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_no_overwrite() {
+    assert_tpcds_no_overwrite("parquet", None);
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_no_overwrite() {
+    assert_tpcds_no_overwrite("dat", Some(1));
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_parts_no_overwrite() {
+    assert_tpcds_no_overwrite("csv", Some(1));
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_parts_no_overwrite() {
+    assert_tpcds_no_overwrite("parquet", Some(1));
+}
+
+/// Check that an existing TPC-DS `format` output of the reason table is not
+/// overwritten, and a warning is logged instead. With `parts`, the output is
+/// `reason/reason.1.<format>` in the table's `--parts` directory.
+fn assert_tpcds_no_overwrite(format: &str, parts: Option<usize>) {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    // joined the same way as the CLI, so the path matches the logged warning
+    let path = match parts {
+        Some(_) => temp_dir
+            .path()
+            .join("reason")
+            .join(format!("reason.1.{format}")),
+        None => temp_dir.path().join(format!("reason.{format}")),
+    };
+    fs::create_dir_all(path.parent().unwrap()).expect("Failed to create output directory");
+    fs::write(&path, b"existing output").expect("Failed to seed existing output");
+    let parts_args = parts.map(|parts| ["--parts".to_string(), parts.to_string()]);
+
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            format,
+            "--scale-factor",
+            "0.001",
+            "--tables",
+            "reason",
+        ])
+        .args(parts_args.iter().flatten())
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    let warning = format!("{} already exists, skipping generation", path.display());
+    assert!(
+        stderr.contains(&warning),
+        "Expected {warning:?}, got stderr: {stderr}"
+    );
+    assert_eq!(fs::read(&path).unwrap(), b"existing output");
+    let mut inprogress_path = path.into_os_string();
+    inprogress_path.push(".inprogress");
+    assert!(!Path::new(&inprogress_path).exists());
+}
+
+/// Test that with `--parts`, only the parts that already exist are skipped:
+/// the missing parts are still generated into the table's directory.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_parts_generates_missing_parts() {
+    // customer_demographics is large enough (1.9M rows at any scale factor) to
+    // be split into two non-empty parts
+    let table_name = "customer_demographics";
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let parts_dir = temp_dir.path().join(table_name);
+    let existing = parts_dir.join(format!("{table_name}.1.dat"));
+    let missing = parts_dir.join(format!("{table_name}.2.dat"));
+    fs::create_dir_all(&parts_dir).expect("Failed to create parts directory");
+    fs::write(&existing, b"existing output").expect("Failed to seed existing part");
+
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            "dat",
+            "--scale-factor",
+            "0.001",
+            "--tables",
+            table_name,
+        ])
+        .args(["--parts", "2"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    // exactly the existing part is skipped
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    let skipped: Vec<&str> = stderr
+        .lines()
+        .filter(|line| line.contains("already exists, skipping generation"))
+        .collect();
+    assert_eq!(skipped.len(), 1, "Expected one skipped part, got: {stderr}");
+    assert!(
+        skipped[0].contains(&existing.display().to_string()),
+        "Expected {existing:?} to be skipped, got: {stderr}"
+    );
+    assert_eq!(fs::read(&existing).unwrap(), b"existing output");
+    assert!(missing.is_file());
+}

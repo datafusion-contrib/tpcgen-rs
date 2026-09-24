@@ -50,6 +50,20 @@ impl OutputLocation {
         })
     }
 
+    /// If this location is a file that already exists, log a warning and
+    /// return `true` so the caller can skip generation. Returns `false`
+    /// otherwise, including for [`Self::Stdout`].
+    pub(crate) fn skip_existing(&self) -> bool {
+        let Self::File(path) = self else {
+            return false;
+        };
+        if !path.exists() {
+            return false;
+        }
+        log::warn!("{} already exists, skipping generation", path.display());
+        true
+    }
+
     /// Return true if this location is a path with nothing in it (`-o ""`),
     /// which names no directory.
     pub fn is_empty_dir(&self) -> bool {

@@ -174,6 +174,11 @@ where
     } = planned;
 
     let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
+    if location.skip_existing() {
+        progress.increment(plan.chunk_count() as u64);
+        progress.complete();
+        return Ok(());
+    }
     info!("Writing {location} using {num_threads} threads");
 
     let source_rows = session.get_scaling().get_row_count(table.source_table());
