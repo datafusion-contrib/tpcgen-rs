@@ -1,5 +1,6 @@
 use super::test_helpers::{
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_overwrites_existing_file, assert_stdout_matches_file_output, expect_column_encoding,
+    expect_row_group_sizes, RowGroups,
 };
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -481,6 +482,18 @@ fn test_tpchgen_cli_tbl_parts_generates_missing_parts() {
     );
     assert_eq!(fs::read(&existing).unwrap(), b"existing output");
     assert!(missing.is_file());
+}
+
+/// Test that `--overwrite` regenerates an existing TBL file
+#[test]
+fn test_tpchgen_cli_tbl_overwrite() {
+    assert_overwrites_existing_file("tpch", "tbl", "part");
+}
+
+/// Test that `--overwrite` regenerates an existing Parquet file
+#[test]
+fn test_tpchgen_cli_parquet_overwrite() {
+    assert_overwrites_existing_file("tpch", "parquet", "part");
 }
 
 /// Test that --quiet flag suppresses stdout output

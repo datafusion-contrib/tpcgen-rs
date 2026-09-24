@@ -1,5 +1,6 @@
 use super::test_helpers::{
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_overwrites_existing_file, assert_stdout_matches_file_output, expect_column_encoding,
+    expect_row_group_sizes, RowGroups,
 };
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -1700,6 +1701,18 @@ fn assert_tpcds_no_overwrite(format: &str) {
     let mut inprogress_path = path.into_os_string();
     inprogress_path.push(".inprogress");
     assert!(!Path::new(&inprogress_path).exists());
+}
+
+/// Test that `--overwrite` regenerates an existing DAT file
+#[test]
+fn test_tpcgen_cli_tpcds_dat_overwrite() {
+    assert_overwrites_existing_file("tpcds", "dat", "reason");
+}
+
+/// Test that `--overwrite` regenerates an existing Parquet file
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_overwrite() {
+    assert_overwrites_existing_file("tpcds", "parquet", "reason");
 }
 
 /// Test that with `--parts`, only the parts that already exist are skipped:

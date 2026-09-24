@@ -129,3 +129,54 @@ pub(crate) fn assert_stdout_matches_file_output(
         )));
     }
 }
+
+/// Seed an existing `table` output for `benchmark` (`tpch` or `tpcds`) in
+/// `format`, run with `--overwrite`, and assert the file is overwritten by
+/// exactly the data a fresh run generates, with no skip warning and no
+/// leftover `.inprogress` file.
+pub(crate) fn assert_overwrites_existing_file(benchmark: &str, format: &str, table: &str) {
+    let command = |output_dir: &Path| {
+        let mut command = cargo_bin_cmd!("tpcgen-cli");
+        command
+            .args([
+                benchmark,
+                format,
+                "--scale-factor",
+                "0.001",
+                "--tables",
+                table,
+            ])
+            .arg("--output-dir")
+            .arg(output_dir);
+        command
+    };
+    let file_name = format!("{table}.{format}");
+
+    let expected_dir = tempdir().expect("Failed to create temporary directory");
+    command(expected_dir.path()).assert().success();
+    let expected =
+        fs::read(expected_dir.path().join(&file_name)).expect("Failed to read generated file");
+
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let path = temp_dir.path().join(&file_name);
+    fs::write(&path, b"existing output").expect("Failed to seed existing output");
+
+    let output = command(temp_dir.path())
+        .arg("--overwrite")
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        !stderr.contains("already exists, skipping generation"),
+        "Expected no skip warning with --overwrite, got stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read(&path).unwrap(),
+        expected,
+        "Expected {path:?} to be overwritten with freshly generated output"
+    );
+    let mut inprogress_path = path.into_os_string();
+    inprogress_path.push(".inprogress");
+    assert!(!Path::new(&inprogress_path).exists());
+}

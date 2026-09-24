@@ -539,7 +539,7 @@ impl Parquet {
                 )
                 .await?;
             }
-            OutputLocation::File(path) => {
+            OutputLocation::File { path, .. } => {
                 // write to a temp file and then rename to avoid partial files
                 let temp_path = inprogress_path(path);
                 let file = File::create(&temp_path).map_err(|err| {

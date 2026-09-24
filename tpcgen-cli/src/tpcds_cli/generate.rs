@@ -198,7 +198,7 @@ where
             let sink = WriterSink::new(io::stdout());
             generate_in_chunks(sink, sources, num_threads, progress.clone()).await?;
         }
-        OutputLocation::File(path) => {
+        OutputLocation::File { path, .. } => {
             generate_file(path, sources, num_threads, progress.clone()).await?;
         }
     }
