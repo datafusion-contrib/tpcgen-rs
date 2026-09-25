@@ -8,6 +8,7 @@ use crate::parquet::ParquetOutput;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
+use log::info;
 use parquet::basic::{Compression, Encoding};
 use std::io;
 use std::sync::Arc;
@@ -516,10 +517,23 @@ impl Parquet {
 
         let location = output_location_for_table(&self.base_location, table, "parquet", &session)?;
         let chunk_count = plan.chunk_count() as u64;
+        let scale_factor = session.get_scaling().get_scale();
+        let part = session.get_chunk_number();
+        let parts = session.get_total_chunks();
+        let partition = if session.is_partitioned() {
+            format!(" (part {part}/{parts})")
+        } else {
+            String::new()
+        };
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
+        info!(
+            "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+            if chunk_count == 1 { "" } else { "s" },
+            if num_threads == 1 { "" } else { "s" }
+        );
         let written = location
             .write(ParquetOutput {
                 sources,
@@ -529,12 +543,13 @@ impl Parquet {
                 progress: progress.clone(),
             })
             .await?;
-        if !written {
+        if written {
+            info!("Generated table {table}{partition} to {location}");
+        } else {
             // Skipped, so count all chunks at once
             progress.increment(chunk_count);
         }
         progress.complete();
-
         Ok(())
     }
 }
