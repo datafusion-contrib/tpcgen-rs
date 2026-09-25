@@ -1145,7 +1145,9 @@ fn test_csv_subcommand() {
     );
 }
 
-/// Supported delimiters must round-trip `orders` rows, including hyphenated dates and priorities.
+/// Supported delimiters must round-trip `orders` rows.
+/// Its unquoted `o_orderdate` and `o_orderpriority` fields contain hyphens,
+/// so we check that supported delimiters preserve those values.
 #[test]
 fn test_csv_subcommand_custom_delimiter() {
     super::test_helpers::assert_csv_delimiters_roundtrip(

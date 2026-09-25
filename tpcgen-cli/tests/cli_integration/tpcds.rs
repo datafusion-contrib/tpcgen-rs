@@ -833,7 +833,9 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     );
 }
 
-/// Supported delimiters must round-trip `web_site` rows, including `site_<n>` names.
+/// Supported delimiters must round-trip `web_site` rows.
+/// Its unquoted `web_name` field contains underscores in `site_<n>` names,
+/// so we check that supported delimiters preserve those values.
 #[test]
 fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
     super::test_helpers::assert_csv_delimiters_roundtrip(
