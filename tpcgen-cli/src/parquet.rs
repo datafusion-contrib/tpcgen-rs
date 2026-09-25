@@ -11,18 +11,14 @@ use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAU
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
 use std::io;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
-
-pub trait IntoSize {
-    /// Convert the object into a size
-    fn into_size(self) -> Result<usize, io::Error>;
-}
 
 pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
     let Some((name, encoding)) = s.split_once('=') else {
@@ -103,7 +99,7 @@ pub async fn generate_parquet<W, I>(
     progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
-    W: Write + Send + IntoSize + 'static,
+    W: Write + Send + 'static,
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
 {
@@ -190,8 +186,8 @@ where
             statistics.increment_chunks(1);
             progress.increment(1);
         }
-        let size = writer.into_inner()?.into_size()?;
-        statistics.increment_bytes(size);
+        writer.finish()?;
+        statistics.increment_bytes(writer.bytes_written());
         Ok(()) as Result<(), io::Error>
     });
 
@@ -211,6 +207,38 @@ where
     writer_task.await??;
 
     Ok(())
+}
+
+/// Parquet output generated in parallel, see [`generate_parquet`].
+pub(crate) struct ParquetOutput<'a, I> {
+    /// One reader per row group, in output order
+    pub(crate) sources: I,
+    /// Maximum number of row groups to encode in parallel
+    pub(crate) num_threads: usize,
+    /// Compression for every column
+    pub(crate) compression: Compression,
+    /// Per-column encodings (`--column-encoding`)
+    pub(crate) column_encodings: Option<&'a [(String, Encoding)]>,
+    /// Advanced once per written row group
+    pub(crate) progress: ProgressHandle,
+}
+
+impl<I> WriteOutput for ParquetOutput<'_, I>
+where
+    I: Iterator<Item: RecordBatchReader + Send> + 'static,
+{
+    async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()> {
+        let writer = BufWriter::with_capacity(32 * 1024 * 1024, writer); // 32MB buffer
+        generate_parquet(
+            writer,
+            self.sources,
+            self.num_threads,
+            self.compression,
+            self.column_encodings,
+            self.progress,
+        )
+        .await
+    }
 }
 
 /// Creates the data for a particular row group.
@@ -294,6 +322,34 @@ mod tests {
 
     fn region_source() -> RegionArrow {
         RegionArrow::new(RegionGenerator::default()).with_batch_size(5)
+    }
+
+    #[tokio::test]
+    async fn parquet_flush_failure_is_propagated() {
+        struct FlushFails;
+
+        impl Write for FlushFails {
+            fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+                Ok(buffer.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Err(io::Error::other("flush failed"))
+            }
+        }
+
+        let err = generate_parquet(
+            BufWriter::new(FlushFails),
+            vec![region_source()].into_iter(),
+            1,
+            Compression::UNCOMPRESSED,
+            None,
+            ProgressHandle::new(|_| {}),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("flush failed"), "{err}");
     }
 
     #[tokio::test]

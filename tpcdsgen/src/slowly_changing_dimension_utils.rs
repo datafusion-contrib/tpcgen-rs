@@ -1,4 +1,37 @@
+//! Utilities for slowly changing dimension (SCD) tables.
+//!
+//! An SCD table keeps history. Rather than one row per entity, it holds
+//! several revisions of the same entity, each covering a date range.
+//!
+//! In TPC-DS, `call_center`, `item`, `store`, `web_page` and `web_site` are
+//! SCD tables.
+//!
+//! Revisions follow a six-row cycle. [`compute_scd_key`] maps a source row to
+//! its business key and date range, so six source rows hold three entities:
+//!
+//! ```text
+//! row % 6 = 1          1 revision
+//! row % 6 = 2, 3       1 of 2, 2 of 2 revisions
+//! row % 6 = 4, 5, 0    1 of 3, 2 of 3, 3 of 3 revisions
+//! ```
+//!
+//! The first revision of an entity generates its values. Every later revision
+//! reuses the same business key, and
+//! [`get_value_for_slowly_changing_dimension`] copies forward the fields that
+//! do not change, so each generator keeps the row it generated last.
+//!
+//! Generating a range of source rows fast forwards the random number streams
+//! to the first row of the range. The skipped rows are never generated. A
+//! range that starts on a later revision has no previous revision to copy
+//! from, so `generate_scd_history` replays the earlier ones to restore the
+//! generator state.
+//!
+//! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
+
 use crate::business_key_generator::make_business_key;
+use crate::config::Session;
+use crate::error::Result;
+use crate::row::RowGenerator;
 use crate::table::Table;
 use crate::types::Date;
 
@@ -106,6 +139,57 @@ pub fn compute_scd_key(table: Table, row_number: u64) -> SlowlyChangingDimension
     }
 
     SlowlyChangingDimensionKey::new(business_key, start_date, end_date, is_new_key)
+}
+
+/// Returns how many revisions before `row_number` must be replayed to restore
+/// the generator state.
+///
+/// Counts back to the row that starts the entity. Follows the same
+/// [six-row revision cycle](self) as [`compute_scd_key`].
+fn previous_rows_needed(row_number: u64) -> u64 {
+    assert!(row_number > 0, "row number must be 1-based");
+    match row_number % 6 {
+        1 => 0, // 1 revision, needs no previous rows
+        2 => 0, // 1 of 2 revisions, needs no previous rows
+        3 => 1, // 2 of 2 revisions, needs 1 previous row
+        4 => 0, // 1 of 3 revisions, needs no previous rows
+        5 => 1, // 2 of 3 revisions, needs 1 previous row
+        0 => 2, // 3 of 3 revisions, needs 2 previous rows
+        _ => panic!(
+            "Something's wrong. Positive integers % 6 should always be covered by one of the cases"
+        ),
+    }
+}
+
+/// Restores the generator state for `row_number` by rewinding to where its
+/// entity begins and replaying the revisions up to it, according to the
+/// [six-row revision cycle](self).
+///
+/// [`previous_rows_needed`] calculates how many revisions to restore.
+///
+/// Lets a caller skip to any row and generate from there as if the run had
+/// never been interrupted.
+pub(crate) fn generate_scd_history<G: RowGenerator>(
+    generator: &mut G,
+    row_number: u64,
+    session: &Session,
+) -> Result<()> {
+    let previous_rows = previous_rows_needed(row_number);
+    if previous_rows == 0 {
+        return Ok(());
+    }
+    let first_revision = row_number - previous_rows;
+    debug_assert_eq!(
+        previous_rows_needed(first_revision),
+        0,
+        "replay must start on a new business key or generate_row_and_child_rows recurses"
+    );
+    generator.skip_rows_until_starting_row_number(first_revision);
+    for previous_row_number in first_revision..row_number {
+        generator.generate_row_and_child_rows(previous_row_number, session, None, None)?;
+        generator.consume_remaining_seeds_for_row();
+    }
+    Ok(())
 }
 
 pub fn get_value_for_slowly_changing_dimension<T>(

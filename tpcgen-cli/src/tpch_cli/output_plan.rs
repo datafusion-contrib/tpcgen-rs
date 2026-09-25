@@ -2,6 +2,8 @@
 //! * [`OutputPlan`]: an output file that will be generated
 //! * [`OutputPlanGenerator`]: plans the output files to be generated
 
+pub use crate::output_location::OutputLocation;
+
 use crate::tpch_cli::plan::GenerationPlan;
 use crate::tpch_cli::{OutputFormat, Table};
 use log::debug;
@@ -9,31 +11,6 @@ use parquet::basic::{Compression, Encoding};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::io;
-use std::path::PathBuf;
-
-/// Where a partition will be output
-#[derive(Debug, Clone, PartialEq)]
-pub enum OutputLocation {
-    /// Output to a file
-    File(PathBuf),
-    /// Output to stdout
-    Stdout,
-}
-
-impl Display for OutputLocation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OutputLocation::File(path) => {
-                let Some(file) = path.file_name() else {
-                    return write!(f, "{}", path.display());
-                };
-                // Display the file name only, not the full path
-                write!(f, "{}", file.to_string_lossy())
-            }
-            OutputLocation::Stdout => write!(f, "Stdout"),
-        }
-    }
-}
 
 /// Parquet writer settings applied when generating parquet output.
 #[derive(Debug, Clone, PartialEq)]
@@ -156,14 +133,14 @@ pub struct OutputPlanGenerator {
     scale_factor: f64,
     parquet: ParquetWriterOptions,
     parquet_row_group_bytes: i64,
-    stdout: bool,
-    output_dir: PathBuf,
+    /// Where output is written
+    base_location: OutputLocation,
     csv_delimiter: char,
     /// The generated output plans
     output_plans: Vec<OutputPlan>,
     /// Output directories that have been created so far
     /// (used to avoid creating the same directory multiple times)
-    created_directories: HashSet<PathBuf>,
+    created_directories: HashSet<OutputLocation>,
 }
 
 impl OutputPlanGenerator {
@@ -172,8 +149,7 @@ impl OutputPlanGenerator {
         scale_factor: f64,
         parquet: ParquetWriterOptions,
         parquet_row_group_bytes: i64,
-        stdout: bool,
-        output_dir: PathBuf,
+        base_location: OutputLocation,
         csv_delimiter: char,
     ) -> Self {
         Self {
@@ -181,8 +157,7 @@ impl OutputPlanGenerator {
             scale_factor,
             parquet,
             parquet_row_group_bytes,
-            stdout,
-            output_dir,
+            base_location,
             csv_delimiter,
             output_plans: Vec::new(),
             created_directories: HashSet::new(),
@@ -255,40 +230,25 @@ impl OutputPlanGenerator {
     ///   will be `{output_dir}/{table}/{table}table.{part}.{extension}`
     ///   (e.g. orders/orders.1.tbl, orders/orders.2.tbl, etc.)
     fn output_location(&mut self, table: Table, part: Option<i32>) -> io::Result<OutputLocation> {
-        if self.stdout {
-            Ok(OutputLocation::Stdout)
-        } else {
-            let extension = match self.format {
-                OutputFormat::Tbl => "tbl",
-                OutputFormat::Csv => "csv",
-                OutputFormat::Parquet => "parquet",
-            };
+        let extension = self.format.extension();
 
-            let mut output_path = self.output_dir.clone();
-            if let Some(part) = part {
-                // If a partition is specified, create a subdirectory for it
-                output_path.push(table.to_string());
-                self.ensure_directory_exists(&output_path)?;
-                output_path.push(format!("{table}.{part}.{extension}"));
-            } else {
-                // No partition specified, output to a single file
-                output_path.push(format!("{table}.{extension}"));
-            }
-            Ok(OutputLocation::File(output_path))
-        }
+        let Some(part) = part else {
+            // No partition specified, output to a single file
+            return Ok(self.base_location.join(format!("{table}.{extension}")));
+        };
+
+        // If a partition is specified, create a subdirectory for it
+        let dir = self.base_location.join(table.to_string());
+        self.ensure_directory_exists(&dir)?;
+        Ok(dir.join(format!("{table}.{part}.{extension}")))
     }
 
     /// Ensure the output directory exists, creating it if necessary
-    fn ensure_directory_exists(&mut self, dir: &PathBuf) -> io::Result<()> {
+    fn ensure_directory_exists(&mut self, dir: &OutputLocation) -> io::Result<()> {
         if self.created_directories.contains(dir) {
             return Ok(());
         }
-        std::fs::create_dir_all(dir).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Error creating directory {}: {}", dir.display(), e),
-            )
-        })?;
+        dir.create_dir_all()?;
         self.created_directories.insert(dir.clone());
         Ok(())
     }

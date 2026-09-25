@@ -1,6 +1,7 @@
 use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
+use crate::output_location::OutputLocation;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
 use arrow::datatypes::SchemaRef;
@@ -108,6 +109,17 @@ pub enum OutputFormat {
     Parquet,
 }
 
+impl OutputFormat {
+    /// return the file extension for this output format
+    pub fn extension(&self) -> &'static str {
+        match self {
+            OutputFormat::Tbl => "tbl",
+            OutputFormat::Csv => "csv",
+            OutputFormat::Parquet => "parquet",
+        }
+    }
+}
+
 impl FromStr for OutputFormat {
     type Err = String;
 
@@ -161,6 +173,8 @@ pub struct GeneratorConfig {
     pub part: Option<i32>,
     /// Write output to stdout instead of files
     pub stdout: bool,
+    /// Overwrite output files that already exist
+    pub overwrite: bool,
     /// CSV delimiter character (only applies to CSV format)
     pub csv_delimiter: char,
 }
@@ -179,6 +193,7 @@ impl Default for GeneratorConfig {
             parts: None,
             part: None,
             stdout: false,
+            overwrite: false,
             csv_delimiter: ',',
         }
     }
@@ -208,7 +223,7 @@ pub(super) fn validate_column_encodings(
     encodings: &[(String, Encoding)],
 ) -> io::Result<()> {
     for (col, enc) in encodings {
-        crate::parquet_output::reject_unsupported_encoding(*enc)?;
+        crate::parquet::reject_unsupported_encoding(*enc)?;
         let matches_any_table = tables.iter().any(|table| {
             table_schema(*table)
                 .fields()
@@ -258,9 +273,8 @@ impl TpchGenerator {
         let progress_tracker = self.progress_tracker;
 
         // Create output directory if it doesn't exist and we are not writing to stdout
-        if !config.stdout {
-            std::fs::create_dir_all(&config.output_dir)?;
-        }
+        let base_location = OutputLocation::new(config.stdout, config.output_dir, config.overwrite);
+        base_location.create_dir_all()?;
 
         // Determine which tables to generate
         let tables: Vec<Table> = if let Some(tables) = config.tables {
@@ -295,8 +309,7 @@ impl TpchGenerator {
                 column_encodings: config.parquet_column_encodings,
             },
             config.parquet_row_group_bytes,
-            config.stdout,
-            config.output_dir,
+            base_location,
             config.csv_delimiter,
         );
 
@@ -408,6 +421,12 @@ impl TpchGeneratorBuilder {
     /// Write output to stdout instead of files.
     pub fn with_stdout(mut self, stdout: bool) -> Self {
         self.config.stdout = stdout;
+        self
+    }
+
+    /// Overwrite output files that already exist.
+    pub fn with_overwrite(mut self, overwrite: bool) -> Self {
+        self.config.overwrite = overwrite;
         self
     }
 

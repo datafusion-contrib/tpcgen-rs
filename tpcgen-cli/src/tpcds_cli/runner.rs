@@ -3,7 +3,7 @@
 //! This mirrors [`crate::tpch_cli::runner`], which does the same job for the
 //! TPC-H outputs.
 
-use super::plan::TpcdsGenerationPlan;
+use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::progress::share_handle_across_parts;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::worker_queue::WorkerQueue;
@@ -31,6 +31,7 @@ pub(super) struct PlannedTable {
 pub(super) fn plan_tables(
     table_sessions: Vec<(Table, Session)>,
     chunk_size_bytes: i64,
+    format: ChunkFormat,
     progress: &Arc<dyn ProgressTracker>,
 ) -> Vec<PlannedTable> {
     // Group all sessions that contribute to the same table progress bar.
@@ -50,7 +51,8 @@ pub(super) fn plan_tables(
                 if row_range.is_empty() && session.is_partitioned() {
                     return None;
                 }
-                let plan = TpcdsGenerationPlan::new_for_range(table, chunk_size_bytes, row_range);
+                let plan =
+                    TpcdsGenerationPlan::new_for_range(table, chunk_size_bytes, row_range, format);
                 Some((session, plan))
             })
             .collect();

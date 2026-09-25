@@ -36,7 +36,7 @@ tpcgen-cli/
         ├── bootstrap-trino.sh    # Clone + build the Java TPC-DS impl
         ├── generate-fixtures.sh  # Generate/download reference fixtures
         │                         #   (Java via --compat trino; C via --compat c)
-        ├── compare-table.sh      # Compare one table
+        ├── compare-table.sh      # Compare one table (--parts N for multi-part)
         ├── compare-all-tables.sh # Compare all ported tables
         ├── clean-fixtures.sh     # Clean fixtures
         └── README.md             # This file
@@ -67,6 +67,12 @@ checked-in `MD5SUMS` is enough; only `--full` needs the actual data,
 which `generate-fixtures.sh --compat c` clones with `--depth 1` and
 extracts into `tests/fixtures/tpcds/scale-N-c/`.
 
+The `scale-N-c/MD5SUMS` files are transcribed from that repository's
+[MD5SUMS.md](https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md), which
+publishes hashes for many more scale factors than it has data branches. So
+scale factors 1 through 10 plus 50, 100, 200 and 500 can all be checked by
+MD5, while `--full` is limited to the few that have a branch.
+
 ```bash
 # Default (MD5-only): no download needed.
 ./scripts/tpcds/compare-all-tables.sh --compat c
@@ -87,13 +93,13 @@ Each script is self-documenting — open it and read the header comment for
 full usage, flags, environment variables, output, and exit codes. The
 table below is just a roadmap.
 
-| Script                    | Purpose                                                                                                                         |
-|---------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `bootstrap-trino.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
-| `generate-fixtures.sh`    | Populate `tests/fixtures/tpcds/scale-N-{trino,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
-| `compare-table.sh`        | Compare one table's Rust output against the selected reference. Default: MD5-only against `MD5SUMS`. `--full`: byte-for-byte against the `.dat` fixture (MD5 + diff). |
-| `compare-all-tables.sh`   | Run the full conformance suite for one compat mode (the main CI entry point). Default: MD5-only. `--full`: byte-for-byte. Honors per-mode skip lists at the top of the script. |
-| `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/tpcds/`.                                                                          |
+| Script                    | Purpose                                                                       |
+|---------------------------|-------------------------------------------------------------------------------|
+| `bootstrap-trino.sh`      | Clone and build the Java / Trino reference implementation into `../tpcds/`.   |
+| `generate-fixtures.sh`    | Populate `tests/fixtures/tpcds/scale-N-{trino,c}/` with reference data.       |
+| `compare-table.sh`        | Compare one table's Rust output against the selected reference.               |
+| `compare-all-tables.sh`   | Run the full conformance suite for one compat mode (the main CI entry point). |
+| `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/tpcds/`.                  |
 
 Run any script with `--help` to print its usage block.
 

@@ -1,17 +1,15 @@
 //! TPC-DS Parquet output.
 
-use super::generate::output_path;
-use super::plan::TpcdsGenerationPlan;
+use super::generate::output_location_for_table;
+use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::runner::{plan_tables, run_plans, PlannedTable};
-use crate::parquet_output::generate_parquet;
+use crate::output_location::OutputLocation;
+use crate::parquet::ParquetOutput;
 use crate::progress::{ProgressHandle, ProgressTracker};
-use crate::temp_path::inprogress_path;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::{Compression, Encoding};
-use std::fs::File;
-use std::io::{self, BufWriter};
-use std::path::PathBuf;
+use std::io;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
@@ -21,6 +19,9 @@ use tpcdsgen_arrow::{
     PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
+
+/// Parquet files can have at most 32767 row groups
+pub(super) const MAX_ROW_GROUPS: u64 = 32767;
 
 fn table_schema(table: Table) -> SchemaRef {
     match table {
@@ -61,7 +62,7 @@ fn table_schema(table: Table) -> SchemaRef {
 /// applies it there and skips it elsewhere.
 fn validate_column_encodings(tables: &[Table], encodings: &[(String, Encoding)]) -> io::Result<()> {
     for (col, enc) in encodings {
-        crate::parquet_output::reject_unsupported_encoding(*enc)?;
+        crate::parquet::reject_unsupported_encoding(*enc)?;
         let matches_any_table = tables.iter().any(|table| {
             table_schema(*table)
                 .fields()
@@ -93,26 +94,23 @@ fn column_encodings_for_table(
 /// Parquet output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
-    output_dir: PathBuf,
+    base_location: OutputLocation,
     compression: Compression,
     row_group_bytes: i64,
-    num_threads: usize,
     column_encodings: Option<Vec<(String, Encoding)>>,
 }
 
 impl Parquet {
     pub(super) fn new(
-        output_dir: PathBuf,
+        base_location: OutputLocation,
         compression: Compression,
         row_group_bytes: i64,
-        num_threads: usize,
         column_encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {
         Self {
-            output_dir,
+            base_location,
             compression,
             row_group_bytes,
-            num_threads,
             column_encodings,
         }
     }
@@ -121,6 +119,7 @@ impl Parquet {
     pub(super) async fn generate_tables(
         &self,
         table_sessions: Vec<(Table, Session)>,
+        num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
         // Reject a --column-encoding column that matches no selected table
@@ -133,11 +132,16 @@ impl Parquet {
             validate_column_encodings(&selected_tables, encodings)?;
         }
 
-        let work = plan_tables(table_sessions, self.row_group_bytes, &progress);
+        let work = plan_tables(
+            table_sessions,
+            self.row_group_bytes,
+            ChunkFormat::Parquet,
+            &progress,
+        );
         progress.start();
 
         let this = self.clone();
-        run_plans(work, self.num_threads, move |planned, num_threads| {
+        run_plans(work, num_threads, move |planned, num_threads| {
             let this = this.clone();
             async move { this.generate_table(planned, num_threads).await }
         })
@@ -510,30 +514,25 @@ impl Parquet {
             .as_ref()
             .map(|encodings| column_encodings_for_table(table, encodings));
 
-        let path = output_path(&self.output_dir, table, "parquet", &session)?;
+        let location = output_location_for_table(&self.base_location, table, "parquet", &session)?;
+        let chunk_count = plan.chunk_count() as u64;
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
-        // write to a temp file and then rename to avoid partial files
-        let temp_path = inprogress_path(&path);
-        let file = File::create(&temp_path)
-            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        generate_parquet(
-            writer,
-            sources,
-            num_threads,
-            self.compression,
-            column_encodings.as_deref(),
-            progress.clone(),
-        )
-        .await?;
-        std::fs::rename(&temp_path, &path).map_err(|err| {
-            io::Error::other(format!(
-                "Failed to rename {temp_path:?} to {path:?} file: {err}"
-            ))
-        })?;
+        let written = location
+            .write(ParquetOutput {
+                sources,
+                num_threads,
+                compression: self.compression,
+                column_encodings: column_encodings.as_deref(),
+                progress: progress.clone(),
+            })
+            .await?;
+        if !written {
+            // Skipped, so count all chunks at once
+            progress.increment(chunk_count);
+        }
         progress.complete();
 
         Ok(())

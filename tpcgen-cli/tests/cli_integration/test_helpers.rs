@@ -1,7 +1,10 @@
+use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::basic::Encoding;
 use parquet::file::metadata::ParquetMetaDataReader;
+use std::fs;
 use std::fs::File;
 use std::path::Path;
+use tempfile::tempdir;
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct RowGroups {
@@ -69,4 +72,138 @@ pub(crate) fn expect_column_encoding(path: &Path, column: &str, expected: Encodi
         "column {column} not found in {}",
         path.display()
     );
+}
+
+/// Generate `table` from `benchmark` (`tpch` or `tpcds`) with `subcommand`
+/// (the benchmark's default output format when `None`), once to a file and
+/// once with `--stdout`, and assert the bytes written to stdout are exactly
+/// the bytes of the generated file. Also check the reported byte counts.
+pub(crate) fn assert_stdout_matches_file_output(
+    benchmark: &str,
+    subcommand: Option<&str>,
+    table: &str,
+    extension: &str,
+) {
+    let command = |output_dir: &Path| {
+        let mut command = cargo_bin_cmd!("tpcgen-cli");
+        command.arg(benchmark);
+        if let Some(subcommand) = subcommand {
+            command.arg(subcommand);
+        }
+        command
+            .env("RUST_LOG", "debug")
+            .arg("--no-progress")
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg(table)
+            .arg("--output-dir")
+            .arg(output_dir);
+        command
+    };
+
+    let file_dir = tempdir().expect("Failed to create temporary directory");
+    let file_assert = command(file_dir.path()).assert().success().stdout("");
+    let expected = fs::read(file_dir.path().join(format!("{table}.{extension}")))
+        .expect("Failed to read generated file");
+
+    let stdout_dir = tempdir().expect("Failed to create temporary directory");
+    // run the --stdout version with a directory that doesn't exist
+    let unused_dir = stdout_dir.path().join("unused");
+    let assert = command(&unused_dir).arg("--stdout").assert().success();
+
+    assert_eq!(
+        assert.get_output().stdout,
+        expected,
+        "Expected --stdout output to match the generated {table}.{extension}"
+    );
+    assert!(
+        !unused_dir.exists(),
+        "Expected --stdout to write no files, but {unused_dir:?} was created"
+    );
+
+    for output in [file_assert, assert] {
+        output.stderr(predicates::str::contains(format!(
+            "Wrote {} bytes in ",
+            expected.len()
+        )));
+    }
+}
+
+/// Seed an existing `table` output for `benchmark` (`tpch` or `tpcds`) in
+/// `format`, run with `--overwrite`, and assert the file is overwritten by
+/// exactly the data a fresh run generates, with no skip warning and no
+/// leftover `.inprogress` file.
+pub(crate) fn assert_overwrites_existing_file(benchmark: &str, format: &str, table: &str) {
+    let command = |output_dir: &Path| {
+        let mut command = cargo_bin_cmd!("tpcgen-cli");
+        command
+            .args([
+                benchmark,
+                format,
+                "--scale-factor",
+                "0.001",
+                "--tables",
+                table,
+            ])
+            .arg("--output-dir")
+            .arg(output_dir);
+        command
+    };
+    let file_name = format!("{table}.{format}");
+
+    let expected_dir = tempdir().expect("Failed to create temporary directory");
+    command(expected_dir.path()).assert().success();
+    let expected =
+        fs::read(expected_dir.path().join(&file_name)).expect("Failed to read generated file");
+
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let path = temp_dir.path().join(&file_name);
+    fs::write(&path, b"existing output").expect("Failed to seed existing output");
+
+    let output = command(temp_dir.path())
+        .arg("--overwrite")
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        !stderr.contains("already exists, skipping generation"),
+        "Expected no skip warning with --overwrite, got stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read(&path).unwrap(),
+        expected,
+        "Expected {path:?} to be overwritten with freshly generated output"
+    );
+    let mut inprogress_path = path.into_os_string();
+    inprogress_path.push(".inprogress");
+    assert!(!Path::new(&inprogress_path).exists());
+}
+
+/// Assert that `help` lists each of `flags` only under the `heading` section.
+pub fn assert_flags_under_help_heading(help: &str, heading: &str, flags: &[&str]) {
+    let (before, section) = help
+        .split_once(&format!("\n{heading}:\n"))
+        .unwrap_or_else(|| panic!("Expected `{heading}:` heading in help output: {help}"));
+    // The section ends at the next unindented line (another heading).
+    let section = section
+        .match_indices('\n')
+        .find(|(index, _)| {
+            section[index + 1..]
+                .chars()
+                .next()
+                .is_some_and(|c| !c.is_whitespace())
+        })
+        .map_or(section, |(index, _)| &section[..index]);
+    for flag in flags {
+        assert!(
+            section.contains(flag),
+            "Expected {flag} under `{heading}:`, got help output: {help}"
+        );
+        assert!(
+            !before.contains(flag),
+            "Expected {flag} only under `{heading}:`, got help output: {help}"
+        );
+    }
 }
