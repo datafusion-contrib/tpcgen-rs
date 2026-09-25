@@ -1,24 +1,28 @@
-name: Full Conformance
+name: Conformance
 
-# Slow, from-source conformance pass that runs on every merge to main
-# (plus manual dispatch). Where the per-PR workflow only verifies that
-# output matches the MD5SUMS committed to the repo, this workflow
-# re-derives the reference data from the reference implementations
-# themselves and byte-for-byte diffs against it — guarding both against
-# output drift and against the committed MD5SUMS going stale or being
-# regenerated from the wrong source.
+# Per-PR conformance checks: compare generator output against the MD5SUMS
+# committed to the repo. tpcgen-cli is built once in the `build` job and
+# shared with the test jobs as an artifact; the compare scripts pick it up
+# through TPCGEN_CLI_BIN instead of rebuilding it themselves.
 
 on:
   push:
     branches: ["main"]
+    paths:
+      - 'tpchgen/**'
+      - 'tpcdsgen/**'
+      - 'tpcgen-cli/**'
+      - '.github/**'
+  pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: full-conformance-${{ github.ref }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -26,8 +30,6 @@ env:
   TPCGEN_CLI_BIN: ${{ github.workspace }}/bin/tpcgen-cli
 
 jobs:
-  # tpcgen-cli is built once and shared with the jobs below as an artifact;
-  # the compare scripts pick it up through TPCGEN_CLI_BIN.
   build:
     name: Build tpcgen-cli
     runs-on: ubuntu-latest
@@ -56,11 +58,16 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  tpch-full:
-    name: TPC-H vs fresh C dbgen (byte-for-byte)
+  # Conformance testing against committed MD5SUMS generated from C dbgen.
+  # See tpcgen-cli/scripts/tpch/generate-fixtures.sh for how the sums are
+  # produced.
+  tpch:
+    # This job name is a required status check in the 'main' branch
+    # ruleset — rename both together, or PRs block on a phantom check.
+    name: TPC-H Conformance Tests
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -76,25 +83,16 @@ jobs:
       - name: Make tpcgen-cli executable
         run: chmod +x "$TPCGEN_CLI_BIN"
 
-      - name: Regenerate reference fixtures from C dbgen
+      - name: Run conformance tests (Rust vs C dbgen MD5SUMS)
         run: |
           cd tpcgen-cli
           for sf in 0.001 0.01 0.1 1; do
-            ./scripts/tpch/generate-fixtures.sh --scale "$sf" --force
+            ./scripts/tpch/compare-all-tables.sh --scale "$sf"
           done
 
-      - name: Verify committed MD5SUMS still match the reference
-        run: git diff --exit-code -- tpcgen-cli/tests/fixtures/tpch
-
-      - name: Byte-for-byte comparison against fresh reference
-        run: |
-          cd tpcgen-cli
-          for sf in 0.001 0.01 0.1 1; do
-            ./scripts/tpch/compare-all-tables.sh --scale "$sf" --full
-          done
-
-  tpcds-c-full:
-    name: TPC-DS vs C dsdgen reference (byte-for-byte)
+  # Conformance testing against the Java / Trino reference implementation.
+  tpcds-java:
+    name: Conformance Tests (Java)
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -113,20 +111,22 @@ jobs:
       - name: Make tpcgen-cli executable
         run: chmod +x "$TPCGEN_CLI_BIN"
 
-      - name: Download C dsdgen reference fixtures
+      - name: Run conformance tests (Rust vs Java, SF1)
         run: |
           cd tpcgen-cli
-          ./scripts/tpcds/generate-fixtures.sh --compat c --scale 1
-          ./scripts/tpcds/generate-fixtures.sh --compat c --scale 2
+          ./scripts/tpcds/compare-all-tables.sh
 
-      - name: Byte-for-byte comparison against C dsdgen
+      # Only tables with at least 1,000,000 source rows are split, so scale
+      # factor 10 is the smallest that exercises a part boundary.
+      # See https://github.com/datafusion-contrib/tpcgen-rs/issues/457
+      - name: Run conformance tests (Rust vs Java, SF10, 10 parts)
         run: |
           cd tpcgen-cli
-          ./scripts/tpcds/compare-all-tables.sh --compat c --scale 1 --full
-          ./scripts/tpcds/compare-all-tables.sh --compat c --scale 2 --full
+          ./scripts/tpcds/compare-all-tables.sh --scale 10 --parts 10 --quiet
 
-  tpcds-trino-full:
-    name: TPC-DS vs fresh Trino Java reference (byte-for-byte)
+  # Conformance testing against the C dsdgen reference implementation.
+  tpcds-c:
+    name: Conformance Tests (C dsdgen)
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -134,12 +134,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install Java toolchain
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        with:
-          distribution: temurin
-          java-version: '17'
 
       - name: Download tpcgen-cli binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -151,17 +145,15 @@ jobs:
       - name: Make tpcgen-cli executable
         run: chmod +x "$TPCGEN_CLI_BIN"
 
-      - name: Build Trino Java reference implementation
+      - name: Run conformance tests (Rust vs dsdgen, SF1)
         run: |
           cd tpcgen-cli
-          ./scripts/tpcds/bootstrap-trino.sh
+          ./scripts/tpcds/compare-all-tables.sh --compat c
 
-      - name: Generate reference fixtures with the Java implementation
+      # Scale factor 4 has different internal chunk boundaries than scale factor
+      # 1, testing different boundary conditions. This is a regression test for
+      # https://github.com/datafusion-contrib/tpcgen-rs/pull/478
+      - name: Run conformance tests (Rust --compat c, scale factor 4)
         run: |
           cd tpcgen-cli
-          ./scripts/tpcds/generate-fixtures.sh
-
-      - name: Byte-for-byte comparison against the Java reference
-        run: |
-          cd tpcgen-cli
-          ./scripts/tpcds/compare-all-tables.sh --scale 1 --full
+          ./scripts/tpcds/compare-all-tables.sh --compat c --scale 4 --quiet

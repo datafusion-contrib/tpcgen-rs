@@ -3,15 +3,13 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
+use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::sink::WriterSink;
-use crate::temp_path::inprogress_path;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
-use std::fs::File;
-use std::io;
-use std::path::Path;
+use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinSet;
 
@@ -141,35 +139,32 @@ where
     writer_task.await.expect("writer task panicked")
 }
 
-/// Generate files from an iterator of [`Source`]es into the file at `path`,
-/// using up to `num_threads` threads.
-///
-/// Data is written to a temporary `.inprogress` file that is renamed to `path`
-/// once every chunk has been written, so a partially written file is never
-/// left behind under the final name.
-pub async fn generate_file<I>(
-    path: &Path,
-    sources: I,
-    num_threads: usize,
-    progress: ProgressHandle,
-) -> Result<(), io::Error>
+/// Text output generated in parallel from [`Source`]s, see
+/// [`generate_in_chunks`].
+pub(crate) struct TextOutput<I> {
+    /// The chunks to generate, in output order
+    pub(crate) sources: I,
+    /// Maximum number of chunks to generate in parallel
+    pub(crate) num_threads: usize,
+    /// Advanced once per written chunk
+    pub(crate) progress: ProgressHandle,
+}
+
+impl<I> WriteOutput for TextOutput<I>
 where
-    I: Iterator<Item: Source> + 'static,
+    I: Iterator<Item: Source + 'static>,
 {
-    let temp_path = inprogress_path(path);
-    let file = File::create(&temp_path)
-        .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-    // Since generate_in_chunks already buffers, there is no need to buffer
-    // again (aka don't use BufWriter here)
-    let sink = WriterSink::new(file);
-    generate_in_chunks(sink, sources, num_threads, progress).await?;
-    // rename the temp file to the final path
-    std::fs::rename(&temp_path, path).map_err(|err| {
-        io::Error::other(format!(
-            "Failed to rename {temp_path:?} to {path:?} file: {err}"
-        ))
-    })?;
-    Ok(())
+    async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()> {
+        // Since generate_in_chunks already buffers, there is no need to buffer
+        // again (aka don't use BufWriter here)
+        generate_in_chunks(
+            WriterSink::new(writer),
+            self.sources,
+            self.num_threads,
+            self.progress,
+        )
+        .await
+    }
 }
 
 /// A simple buffer recycler to avoid allocating new buffers for each part

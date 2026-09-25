@@ -1,9 +1,8 @@
 //! Drivers for the TPC-DS row generators, shared by the DAT and CSV outputs.
 
 use super::runner::PlannedTable;
-use crate::generate::{generate_file, generate_in_chunks, Source};
+use crate::generate::{Source, TextOutput};
 use crate::output_location::OutputLocation;
-use crate::sink::WriterSink;
 use log::info;
 use std::io;
 use std::marker::PhantomData;
@@ -174,11 +173,8 @@ where
     } = planned;
 
     let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
-    if location.skip_existing() {
-        progress.increment(plan.chunk_count() as u64);
-        progress.complete();
-        return Ok(());
-    }
+    let chunk_count = plan.chunk_count() as u64;
+    let scale_factor = session.get_scaling().get_scale();
     let part = session.get_chunk_number();
     let parts = session.get_total_chunks();
     let partition = if session.is_partitioned() {
@@ -186,14 +182,6 @@ where
     } else {
         String::new()
     };
-    info!(
-        "Writing table {table} (SF={}, {} chunk{}){partition} to {location} using {num_threads} thread{}",
-        session.get_scaling().get_scale(),
-        plan.chunk_count(),
-        if plan.chunk_count() == 1 { "" } else { "s" },
-        if num_threads == 1 { "" } else { "s" }
-    );
-
     let source_rows = session.get_scaling().get_row_count(table.source_table());
     let sources = plan.into_iter().map(move |range| RowSource::<F, G> {
         format: format.clone(),
@@ -204,20 +192,31 @@ where
         generator: PhantomData,
     });
 
-    match &location {
-        OutputLocation::Stdout => {
-            // Since generate_in_chunks already buffers, there is no need to
-            // buffer again (aka don't use BufWriter here)
-            let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads, progress.clone()).await?;
-        }
-        OutputLocation::File { path, .. } => {
-            generate_file(path, sources, num_threads, progress.clone()).await?;
-        }
+    let written = location
+        .write(
+            TextOutput {
+                sources,
+                num_threads,
+                progress: progress.clone(),
+            },
+            || {
+                info!(
+                    "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+                    if chunk_count == 1 { "" } else { "s" },
+                    if num_threads == 1 { "" } else { "s" }
+                );
+            },
+        )
+        .await?;
+    if !written {
+        // Skipped, so count all chunks at once
+        progress.increment(chunk_count);
     }
     progress.complete();
 
-    info!("Generated table {table}{partition} to {location}");
+    if written {
+        info!("Generated table {table}{partition} to {location}");
+    }
     Ok(())
 }
 
