@@ -16,9 +16,9 @@ version = "3.0.0"
 [workspace.dependencies]
 arrow = { version = "60", default-features = false, features = ["prettyprint"] }
 parquet = "60"
-# `tpchgen-arrow` and `tpcdsgen-arrow` also build against arrow 59 when their
-# `arrow_59` feature is enabled; the selected version is aliased to `arrow` in
-# each crate root.
+# `tpchgen-arrow` and `tpcdsgen-arrow` build against arrow 60 (`arrow_60`,
+# default) or arrow 59 (`arrow_59`); the selected version is aliased to `arrow`
+# in each crate root.
 arrow_59 = { package = "arrow", version = "59", default-features = false, features = ["prettyprint"] }
 arrow_60 = { package = "arrow", version = "60", default-features = false, features = ["prettyprint"] }
 arrow_csv_59 = { package = "arrow-csv", version = "59" }

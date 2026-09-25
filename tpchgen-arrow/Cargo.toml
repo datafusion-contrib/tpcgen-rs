@@ -10,11 +10,15 @@ license = "Apache-2.0"
 
 [dependencies]
 arrow_59 = { workspace = true, optional = true }
-arrow_60 = { workspace = true }
+arrow_60 = { workspace = true, optional = true }
 tpchgen = { path = "../tpchgen", version = "3.0.0" }
 
 [features]
-# Build against arrow 59 instead of the default arrow 60.
+default = ["arrow_60"]
+# Build against arrow 60 (the default).
+arrow_60 = ["dep:arrow_60"]
+# Build against arrow 59. Also disable default features so arrow 60 is not
+# compiled as well.
 arrow_59 = ["dep:arrow_59"]
 
 [dev-dependencies]

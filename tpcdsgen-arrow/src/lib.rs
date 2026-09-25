@@ -17,7 +17,9 @@
 //!
 //! # Feature Flags
 //!
-//! * `arrow_59` - build against [Arrow 59.x] instead of [Arrow 60.x] (the default)
+//! * `arrow_60` - build against [Arrow 60.x] (default)
+//! * `arrow_59` - build against [Arrow 59.x]. Use with `default-features = false`
+//!   so that arrow 60 is not compiled as well.
 //!
 //! Note that the arrow dependency is re-exported as [`arrow`] so downstream
 //! crates can use it without an explicit dependence.
@@ -29,8 +31,10 @@
 // Alias the selected arrow version as `arrow`.
 #[cfg(feature = "arrow_59")]
 pub extern crate arrow_59 as arrow;
-#[cfg(not(feature = "arrow_59"))]
+#[cfg(all(feature = "arrow_60", not(feature = "arrow_59")))]
 pub extern crate arrow_60 as arrow;
+#[cfg(not(any(feature = "arrow_59", feature = "arrow_60")))]
+compile_error!("one of the `arrow_60` (default) or `arrow_59` features must be enabled");
 
 pub mod conversions;
 mod tables;
