@@ -121,7 +121,7 @@ where
         ArrowSchemaConverter::new()
             .with_coerce_types(DEFAULT_COERCE_TYPES)
             .convert(&schema)
-            .unwrap(),
+            .map_err(io::Error::other)?,
     );
 
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
@@ -174,15 +174,15 @@ where
     let writer_task = tokio::task::spawn_blocking(move || {
         while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
-            let mut row_group_writer = writer.next_row_group().unwrap();
+            let mut row_group_writer = writer.next_row_group().map_err(io::Error::other)?;
 
             // Slap the chunks into the row group
             for column_chunk in column_chunks {
                 column_chunk
                     .append_to_row_group(&mut row_group_writer)
-                    .unwrap();
+                    .map_err(io::Error::other)?;
             }
-            row_group_writer.close().unwrap();
+            row_group_writer.close().map_err(io::Error::other)?;
             statistics.increment_chunks(1);
             progress.increment(1);
         }
