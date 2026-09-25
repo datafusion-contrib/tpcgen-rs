@@ -1,3 +1,4 @@
+use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::basic::Encoding;
 use parquet::file::metadata::ParquetMetaDataReader;
@@ -11,6 +12,55 @@ pub(crate) struct RowGroups {
     pub(crate) table: &'static str,
     /// total bytes in each row group
     pub(crate) row_group_bytes: Vec<i64>,
+}
+
+/// Check tab-delimited CSV headers and values against Arrow output.
+/// Other accepted delimiter spellings are covered by the parser unit test.
+pub(crate) fn assert_tab_delimited_csv_roundtrip(
+    benchmark: &str,
+    table: &str,
+    scale_factor: &str,
+    expected: impl RecordBatchReader,
+) {
+    let schema = expected.schema();
+    let expected = expected.collect::<Result<Vec<_>, _>>().unwrap();
+    let expected = arrow::compute::concat_batches(&schema, &expected).unwrap();
+    assert!(expected.num_rows() > 0);
+
+    // Pass "\\t" to test CLI escape decoding; the CSV reader uses the literal tab byte.
+    let arg = "\\t";
+    let delimiter = b'\t';
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            benchmark,
+            "csv",
+            "--delimiter",
+            arg,
+            "-s",
+            scale_factor,
+            "-T",
+            table,
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents = fs::read(temp_dir.path().join(format!("{table}.csv"))).unwrap();
+    let actual = arrow::csv::ReaderBuilder::new(schema.clone())
+        .with_header(true)
+        .with_header_validation(true)
+        .with_delimiter(delimiter)
+        .build(contents.as_slice())
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        arrow::compute::concat_batches(&schema, &actual).unwrap(),
+        expected,
+        "{benchmark} {table}"
+    );
 }
 
 /// For each table in tables, check that the parquet file in output_dir has

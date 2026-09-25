@@ -1,5 +1,5 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
-use crate::args::parse_row_group_bytes;
+use crate::args::{parse_delimiter, parse_row_group_bytes};
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
 use crate::parquet::parse_column_encoding_pair;
@@ -89,8 +89,7 @@ struct CsvArgs {
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
-    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
-    /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
+    /// Supported delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon).
     #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
     delimiter: char,
 }
@@ -568,32 +567,6 @@ fn expected_table_names() -> String {
         .map(Table::get_name)
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
-    let parsed = match s {
-        "\\t" => '\t',
-        "\\n" => '\n',
-        "\\r" => '\r',
-        "\\\\" => '\\',
-        _ => {
-            let chars: Vec<char> = s.chars().collect();
-            if chars.len() != 1 {
-                return Err(format!(
-                    "Delimiter must be a single character or escape sequence (\\t, \\n, \\r, \\\\), got: '{}'",
-                    s
-                ));
-            }
-            chars[0]
-        }
-    };
-    if !parsed.is_ascii() {
-        return Err(format!(
-            "Delimiter must be an ASCII character, got: '{}'",
-            parsed
-        ));
-    }
-    Ok(parsed)
 }
 
 #[cfg(test)]

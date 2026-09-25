@@ -1,5 +1,5 @@
 use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
-use crate::args::parse_row_group_bytes;
+use crate::args::{parse_delimiter, parse_row_group_bytes};
 use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
@@ -214,8 +214,7 @@ struct CsvArgs {
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
-    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
-    /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
+    /// Supported delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon).
     #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
     delimiter: char,
 }
@@ -280,38 +279,6 @@ struct ParquetArgs {
         help_heading = "Parquet Options"
     )]
     column_encoding: Option<Vec<(String, Encoding)>>,
-}
-
-/// Parse a delimiter string, handling escape sequences.
-///
-/// The underlying arrow-csv writer requires an ASCII byte for the delimiter,
-/// so non-ASCII characters are rejected here rather than failing mid-generation.
-fn parse_delimiter(s: &str) -> Result<char, String> {
-    // Handle common escape sequences
-    let parsed = match s {
-        "\\t" => '\t',
-        "\\n" => '\n',
-        "\\r" => '\r',
-        "\\\\" => '\\',
-        _ => {
-            // If it's not an escape sequence, it should be a single character
-            let chars: Vec<char> = s.chars().collect();
-            if chars.len() != 1 {
-                return Err(format!(
-                    "Delimiter must be a single character or escape sequence (\\t, \\n, \\r, \\\\), got: '{}'",
-                    s
-                ));
-            }
-            chars[0]
-        }
-    };
-    if !parsed.is_ascii() {
-        return Err(format!(
-            "Delimiter must be an ASCII character, got: '{}'",
-            parsed
-        ));
-    }
-    Ok(parsed)
 }
 
 // TableValueParser is CLI-specific and uses the Table type from the library
