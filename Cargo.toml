@@ -14,16 +14,15 @@ repository = "https://github.com/datafusion-contrib/tpcgen-rs"
 version = "3.0.0"
 
 [workspace.dependencies]
-# Two versions of arrow/parquet are supported: 60 by default, and 59 when the
-# `arrow_59` feature is enabled.
-#
-# the selected one is aliased to `arrow` / `parquet` in each crate root. See README.md.
+arrow = { version = "60", default-features = false, features = ["prettyprint"] }
+parquet = "60"
+# `tpchgen-arrow` and `tpcdsgen-arrow` also build against arrow 59 when their
+# `arrow_59` feature is enabled; the selected version is aliased to `arrow` in
+# each crate root.
 arrow_59 = { package = "arrow", version = "59", default-features = false, features = ["prettyprint"] }
 arrow_60 = { package = "arrow", version = "60", default-features = false, features = ["prettyprint"] }
 arrow_csv_59 = { package = "arrow-csv", version = "59" }
 arrow_csv_60 = { package = "arrow-csv", version = "60" }
-parquet_59 = { package = "parquet", version = "59" }
-parquet_60 = { package = "parquet", version = "60" }
 
 [profile.release]
 codegen-units = 1

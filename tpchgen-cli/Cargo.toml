@@ -22,8 +22,6 @@ tokio = { version = "1.44.1", features = ["full"] }
 default = ["indicatif-progress"]
 # Enable the default CLI terminal progress bars backed by `indicatif`.
 indicatif-progress = ["tpcgen-cli/indicatif-progress"]
-# Build against arrow/parquet 59 instead of the default arrow/parquet 60.
-arrow_59 = ["tpcgen-cli/arrow_59"]
 
 [dev-dependencies]
 assert_cmd = "2.0"

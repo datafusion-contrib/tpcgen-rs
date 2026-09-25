@@ -1,14 +1,3 @@
-// See the `tpcgen_cli` crate documentation for the `arrow_59` feature flag; the
-// selected versions are aliased back to `arrow` and `parquet` here.
-#[cfg(feature = "arrow_59")]
-extern crate arrow_59 as arrow;
-#[cfg(not(feature = "arrow_59"))]
-extern crate arrow_60 as arrow;
-#[cfg(feature = "arrow_59")]
-extern crate parquet_59 as parquet;
-#[cfg(not(feature = "arrow_59"))]
-extern crate parquet_60 as parquet;
-
 use assert_cmd::cargo::cargo_bin_cmd;
 
 #[path = "cli_integration/test_helpers.rs"]

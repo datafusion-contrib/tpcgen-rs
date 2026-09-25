@@ -18,16 +18,14 @@ name = "tpcgen-cli"
 path = "bin/tpcgen_cli.rs"
 
 [dependencies]
-arrow_59 = { workspace = true, optional = true }
-arrow_60 = { workspace = true }
+arrow = { workspace = true }
 clap = { version = "4.5.32", features = ["derive"] }
 env_logger = "0.11.7"
 futures = "0.3.31"
 indicatif = { version = "0.18.3", optional = true }
 log = "0.4.26"
 num_cpus = "1.0"
-parquet_59 = { workspace = true, optional = true }
-parquet_60 = { workspace = true }
+parquet = { workspace = true }
 tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
 tpcdsgen-arrow = { path = "../tpcdsgen-arrow", version = "0.1.0" }
 tokio = { version = "1.44.1", features = ["full"] }
@@ -38,13 +36,6 @@ tpchgen-arrow = { path = "../tpchgen-arrow", version = "3.0.0" }
 default = ["indicatif-progress"]
 # Enable the default CLI terminal progress bars backed by `indicatif`.
 indicatif-progress = ["dep:indicatif"]
-# Build against arrow/parquet 59 instead of the default arrow/parquet 60.
-arrow_59 = [
-  "dep:arrow_59",
-  "dep:parquet_59",
-  "tpchgen-arrow/arrow_59",
-  "tpcdsgen-arrow/arrow_59",
-]
 
 [dev-dependencies]
 assert_cmd = "2.0"
