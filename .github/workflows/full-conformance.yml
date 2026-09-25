@@ -40,8 +40,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          # Shared by the tpcgen-cli release builds in conformance.yml and
-          # full-conformance.yml.
+          # Saved on main and restored by conformance.yml's build job.
           shared-key: tpcgen-cli-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
@@ -80,8 +79,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          # Shared by the tpcgen-cli release builds in conformance.yml and
-          # full-conformance.yml.
+          # Saved on main and restored by conformance.yml's build job.
           shared-key: tpcgen-cli-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
@@ -121,8 +119,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          # Shared by the tpcgen-cli release builds in conformance.yml and
-          # full-conformance.yml.
+          # Saved on main and restored by conformance.yml's build job.
           shared-key: tpcgen-cli-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
