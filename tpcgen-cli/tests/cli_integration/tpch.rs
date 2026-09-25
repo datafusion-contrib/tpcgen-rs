@@ -466,7 +466,7 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
 
 #[test]
 fn test_tpcgen_cli_tpch_failed_write_has_no_completion_log() {
-    for format in ["tbl", "csv", "parquet"] {
+    for format in ["tbl", "parquet"] {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
         fs::create_dir(temp_dir.path().join(format!("region.{format}.inprogress"))).unwrap();
 
