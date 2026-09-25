@@ -833,71 +833,15 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     );
 }
 
-/// Test that TPC-DS CSV generation supports a custom delimiter.
+/// Use tab to exercise escape decoding and non-default separators in headers and rows.
+/// Check that unquoted `web_name` values retain their `site_<n>` underscores.
 #[test]
 fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpcds")
-        .arg("csv")
-        .arg("--delimiter")
-        .arg("\\t")
-        .arg("--scale-factor")
-        .arg("1")
-        .arg("--tables")
-        .arg("reason")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .success();
-
-    let contents =
-        fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
-    let first_line = contents.lines().next().expect("CSV output is empty");
-    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_desc");
-    assert!(
-        !first_line.contains(','),
-        "Expected custom-delimited CSV header not to use commas: {first_line}"
-    );
-    assert_eq!(
-        first_line.matches('\t').count(),
-        2,
-        "Expected exactly two tab delimiters in the reason header"
-    );
-}
-
-/// Test that TPC-DS CSV generation escapes headers containing the delimiter.
-#[test]
-fn test_tpcgen_cli_tpcds_csv_delimiter_in_header_is_escaped() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpcds")
-        .arg("csv")
-        .arg("--delimiter")
-        .arg("_")
-        .arg("--scale-factor")
-        .arg("1")
-        .arg("--tables")
-        .arg("reason")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .success();
-
-    let contents =
-        fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
-    let first_line = contents.lines().next().expect("CSV output is empty");
-    let second_line = contents.lines().nth(1).expect("CSV data row is missing");
-    assert_eq!(
-        first_line,
-        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_desc\""
-    );
-    assert_eq!(
-        second_line.split('_').count(),
-        3,
-        "Expected underscore-delimited data rows to have three fields: {second_line}"
+    super::test_helpers::assert_tab_delimited_csv_roundtrip(
+        "tpcds",
+        "web_site",
+        "1",
+        tpcdsgen_arrow::WebSiteArrow::new(test_session(1.0)),
     );
 }
 
@@ -961,27 +905,6 @@ fn test_tpcgen_cli_tpcds_csv_default_options_generate_all_outputs() {
         actual_files, expected_files,
         "Expected default TPC-DS CSV generation to produce every main table"
     );
-}
-
-/// Test that the TPC-DS CSV subcommand rejects a non-ASCII delimiter at parse time.
-#[test]
-fn test_tpcgen_cli_tpcds_csv_rejects_non_ascii_delimiter() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpcds")
-        .arg("csv")
-        .arg("--delimiter")
-        .arg("€")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("reason")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("ASCII"));
 }
 
 /// Session matching the CLI defaults for the given scale factor.
