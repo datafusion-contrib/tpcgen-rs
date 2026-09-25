@@ -57,8 +57,6 @@ jobs:
   # See tpcgen-cli/scripts/tpch/generate-fixtures.sh for how the sums are
   # produced.
   tpch:
-    # This job name is a required status check in the 'main' branch
-    # ruleset — rename both together, or PRs block on a phantom check.
     name: TPC-H Conformance Tests
     needs: build
     runs-on: ubuntu-latest
