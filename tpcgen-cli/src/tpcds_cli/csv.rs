@@ -30,7 +30,7 @@ use tpcdsgen::row::GeneratedRow;
 #[derive(Debug, Clone)]
 pub(super) struct Csv {
     base_location: OutputLocation,
-    delimiter: char,
+    pub(super) delimiter: char,
     chunk_size_bytes: i64,
 }
 

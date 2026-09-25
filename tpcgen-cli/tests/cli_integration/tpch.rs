@@ -38,7 +38,7 @@ fn test_tpcgen_cli_tpch_command_forms() {
         (&["tpch", "csv"], &["--delimiter", "|"], "part.csv"),
         (
             &["tpch", "parquet"],
-            &["--compression", "SNAPPY", "--row-group-bytes", "1MB"],
+            &["--compression", "ZSTD(1)", "--row-group-bytes", "1MB"],
             "part.parquet",
         ),
     ];
@@ -46,7 +46,7 @@ fn test_tpcgen_cli_tpch_command_forms() {
     for (form, format_args, expected_file) in forms {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-        cargo_bin_cmd!("tpcgen-cli")
+        let output = cargo_bin_cmd!("tpcgen-cli")
             .args(*form)
             .arg("--scale-factor")
             .arg("0.001")
@@ -55,9 +55,18 @@ fn test_tpcgen_cli_tpch_command_forms() {
             .arg("--output-dir")
             .arg(temp_dir.path())
             .arg("--no-progress")
+            .arg("--verbose")
             .args(*format_args)
             .assert()
-            .success();
+            .success()
+            .stdout("")
+            .stderr(predicates::str::contains("Generation complete in "));
+
+        if form.contains(&"parquet") {
+            output.stderr(predicates::str::contains(
+                "Parquet settings: compression=ZSTD(ZstdLevel(1)), row-group target=1000000 bytes (uncompressed)",
+            ));
+        }
 
         let expected_file = temp_dir.path().join(expected_file);
         assert!(
@@ -573,8 +582,12 @@ fn test_tpchgen_cli_parts() {
         .arg(num_parts.to_string())
         .arg("--tables")
         .arg("orders")
+        .arg("--verbose")
         .assert()
-        .success();
+        .success()
+        .stderr(predicates::str::contains(format!(
+            ", parts={num_parts} (all)) to"
+        )));
 
     verify_table(temp_dir.path(), "orders", num_parts, "0.001");
 }
@@ -606,8 +619,12 @@ fn test_tpchgen_cli_parts_explicit() {
                 .arg(part.to_string())
                 .arg("--tables")
                 .arg("orders")
+                .arg("--verbose")
                 .assert()
-                .success();
+                .success()
+                .stderr(predicates::str::contains(format!(
+                    ", part={part}/{num_parts}) to"
+                )));
         }));
     }
     // Wait for all threads to finish
@@ -1155,6 +1172,27 @@ fn test_csv_subcommand_custom_delimiter() {
         "0.001",
         OrderArrow::new(OrderGenerator::new(0.001, 1, 1)),
     );
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_csv_verbose_logs_settings() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("\\t")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--verbose")
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("CSV settings: delimiter='\\t'"));
 }
 
 /// Test that the `tbl` subcommand rejects --delimiter

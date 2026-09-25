@@ -79,12 +79,20 @@ fn test_tpcgen_cli_tpcds_dat_verbose_enables_status_logging() {
         "Expected verbose mode setup log, got stderr: {stderr}"
     );
     assert!(
+        stderr.contains("Generating TPC-DS (SF=0.001, format=dat, compat=trino, tables=1,"),
+        "Expected TPC-DS startup log with default compatibility mode, got stderr: {stderr}"
+    );
+    assert!(
         stderr.contains("Writing") && stderr.contains("reason.dat using"),
         "Expected TPC-DS table start log, got stderr: {stderr}"
     );
     assert!(
         stderr.contains("Generated") && stderr.contains("reason.dat"),
         "Expected TPC-DS table completion log, got stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Generation complete in "),
+        "Expected total elapsed time, got stderr: {stderr}"
     );
 }
 
@@ -133,8 +141,10 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         .arg("reason")
         .arg("--output-dir")
         .arg(temp_dir.path())
+        .args(["--parts", "1", "--compat", "c"])
+        .args(["--compression", "ZSTD(1)", "--row-group-bytes", "1000000"])
         .arg("-v")
-        .env("RUST_LOG", "warn")
+        .env_remove("RUST_LOG")
         .assert()
         .success();
 
@@ -146,8 +156,23 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("Verbose output enabled (ignoring RUST_LOG environment variable)"),
-        "Expected verbose mode setup log, got stderr: {stderr}"
+        !stderr.contains("ignoring RUST_LOG"),
+        "Unexpected RUST_LOG override notice, got stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Generating TPC-DS (SF=0.001, format=parquet, compat=c, tables=1,")
+            && stderr.contains(", parts=1 (all)) to"),
+        "Expected TPC-DS startup log with compatibility mode and partition selection, got stderr: {stderr}"
+    );
+    let settings =
+        "Parquet settings: compression=ZSTD(ZstdLevel(1)), row-group target=1000000 bytes (uncompressed)";
+    assert_eq!(stderr.matches("Parquet settings:").count(), 1, "{stderr}");
+    assert!(
+        stderr
+            .lines()
+            .nth(1)
+            .is_some_and(|line| line.ends_with(settings)),
+        "Expected Parquet settings immediately after startup summary, got stderr: {stderr}"
     );
 }
 
@@ -842,6 +867,37 @@ fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
         "web_site",
         "1",
         tpcdsgen_arrow::WebSiteArrow::new(test_session(1.0)),
+    );
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_csv_verbose_logs_settings() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("\\t")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--verbose")
+        .env_remove("RUST_LOG")
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert_eq!(stderr.matches("CSV settings:").count(), 1, "{stderr}");
+    assert!(
+        stderr
+            .lines()
+            .nth(1)
+            .is_some_and(|line| line.ends_with("CSV settings: delimiter='\\t'")),
+        "Expected CSV settings immediately after startup summary, got stderr: {stderr}"
     );
 }
 

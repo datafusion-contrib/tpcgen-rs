@@ -269,6 +269,7 @@ impl TpchGenerator {
 
     /// Generate TPC-H data with the configured settings.
     pub async fn generate(self) -> io::Result<()> {
+        let total_start = Instant::now();
         let config = self.config;
         let progress_tracker = self.progress_tracker;
 
@@ -292,12 +293,34 @@ impl TpchGenerator {
             ]
         };
 
+        let partition = match (config.parts, config.part) {
+            (Some(parts), Some(part)) => format!(", part={part}/{parts}"),
+            (Some(parts), None) => format!(", parts={parts} (all)"),
+            (None, _) => String::new(),
+        };
+        info!(
+            "Generating TPC-H (SF={}, format={}, tables={}, threads={}{partition}) to {base_location}",
+            config.scale_factor,
+            config.format,
+            tables.len(),
+            config.num_threads
+        );
+
         // Reject a --column-encoding column that matches no selected table
         // (a typo) before any work starts. column_encodings_for_table
         // (below) skips a column that only matches some tables, so that
         // case is not an error.
         if let Some(encodings) = &config.parquet_column_encodings {
             validate_column_encodings(&tables, encodings)?;
+        }
+
+        match config.format {
+            OutputFormat::Tbl => {}
+            OutputFormat::Csv => info!("CSV settings: delimiter={:?}", config.csv_delimiter),
+            OutputFormat::Parquet => info!(
+                "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
+                config.parquet_compression, config.parquet_row_group_bytes
+            ),
         }
 
         // Determine what files to generate
@@ -324,12 +347,12 @@ impl TpchGenerator {
         Distributions::static_default();
         TextPool::get_or_init_default();
         let elapsed = start.elapsed();
-        info!("Created static distributions and text pools in {elapsed:?}");
+        info!("Created static distributions and text pools in {elapsed:.2?}");
 
         let runner = PlanRunner::new(output_plans, config.num_threads)
             .with_progress_tracker(progress_tracker);
         runner.run().await?;
-        info!("Generation complete!");
+        info!("Generation complete in {:.2?}!", total_start.elapsed());
         Ok(())
     }
 }

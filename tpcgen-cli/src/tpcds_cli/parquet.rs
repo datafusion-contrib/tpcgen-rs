@@ -95,8 +95,8 @@ fn column_encodings_for_table(
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
     base_location: OutputLocation,
-    compression: Compression,
-    row_group_bytes: i64,
+    pub(super) compression: Compression,
+    pub(super) row_group_bytes: i64,
     column_encodings: Option<Vec<(String, Encoding)>>,
 }
 
