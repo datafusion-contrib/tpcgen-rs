@@ -1,6 +1,9 @@
 //! Shared command-line argument parsing.
 
-/// Only accept delimiters that cannot occur in unquoted generated fields.
+/// Parse a delimiter string, handling the `\t` escape sequence.
+///
+/// Restrict delimiters to comma, pipe, tab, and semicolon so unquoted fields
+/// remain intact. Reject unsupported values before generation starts.
 pub(crate) fn parse_delimiter(value: &str) -> Result<char, String> {
     match value {
         "," => Ok(','),
