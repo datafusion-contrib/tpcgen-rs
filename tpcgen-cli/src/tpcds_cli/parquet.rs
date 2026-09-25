@@ -547,15 +547,13 @@ impl Parquet {
                 },
             )
             .await?;
-        if !written {
+        if written {
+            info!("Generated table {table}{partition} to {location}");
+        } else {
             // Skipped, so count all chunks at once
             progress.increment(chunk_count);
         }
         progress.complete();
-
-        if written {
-            info!("Generated table {table}{partition} to {location}");
-        }
         Ok(())
     }
 }
