@@ -29,9 +29,12 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Run cargo-clippy
-        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Check
         run: cargo check --locked --verbose --workspace --all-targets
+      # check that the arrow crates also compile against arrow 59
+      - name: Check arrow crates with arrow 59
+        run: cargo check --locked -p tpchgen-arrow -p tpcdsgen-arrow --all-targets --no-default-features --features arrow_59
       - name: Check tpchgen-cli without default features
         run: cargo check --locked -p tpchgen-cli --all-targets --no-default-features
       - name: Check tpcgen-cli without default features

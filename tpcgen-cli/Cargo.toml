@@ -18,14 +18,14 @@ name = "tpcgen-cli"
 path = "bin/tpcgen_cli.rs"
 
 [dependencies]
-arrow = "59"
+arrow = { workspace = true }
 clap = { version = "4.5.32", features = ["derive"] }
 env_logger = "0.11.7"
 futures = "0.3.31"
 indicatif = { version = "0.18.3", optional = true }
 log = "0.4.26"
 num_cpus = "1.0"
-parquet = "59"
+parquet = { workspace = true }
 tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
 tpcdsgen-arrow = { path = "../tpcdsgen-arrow", version = "0.1.0" }
 tokio = { version = "1.44.1", features = ["full"] }

@@ -3,6 +3,13 @@
 //! CSV headers are covered transitively: `reparse.rs` re-parses CSV output
 //! with header validation enabled against these same Arrow schemas.
 
+// See the `tpcdsgen_arrow` crate documentation for the `arrow_59` feature flag;
+// the selected version is aliased back to `arrow` here.
+#[cfg(feature = "arrow_59")]
+extern crate arrow_59 as arrow;
+#[cfg(not(feature = "arrow_59"))]
+extern crate arrow_60 as arrow;
+
 use arrow::datatypes::SchemaRef;
 use tpcdsgen::config::{Scaling, Table};
 use tpcdsgen_arrow::{

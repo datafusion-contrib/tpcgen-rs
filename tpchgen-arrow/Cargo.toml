@@ -9,9 +9,19 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-arrow = { workspace = true }
+arrow_59 = { workspace = true, optional = true }
+arrow_60 = { workspace = true, optional = true }
 tpchgen = { path = "../tpchgen", version = "3.0.0" }
 
+[features]
+default = ["arrow_60"]
+# Build against arrow 60 (the default).
+arrow_60 = ["dep:arrow_60"]
+# Build against arrow 59. Also disable default features so arrow 60 is not
+# compiled as well.
+arrow_59 = ["dep:arrow_59"]
+
 [dev-dependencies]
-arrow-csv = { workspace = true }
+arrow_csv_59 = { workspace = true }
+arrow_csv_60 = { workspace = true }
 chrono = "0.4.39"
