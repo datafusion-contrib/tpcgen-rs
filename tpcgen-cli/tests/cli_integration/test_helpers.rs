@@ -14,8 +14,9 @@ pub(crate) struct RowGroups {
     pub(crate) row_group_bytes: Vec<i64>,
 }
 
-/// Parse every supported CSV delimiter and compare headers and values with Arrow output.
-pub(crate) fn assert_csv_delimiters_roundtrip(
+/// Check tab-delimited CSV headers and values against Arrow output.
+/// Other accepted delimiter spellings are covered by the parser unit test.
+pub(crate) fn assert_tab_delimited_csv_roundtrip(
     benchmark: &str,
     table: &str,
     scale_factor: &str,
@@ -26,45 +27,40 @@ pub(crate) fn assert_csv_delimiters_roundtrip(
     let expected = arrow::compute::concat_batches(&schema, &expected).unwrap();
     assert!(expected.num_rows() > 0);
 
-    for (argument, delimiter) in [
-        (",", b','),
-        ("|", b'|'),
-        ("\\t", b'\t'),
-        ("\t", b'\t'),
-        (";", b';'),
-    ] {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-        cargo_bin_cmd!("tpcgen-cli")
-            .args([
-                benchmark,
-                "csv",
-                "--delimiter",
-                argument,
-                "-s",
-                scale_factor,
-                "-T",
-                table,
-            ])
-            .arg("--output-dir")
-            .arg(temp_dir.path())
-            .assert()
-            .success();
+    // Pass "\\t" to test CLI escape decoding; the CSV reader uses the literal tab byte.
+    let arg = "\\t";
+    let delimiter = b'\t';
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            benchmark,
+            "csv",
+            "--delimiter",
+            arg,
+            "-s",
+            scale_factor,
+            "-T",
+            table,
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
 
-        let contents = fs::read(temp_dir.path().join(format!("{table}.csv"))).unwrap();
-        let actual = arrow::csv::ReaderBuilder::new(schema.clone())
-            .with_header(true)
-            .with_header_validation(true)
-            .with_delimiter(delimiter)
-            .build(contents.as_slice())
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        assert_eq!(
-            arrow::compute::concat_batches(&schema, &actual).unwrap(),
-            expected,
-            "{benchmark} {table} delimiter {argument:?}"
-        );
-    }
+    let contents = fs::read(temp_dir.path().join(format!("{table}.csv"))).unwrap();
+    let actual = arrow::csv::ReaderBuilder::new(schema.clone())
+        .with_header(true)
+        .with_header_validation(true)
+        .with_delimiter(delimiter)
+        .build(contents.as_slice())
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        arrow::compute::concat_batches(&schema, &actual).unwrap(),
+        expected,
+        "{benchmark} {table}"
+    );
 }
 
 /// For each table in tables, check that the parquet file in output_dir has

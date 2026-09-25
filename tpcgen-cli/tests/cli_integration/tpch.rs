@@ -1145,12 +1145,11 @@ fn test_csv_subcommand() {
     );
 }
 
-/// Supported delimiters must round-trip `orders` rows.
-/// Its unquoted `o_orderdate` and `o_orderpriority` fields contain hyphens,
-/// so we check that supported delimiters preserve those values.
+/// Use tab to exercise escape decoding and non-default separators in headers and rows.
+/// Check that unquoted `o_orderdate` and `o_orderpriority` values retain their hyphens.
 #[test]
 fn test_csv_subcommand_custom_delimiter() {
-    super::test_helpers::assert_csv_delimiters_roundtrip(
+    super::test_helpers::assert_tab_delimited_csv_roundtrip(
         "tpch",
         "orders",
         "0.001",

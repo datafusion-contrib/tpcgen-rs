@@ -833,12 +833,11 @@ fn test_tpcgen_cli_tpcds_csv_single_table() {
     );
 }
 
-/// Supported delimiters must round-trip `web_site` rows.
-/// Its unquoted `web_name` field contains underscores in `site_<n>` names,
-/// so we check that supported delimiters preserve those values.
+/// Use tab to exercise escape decoding and non-default separators in headers and rows.
+/// Check that unquoted `web_name` values retain their `site_<n>` underscores.
 #[test]
 fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
-    super::test_helpers::assert_csv_delimiters_roundtrip(
+    super::test_helpers::assert_tab_delimited_csv_roundtrip(
         "tpcds",
         "web_site",
         "1",
