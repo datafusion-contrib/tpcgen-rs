@@ -90,6 +90,10 @@ fn test_tpcgen_cli_tpcds_dat_verbose_enables_status_logging() {
         stderr.contains("Generated") && stderr.contains("reason.dat"),
         "Expected TPC-DS table completion log, got stderr: {stderr}"
     );
+    assert!(
+        stderr.contains("Generation complete in "),
+        "Expected total elapsed time, got stderr: {stderr}"
+    );
 }
 
 #[test]
