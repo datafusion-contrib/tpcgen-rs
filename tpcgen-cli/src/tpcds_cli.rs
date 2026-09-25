@@ -2,7 +2,7 @@
 use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
-use crate::parquet::{format_compression, parse_column_encoding_pair};
+use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
@@ -324,8 +324,7 @@ impl CommonArgs {
             OutputFormat::Csv(output) => info!("CSV settings: delimiter={:?}", output.delimiter),
             OutputFormat::Parquet(output) => info!(
                 "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
-                format_compression(output.compression),
-                output.row_group_bytes
+                output.compression, output.row_group_bytes
             ),
         }
 

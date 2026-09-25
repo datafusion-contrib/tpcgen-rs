@@ -67,7 +67,7 @@ fn test_tpcgen_cli_tpch_command_forms() {
 
         if *expected_file == "part.parquet" {
             output.stderr(predicates::str::contains(
-                "Parquet settings: compression=ZSTD(1), row-group target=1000000 bytes (uncompressed)",
+                "Parquet settings: compression=ZSTD(ZstdLevel(1)), row-group target=1000000 bytes (uncompressed)",
             ));
         }
 

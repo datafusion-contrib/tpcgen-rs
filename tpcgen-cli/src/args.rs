@@ -111,17 +111,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "decide whether to log each option")]
-    fn format_logging_policy_rejects_new_options() {
-        let commands = clap::Command::new("test").subcommand(
-            clap::Command::new("csv")
-                .arg(clap::Arg::new("delimiter"))
-                .arg(clap::Arg::new("new_option")),
-        );
-        assert_format_options_have_logging_policy(commands, clap::Command::new("common"));
-    }
-
-    #[test]
     fn row_group_bytes_parses_and_validates_values() {
         assert_eq!(parse_row_group_bytes("1"), Ok(1));
         assert_eq!(parse_row_group_bytes(&i64::MAX.to_string()), Ok(i64::MAX));

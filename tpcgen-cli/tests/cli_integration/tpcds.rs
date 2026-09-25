@@ -161,7 +161,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         "Expected TPC-DS startup log with compatibility mode and partition selection, got stderr: {stderr}"
     );
     let settings =
-        "Parquet settings: compression=ZSTD(1), row-group target=1000000 bytes (uncompressed)";
+        "Parquet settings: compression=ZSTD(ZstdLevel(1)), row-group target=1000000 bytes (uncompressed)";
     assert_eq!(stderr.matches("Parquet settings:").count(), 1, "{stderr}");
     assert!(
         stderr

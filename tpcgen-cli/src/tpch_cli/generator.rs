@@ -2,7 +2,6 @@ use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
 use crate::output_location::OutputLocation;
-use crate::parquet::format_compression;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
 use arrow::datatypes::SchemaRef;
@@ -320,8 +319,7 @@ impl TpchGenerator {
             OutputFormat::Csv => info!("CSV settings: delimiter={:?}", config.csv_delimiter),
             OutputFormat::Parquet => info!(
                 "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
-                format_compression(config.parquet_compression),
-                config.parquet_row_group_bytes
+                config.parquet_compression, config.parquet_row_group_bytes
             ),
         }
 

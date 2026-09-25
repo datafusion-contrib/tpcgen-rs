@@ -19,15 +19,6 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
 
-pub(crate) fn format_compression(compression: Compression) -> String {
-    match compression {
-        Compression::GZIP(level) => format!("GZIP({})", level.compression_level()),
-        Compression::BROTLI(level) => format!("BROTLI({})", level.compression_level()),
-        Compression::ZSTD(level) => format!("ZSTD({})", level.compression_level()),
-        _ => compression.to_string(),
-    }
-}
-
 pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
     let Some((name, encoding)) = s.split_once('=') else {
         return Err(format!("expected COLUMN=ENCODING, got: '{s}'"));
@@ -112,8 +103,7 @@ where
     I::Item: RecordBatchReader + Send,
 {
     debug!(
-        "Generating Parquet with {num_threads} threads, using {} compression",
-        format_compression(parquet_compression)
+        "Generating Parquet with {num_threads} threads, using {parquet_compression} compression"
     );
     // Based on example in https://docs.rs/parquet/latest/parquet/arrow/arrow_writer/struct.ArrowColumnWriter.html
     let mut iter_iter = iter_iter.peekable();
@@ -270,24 +260,6 @@ mod tests {
     };
     use tpchgen::generators::RegionGenerator;
     use tpchgen_arrow::RegionArrow;
-
-    #[test]
-    fn compression_format_matches_cli_syntax() {
-        for expected in [
-            "UNCOMPRESSED",
-            "SNAPPY",
-            "GZIP(6)",
-            "BROTLI(1)",
-            "ZSTD(1)",
-            "ZSTD(22)",
-            "LZO",
-            "LZ4",
-            "LZ4_RAW",
-        ] {
-            let compression = Compression::from_str(expected).unwrap();
-            assert_eq!(format_compression(compression), expected);
-        }
-    }
 
     #[test]
     fn reject_unsupported_encoding_rejects_dictionary_and_bit_packed() {
