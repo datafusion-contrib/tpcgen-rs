@@ -1145,69 +1145,15 @@ fn test_csv_subcommand() {
     );
 }
 
-/// Test that the `csv` subcommand with a custom delimiter produces tab-delimited output
+/// Supported delimiters must round-trip `orders` rows, including hyphenated dates and priorities.
 #[test]
 fn test_csv_subcommand_custom_delimiter() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("csv")
-        .arg("--delimiter")
-        .arg("\\t")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("region")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .success();
-
-    let csv_file = temp_dir.path().join("region.csv");
-    assert!(
-        csv_file.exists(),
-        "Expected CSV file {:?} to exist",
-        csv_file
+    super::test_helpers::assert_csv_delimiters_roundtrip(
+        "tpch",
+        "orders",
+        "0.001",
+        OrderArrow::new(OrderGenerator::new(0.001, 1, 1)),
     );
-
-    let contents = std::fs::read_to_string(&csv_file).unwrap();
-    // Region table has 5 rows; each should contain tabs as delimiters
-    assert!(
-        contents.contains('\t'),
-        "Expected tab-delimited output, got:\n{}",
-        contents
-    );
-    // Verify multiple tab-separated fields per line
-    let first_line = contents.lines().next().unwrap();
-    let tab_count = first_line.matches('\t').count();
-    assert!(
-        tab_count >= 2,
-        "Expected at least 2 tabs per line, got {} in: {}",
-        tab_count,
-        first_line
-    );
-}
-
-/// Test that the `csv` subcommand rejects a non-ASCII delimiter at parse time
-#[test]
-fn test_csv_subcommand_rejects_non_ascii_delimiter() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    cargo_bin_cmd!("tpcgen-cli")
-        .arg("tpch")
-        .arg("csv")
-        .arg("--delimiter")
-        .arg("€")
-        .arg("--scale-factor")
-        .arg("0.001")
-        .arg("--tables")
-        .arg("region")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains("ASCII"));
 }
 
 /// Test that the `tbl` subcommand rejects --delimiter

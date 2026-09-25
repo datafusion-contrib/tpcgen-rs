@@ -24,6 +24,29 @@ fn test_tpcgen_cli_requires_command() {
 }
 
 #[test]
+fn test_csv_rejects_unsupported_delimiters_before_generation() {
+    for (benchmark, table) in [("tpch", "orders"), ("tpcds", "web_site")] {
+        for delimiter in [
+            "_", "-", ".", "/", ":", "@", "#", " ", "\"", "\n", "\r", "\\n", "\\r", "\\", "\\\\",
+            "", "||", "\u{20ac}",
+        ] {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let output_dir = temp_dir.path().join("output");
+            cargo_bin_cmd!("tpcgen-cli")
+                .args([benchmark, "csv", "-s", "0.001", "-T", table])
+                .arg(format!("--delimiter={delimiter}"))
+                .arg("--output-dir")
+                .arg(&output_dir)
+                .assert()
+                .code(2)
+                .stdout("")
+                .stderr(predicates::str::contains("CSV delimiter must be"));
+            assert!(!output_dir.exists(), "Generation started for {delimiter:?}");
+        }
+    }
+}
+
+#[test]
 fn test_parquet_rejects_non_positive_row_group_bytes() {
     for (benchmark, table) in [("tpch", "region"), ("tpcds", "reason")] {
         for value in ["0", "-1"] {
