@@ -529,23 +529,19 @@ impl Parquet {
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
+        info!(
+            "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+            if chunk_count == 1 { "" } else { "s" },
+            if num_threads == 1 { "" } else { "s" }
+        );
         let written = location
-            .write(
-                ParquetOutput {
-                    sources,
-                    num_threads,
-                    compression: self.compression,
-                    column_encodings: column_encodings.as_deref(),
-                    progress: progress.clone(),
-                },
-                || {
-                    info!(
-                        "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
-                        if chunk_count == 1 { "" } else { "s" },
-                        if num_threads == 1 { "" } else { "s" }
-                    );
-                },
-            )
+            .write(ParquetOutput {
+                sources,
+                num_threads,
+                compression: self.compression,
+                column_encodings: column_encodings.as_deref(),
+                progress: progress.clone(),
+            })
             .await?;
         if written {
             info!("Generated table {table}{partition} to {location}");

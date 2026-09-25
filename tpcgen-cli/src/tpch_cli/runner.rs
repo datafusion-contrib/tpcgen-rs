@@ -112,66 +112,56 @@ async fn run_plan(
     num_threads: usize,
     progress: ProgressHandle,
 ) -> io::Result<usize> {
-    let written = match plan.table() {
-        Table::Nation => run_nation_plan(&plan, num_threads, progress).await,
-        Table::Region => run_region_plan(&plan, num_threads, progress).await,
-        Table::Part => run_part_plan(&plan, num_threads, progress).await,
-        Table::Supplier => run_supplier_plan(&plan, num_threads, progress).await,
-        Table::Partsupp => run_partsupp_plan(&plan, num_threads, progress).await,
-        Table::Customer => run_customer_plan(&plan, num_threads, progress).await,
-        Table::Orders => run_orders_plan(&plan, num_threads, progress).await,
-        Table::Lineitem => run_lineitem_plan(&plan, num_threads, progress).await,
-    }?;
+    match plan.table() {
+        Table::Nation => run_nation_plan(plan, num_threads, progress).await,
+        Table::Region => run_region_plan(plan, num_threads, progress).await,
+        Table::Part => run_part_plan(plan, num_threads, progress).await,
+        Table::Supplier => run_supplier_plan(plan, num_threads, progress).await,
+        Table::Partsupp => run_partsupp_plan(plan, num_threads, progress).await,
+        Table::Customer => run_customer_plan(plan, num_threads, progress).await,
+        Table::Orders => run_orders_plan(plan, num_threads, progress).await,
+        Table::Lineitem => run_lineitem_plan(plan, num_threads, progress).await,
+    }
+}
+
+/// Writes a CSV/TSV output from the sources
+async fn write_file<I>(
+    plan: OutputPlan,
+    num_threads: usize,
+    sources: I,
+    progress: ProgressHandle,
+) -> Result<(), io::Error>
+where
+    I: Iterator<Item: Source> + 'static,
+{
+    let written = plan
+        .output_location()
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
+        .await?;
     if written {
         info!(
             "Generated table {} to {}",
             plan.table(),
             plan.output_location()
         );
-    }
-    Ok(num_threads)
-}
-
-/// Writes a CSV/TSV output from the sources
-async fn write_file<I>(
-    plan: &OutputPlan,
-    num_threads: usize,
-    sources: I,
-    progress: ProgressHandle,
-) -> Result<bool, io::Error>
-where
-    I: Iterator<Item: Source> + 'static,
-{
-    let written = plan
-        .output_location()
-        .write(
-            TextOutput {
-                sources,
-                num_threads,
-                progress: progress.clone(),
-            },
-            || {
-                info!(
-                    "Writing {plan} using {num_threads} thread{}",
-                    if num_threads == 1 { "" } else { "s" }
-                );
-            },
-        )
-        .await?;
-    if !written {
+    } else {
         // Skipped, so count all chunks at once
         progress.increment(plan.chunk_count() as u64);
     }
-    Ok(written)
+    Ok(())
 }
 
 /// Generates an output parquet file from the sources
 async fn write_parquet<I>(
-    plan: &OutputPlan,
+    plan: OutputPlan,
     num_threads: usize,
     sources: I,
     progress: ProgressHandle,
-) -> Result<bool, io::Error>
+) -> Result<(), io::Error>
 where
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
@@ -184,27 +174,25 @@ where
 
     let written = plan
         .output_location()
-        .write(
-            ParquetOutput {
-                sources,
-                num_threads,
-                compression: plan.parquet_compression(),
-                column_encodings,
-                progress: progress.clone(),
-            },
-            || {
-                info!(
-                    "Writing {plan} using {num_threads} thread{}",
-                    if num_threads == 1 { "" } else { "s" }
-                );
-            },
-        )
+        .write(ParquetOutput {
+            sources,
+            num_threads,
+            compression: plan.parquet_compression(),
+            column_encodings,
+            progress: progress.clone(),
+        })
         .await?;
-    if !written {
+    if written {
+        info!(
+            "Generated table {} to {}",
+            plan.table(),
+            plan.output_location()
+        );
+    } else {
         // Skipped, so count all chunks at once
         progress.increment(plan.chunk_count() as u64);
     }
-    Ok(written)
+    Ok(())
 }
 
 /// macro to create a function for generating a part of a particular able
@@ -218,12 +206,16 @@ where
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(
-            plan: &OutputPlan,
+            plan: OutputPlan,
             num_threads: usize,
             progress: ProgressHandle,
-        ) -> io::Result<bool> {
+        ) -> io::Result<usize> {
             use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
+            info!(
+                "Writing {plan} using {num_threads} thread{}",
+                if num_threads == 1 { "" } else { "s" }
+            );
 
             /// These interior functions are used to tell the compiler that the lifetime is 'static
             /// (when these were closures, the compiler could not figure out the lifetime) and
@@ -271,18 +263,19 @@ macro_rules! define_run {
             match plan.output_format() {
                 OutputFormat::Tbl => {
                     let gens = tbl_sources(plan.generation_plan(), scale_factor);
-                    write_file(plan, num_threads, gens, progress).await
+                    write_file(plan, num_threads, gens, progress).await?
                 }
                 OutputFormat::Csv => {
                     let delimiter = plan.csv_delimiter();
                     let gens = csv_sources(plan.generation_plan(), scale_factor, delimiter);
-                    write_file(plan, num_threads, gens, progress).await
+                    write_file(plan, num_threads, gens, progress).await?
                 }
                 OutputFormat::Parquet => {
                     let gens = parquet_sources(plan.generation_plan(), scale_factor);
-                    write_parquet(plan, num_threads, gens, progress).await
+                    write_parquet(plan, num_threads, gens, progress).await?
                 }
-            }
+            };
+            Ok(num_threads)
         }
     };
 }
@@ -409,7 +402,9 @@ mod tests {
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
         let progress = progress.register(plan.table().name(), expected_units);
 
-        run_plan(plan, 1, progress).await.unwrap();
+        write_file(plan, 1, std::iter::empty::<LineItemTblSource>(), progress)
+            .await
+            .unwrap();
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);
         assert_eq!(std::fs::read(&output_path).unwrap(), b"already here");
     }

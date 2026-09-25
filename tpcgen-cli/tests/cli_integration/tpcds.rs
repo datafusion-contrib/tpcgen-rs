@@ -1766,7 +1766,7 @@ fn assert_tpcds_no_overwrite(format: &str) {
         stderr.contains(&warning),
         "Expected {warning:?}, got stderr: {stderr}"
     );
-    assert!(!stderr.contains("Writing table"), "{stderr}");
+    assert!(stderr.contains("Writing table reason"), "{stderr}");
     assert!(!stderr.contains("Generated table"), "{stderr}");
     assert_eq!(fs::read(&path).unwrap(), b"existing output");
     let mut inprogress_path = path.into_os_string();

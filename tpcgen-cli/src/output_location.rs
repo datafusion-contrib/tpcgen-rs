@@ -78,15 +78,9 @@ impl OutputLocation {
     ///
     /// Files are written to `<path>.inprogress` and renamed on success. Existing
     /// files are skipped unless `overwrite` is set, returning `Ok(false)`.
-    /// Calls `on_start` after the skip check, before attempting to write.
-    pub(crate) async fn write<O: WriteOutput>(
-        &self,
-        output: O,
-        on_start: impl FnOnce(),
-    ) -> io::Result<bool> {
+    pub(crate) async fn write<O: WriteOutput>(&self, output: O) -> io::Result<bool> {
         let (path, overwrite) = match self {
             Self::Stdout => {
-                on_start();
                 output.write_to(io::stdout()).await?;
                 return Ok(true);
             }
@@ -97,7 +91,6 @@ impl OutputLocation {
             return Ok(false);
         }
 
-        on_start();
         let temp_path = inprogress_path(path);
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;

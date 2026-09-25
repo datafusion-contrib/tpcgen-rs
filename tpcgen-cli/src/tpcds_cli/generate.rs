@@ -192,21 +192,17 @@ where
         generator: PhantomData,
     });
 
+    info!(
+        "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+        if chunk_count == 1 { "" } else { "s" },
+        if num_threads == 1 { "" } else { "s" }
+    );
     let written = location
-        .write(
-            TextOutput {
-                sources,
-                num_threads,
-                progress: progress.clone(),
-            },
-            || {
-                info!(
-                    "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
-                    if chunk_count == 1 { "" } else { "s" },
-                    if num_threads == 1 { "" } else { "s" }
-                );
-            },
-        )
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
         .await?;
     if written {
         info!("Generated table {table}{partition} to {location}");

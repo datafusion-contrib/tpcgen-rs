@@ -392,7 +392,7 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
         "Expected warning message not found in stderr: {}",
         stderr
     );
-    assert!(!stderr.contains("Writing table"), "{stderr}");
+    assert!(stderr.contains("Writing table part"), "{stderr}");
     assert!(!stderr.contains("Generated table"), "{stderr}");
 
     let new_metadata =
@@ -452,7 +452,7 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
         "Expected warning message not found in stderr: {}",
         stderr
     );
-    assert!(!stderr.contains("Writing table"), "{stderr}");
+    assert!(stderr.contains("Writing table part"), "{stderr}");
     assert!(!stderr.contains("Generated table"), "{stderr}");
 
     let new_metadata =
