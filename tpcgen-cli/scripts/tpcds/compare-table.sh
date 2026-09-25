@@ -156,8 +156,12 @@ generate_rust_table() {
     local binary
 
     if ! binary=$(find_rust_binary); then
-        log_error "Rust binary not found"
-        log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
+        if [[ -n "${TPCGEN_CLI_BIN:-}" ]]; then
+            log_error "TPCGEN_CLI_BIN is not an executable: $TPCGEN_CLI_BIN"
+        else
+            log_error "Rust binary not found"
+            log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
+        fi
         return 1
     fi
 
