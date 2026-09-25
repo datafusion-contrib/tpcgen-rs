@@ -1,14 +1,12 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
-use crate::generate::{generate_file, generate_in_chunks, Source};
-use crate::parquet::generate_parquet;
+use crate::generate::{Source, TextOutput};
+use crate::parquet::ParquetOutput;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
-use crate::sink::WriterSink;
-use crate::temp_path::inprogress_path;
 use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generator::column_encodings_for_table;
-use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
+use crate::tpch_cli::output_plan::OutputPlan;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
 use crate::tpch_cli::{OutputFormat, Table};
@@ -17,7 +15,6 @@ use arrow::record_batch::RecordBatchReader;
 use log::{debug, info};
 use std::collections::BTreeMap;
 use std::io;
-use std::io::BufWriter;
 use std::sync::Arc;
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
@@ -137,21 +134,19 @@ async fn write_file<I>(
 where
     I: Iterator<Item: Source> + 'static,
 {
-    match plan.output_location() {
-        OutputLocation::Stdout => {
-            // Since generate_in_chunks already buffers, there is no need to
-            // buffer again (aka don't use BufWriter here)
-            let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads, progress).await
-        }
-        OutputLocation::File { path, .. } => {
-            if plan.output_location().skip_existing() {
-                progress.increment(plan.chunk_count() as u64);
-                return Ok(());
-            }
-            generate_file(path, sources, num_threads, progress).await
-        }
+    let written = plan
+        .output_location()
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
+        .await?;
+    if !written {
+        // Skipped, so count all chunks at once
+        progress.increment(plan.chunk_count() as u64);
     }
+    Ok(())
 }
 
 /// Generates an output parquet file from the sources
@@ -171,48 +166,21 @@ where
         .map(|encodings| column_encodings_for_table(plan.table(), encodings));
     let column_encodings = column_encodings.as_deref();
 
-    match plan.output_location() {
-        OutputLocation::Stdout => {
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(
-                writer,
-                sources,
-                num_threads,
-                plan.parquet_compression(),
-                column_encodings,
-                progress,
-            )
-            .await
-        }
-        OutputLocation::File { path, .. } => {
-            if plan.output_location().skip_existing() {
-                progress.increment(plan.chunk_count() as u64);
-                return Ok(());
-            }
-            // write to a temp file and then rename to avoid partial files
-            let temp_path = inprogress_path(path);
-            let file = std::fs::File::create(&temp_path).map_err(|err| {
-                io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
-            })?;
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(
-                writer,
-                sources,
-                num_threads,
-                plan.parquet_compression(),
-                column_encodings,
-                progress,
-            )
-            .await?;
-            // rename the temp file to the final path
-            std::fs::rename(&temp_path, path).map_err(|e| {
-                io::Error::other(format!(
-                    "Failed to rename {temp_path:?} to {path:?} file: {e}"
-                ))
-            })?;
-            Ok(())
-        }
+    let written = plan
+        .output_location()
+        .write(ParquetOutput {
+            sources,
+            num_threads,
+            compression: plan.parquet_compression(),
+            column_encodings,
+            progress: progress.clone(),
+        })
+        .await?;
+    if !written {
+        // Skipped, so count all chunks at once
+        progress.increment(plan.chunk_count() as u64);
     }
+    Ok(())
 }
 
 /// macro to create a function for generating a part of a particular able
@@ -363,6 +331,7 @@ define_run!(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::output_location::OutputLocation;
     use crate::progress::ProgressTracker;
     use crate::tpch_cli::output_plan::ParquetWriterOptions;
     use crate::tpch_cli::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};

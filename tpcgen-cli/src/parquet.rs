@@ -11,11 +11,12 @@ use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAU
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
 use std::io;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
 
@@ -200,6 +201,38 @@ where
     writer_task.await??;
 
     Ok(())
+}
+
+/// Parquet output generated in parallel, see [`generate_parquet`].
+pub(crate) struct ParquetOutput<'a, I> {
+    /// One reader per row group, in output order
+    pub(crate) sources: I,
+    /// Maximum number of row groups to encode in parallel
+    pub(crate) num_threads: usize,
+    /// Compression for every column
+    pub(crate) compression: Compression,
+    /// Per-column encodings (`--column-encoding`)
+    pub(crate) column_encodings: Option<&'a [(String, Encoding)]>,
+    /// Advanced once per written row group
+    pub(crate) progress: ProgressHandle,
+}
+
+impl<I> WriteOutput for ParquetOutput<'_, I>
+where
+    I: Iterator<Item: RecordBatchReader + Send> + 'static,
+{
+    async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()> {
+        let writer = BufWriter::with_capacity(32 * 1024 * 1024, writer); // 32MB buffer
+        generate_parquet(
+            writer,
+            self.sources,
+            self.num_threads,
+            self.compression,
+            self.column_encodings,
+            self.progress,
+        )
+        .await
+    }
 }
 
 /// Creates the data for a particular row group.

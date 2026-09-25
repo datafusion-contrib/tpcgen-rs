@@ -1,7 +1,9 @@
 //! [`OutputLocation`]: where generated data is written.
 
+use crate::temp_path::inprogress_path;
 use std::fmt::{Display, Formatter};
-use std::io;
+use std::fs::File;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 /// Where generated data is written: the filesystem, or stdout.
@@ -47,6 +49,15 @@ impl OutputLocation {
         }
     }
 
+    /// Return true if this location is a path with nothing in it (`-o ""`),
+    /// which names no directory.
+    pub fn is_empty_dir(&self) -> bool {
+        match self {
+            Self::File { path, .. } => path.as_os_str().is_empty(),
+            Self::Stdout => false,
+        }
+    }
+
     /// Create this location's directory, and any missing parents, if it does
     /// not already exist.
     ///
@@ -63,29 +74,44 @@ impl OutputLocation {
         })
     }
 
-    /// Return true if generation should be skipped because this location's
-    /// file already exists, and log a warning saying so.
+    /// Write `output` to this location.
     ///
-    /// Always false when `overwrite` is set, and for [`Self::Stdout`].
-    pub(crate) fn skip_existing(&self) -> bool {
-        let Self::File { path, overwrite } = self else {
-            return false;
+    /// Files are written to `<path>.inprogress` and renamed on success. Existing
+    /// files are skipped unless `overwrite` is set, returning `Ok(false)`.
+    pub(crate) async fn write<O: WriteOutput>(&self, output: O) -> io::Result<bool> {
+        let (path, overwrite) = match self {
+            Self::Stdout => {
+                output.write_to(io::stdout()).await?;
+                return Ok(true);
+            }
+            Self::File { path, overwrite } => (path, *overwrite),
         };
-        if *overwrite || !path.exists() {
-            return false;
+        if !overwrite && path.exists() {
+            log::warn!("{} already exists, skipping generation", path.display());
+            return Ok(false);
         }
-        log::warn!("{} already exists, skipping generation", path.display());
-        true
-    }
 
-    /// Return true if this location is a path with nothing in it (`-o ""`),
-    /// which names no directory.
-    pub fn is_empty_dir(&self) -> bool {
-        match self {
-            Self::File { path, .. } => path.as_os_str().is_empty(),
-            Self::Stdout => false,
-        }
+        let temp_path = inprogress_path(path);
+        let file = File::create(&temp_path)
+            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
+        output.write_to(file).await?;
+        std::fs::rename(&temp_path, path).map_err(|err| {
+            io::Error::other(format!(
+                "Failed to rename {temp_path:?} to {path:?} file: {err}"
+            ))
+        })?;
+        Ok(true)
     }
+}
+
+/// Something that can write generated output to any [`Write`]
+///
+/// For example, this is implemented for text and Parquet output.
+/// `write_to` is generic over the writer, so each output is compiled
+/// separately for stdout and for files.
+pub(crate) trait WriteOutput {
+    /// Generate the output into `writer`
+    async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()>;
 }
 
 impl Display for OutputLocation {

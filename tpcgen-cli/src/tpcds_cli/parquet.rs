@@ -4,14 +4,12 @@ use super::generate::output_location_for_table;
 use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::runner::{plan_tables, run_plans, PlannedTable};
 use crate::output_location::OutputLocation;
-use crate::parquet::generate_parquet;
+use crate::parquet::ParquetOutput;
 use crate::progress::{ProgressHandle, ProgressTracker};
-use crate::temp_path::inprogress_path;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::{Compression, Encoding};
-use std::fs::File;
-use std::io::{self, BufWriter};
+use std::io;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
@@ -517,50 +515,23 @@ impl Parquet {
             .map(|encodings| column_encodings_for_table(table, encodings));
 
         let location = output_location_for_table(&self.base_location, table, "parquet", &session)?;
-        if location.skip_existing() {
-            progress.increment(plan.chunk_count() as u64);
-            progress.complete();
-            return Ok(());
-        }
+        let chunk_count = plan.chunk_count() as u64;
         let sources = plan
             .into_iter()
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
-        match &location {
-            OutputLocation::Stdout => {
-                let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-                generate_parquet(
-                    writer,
-                    sources,
-                    num_threads,
-                    self.compression,
-                    column_encodings.as_deref(),
-                    progress.clone(),
-                )
-                .await?;
-            }
-            OutputLocation::File { path, .. } => {
-                // write to a temp file and then rename to avoid partial files
-                let temp_path = inprogress_path(path);
-                let file = File::create(&temp_path).map_err(|err| {
-                    io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
-                })?;
-                let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-                generate_parquet(
-                    writer,
-                    sources,
-                    num_threads,
-                    self.compression,
-                    column_encodings.as_deref(),
-                    progress.clone(),
-                )
-                .await?;
-                std::fs::rename(&temp_path, path).map_err(|err| {
-                    io::Error::other(format!(
-                        "Failed to rename {temp_path:?} to {path:?} file: {err}"
-                    ))
-                })?;
-            }
+        let written = location
+            .write(ParquetOutput {
+                sources,
+                num_threads,
+                compression: self.compression,
+                column_encodings: column_encodings.as_deref(),
+                progress: progress.clone(),
+            })
+            .await?;
+        if !written {
+            // Skipped, so count all chunks at once
+            progress.increment(chunk_count);
         }
         progress.complete();
 

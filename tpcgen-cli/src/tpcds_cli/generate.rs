@@ -1,9 +1,8 @@
 //! Drivers for the TPC-DS row generators, shared by the DAT and CSV outputs.
 
 use super::runner::PlannedTable;
-use crate::generate::{generate_file, generate_in_chunks, Source};
+use crate::generate::{Source, TextOutput};
 use crate::output_location::OutputLocation;
-use crate::sink::WriterSink;
 use log::info;
 use std::io;
 use std::marker::PhantomData;
@@ -174,13 +173,7 @@ where
     } = planned;
 
     let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
-    if location.skip_existing() {
-        progress.increment(plan.chunk_count() as u64);
-        progress.complete();
-        return Ok(());
-    }
-    info!("Writing {location} using {num_threads} threads");
-
+    let chunk_count = plan.chunk_count() as u64;
     let source_rows = session.get_scaling().get_row_count(table.source_table());
     let sources = plan.into_iter().map(move |range| RowSource::<F, G> {
         format: format.clone(),
@@ -191,20 +184,21 @@ where
         generator: PhantomData,
     });
 
-    match &location {
-        OutputLocation::Stdout => {
-            // Since generate_in_chunks already buffers, there is no need to
-            // buffer again (aka don't use BufWriter here)
-            let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads, progress.clone()).await?;
-        }
-        OutputLocation::File { path, .. } => {
-            generate_file(path, sources, num_threads, progress.clone()).await?;
-        }
+    info!("Writing {location} using {num_threads} threads");
+    let written = location
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
+        .await?;
+    if written {
+        info!("Generated {location}");
+    } else {
+        // Skipped, so count all chunks at once
+        progress.increment(chunk_count);
     }
     progress.complete();
-
-    info!("Generated {location}");
     Ok(())
 }
 
