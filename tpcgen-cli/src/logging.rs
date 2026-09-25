@@ -22,7 +22,7 @@ pub(crate) fn configure_logging(
 
     builder.init();
 
-    if verbose {
+    if verbose && std::env::var_os("RUST_LOG").is_some() {
         info!("Verbose output enabled (ignoring RUST_LOG environment variable)");
     }
 }

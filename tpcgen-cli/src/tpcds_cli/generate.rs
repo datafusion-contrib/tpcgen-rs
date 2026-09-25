@@ -174,6 +174,14 @@ where
 
     let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
     let chunk_count = plan.chunk_count() as u64;
+    let scale_factor = session.get_scaling().get_scale();
+    let part = session.get_chunk_number();
+    let parts = session.get_total_chunks();
+    let partition = if session.is_partitioned() {
+        format!(" (part {part}/{parts})")
+    } else {
+        String::new()
+    };
     let source_rows = session.get_scaling().get_row_count(table.source_table());
     let sources = plan.into_iter().map(move |range| RowSource::<F, G> {
         format: format.clone(),
@@ -184,7 +192,11 @@ where
         generator: PhantomData,
     });
 
-    info!("Writing {location} using {num_threads} threads");
+    info!(
+        "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+        if chunk_count == 1 { "" } else { "s" },
+        if num_threads == 1 { "" } else { "s" }
+    );
     let written = location
         .write(TextOutput {
             sources,
@@ -193,7 +205,7 @@ where
         })
         .await?;
     if written {
-        info!("Generated {location}");
+        info!("Generated table {table}{partition} to {location}");
     } else {
         // Skipped, so count all chunks at once
         progress.increment(chunk_count);
