@@ -142,13 +142,7 @@ where
             progress: progress.clone(),
         })
         .await?;
-    if written {
-        info!(
-            "Generated table {} to {}",
-            plan.table(),
-            plan.output_location()
-        );
-    } else {
+    if !written {
         // Skipped, so count all chunks at once
         progress.increment(plan.chunk_count() as u64);
     }
@@ -182,13 +176,7 @@ where
             progress: progress.clone(),
         })
         .await?;
-    if written {
-        info!(
-            "Generated table {} to {}",
-            plan.table(),
-            plan.output_location()
-        );
-    } else {
+    if !written {
         // Skipped, so count all chunks at once
         progress.increment(plan.chunk_count() as u64);
     }
@@ -212,10 +200,7 @@ macro_rules! define_run {
         ) -> io::Result<usize> {
             use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
-            info!(
-                "Writing {plan} using {num_threads} thread{}",
-                if num_threads == 1 { "" } else { "s" }
-            );
+            info!("Writing {plan} using {num_threads} threads");
 
             /// These interior functions are used to tell the compiler that the lifetime is 'static
             /// (when these were closures, the compiler could not figure out the lifetime) and

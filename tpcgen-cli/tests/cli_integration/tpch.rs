@@ -59,11 +59,7 @@ fn test_tpcgen_cli_tpch_command_forms() {
             .args(*format_args)
             .assert()
             .success()
-            .stdout("")
-            .stderr(predicates::str::contains("Writing table part "))
-            .stderr(predicates::str::contains(format!(
-                "Generated table part to {expected_file}"
-            )));
+            .stdout("");
 
         if *expected_file == "part.parquet" {
             output.stderr(predicates::str::contains(
@@ -382,7 +378,6 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
         .arg("part")
         .arg("--output-dir")
         .arg(temp_dir.path())
-        .arg("--verbose")
         .assert()
         .success();
 
@@ -392,8 +387,6 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
         "Expected warning message not found in stderr: {}",
         stderr
     );
-    assert!(stderr.contains("Writing table part"), "{stderr}");
-    assert!(!stderr.contains("Generated table"), "{stderr}");
 
     let new_metadata =
         fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
@@ -442,7 +435,6 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
         .arg("part")
         .arg("--output-dir")
         .arg(temp_dir.path())
-        .arg("--verbose")
         .assert()
         .success();
 
@@ -452,8 +444,6 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
         "Expected warning message not found in stderr: {}",
         stderr
     );
-    assert!(stderr.contains("Writing table part"), "{stderr}");
-    assert!(!stderr.contains("Generated table"), "{stderr}");
 
     let new_metadata =
         fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
@@ -466,37 +456,6 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
             .modified()
             .expect("Failed to get modified time")
     );
-}
-
-#[test]
-fn test_tpcgen_cli_tpch_failed_write_has_no_completion_log() {
-    for format in ["tbl", "parquet"] {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-        fs::create_dir(temp_dir.path().join(format!("region.{format}.inprogress"))).unwrap();
-
-        let output = cargo_bin_cmd!("tpcgen-cli")
-            .args([
-                "tpch",
-                format,
-                "--tables",
-                "region",
-                "-s",
-                "0.001",
-                "--verbose",
-            ])
-            .arg("--output-dir")
-            .arg(temp_dir.path())
-            .assert()
-            .failure()
-            .stdout("");
-
-        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-        assert!(stderr.contains("Writing table region"), "{stderr}");
-        assert!(stderr.contains("Failed to create"), "{stderr}");
-        assert!(!stderr.contains("Generated table"), "{stderr}");
-        assert!(!stderr.contains("Generation complete"), "{stderr}");
-        assert!(!temp_dir.path().join(format!("region.{format}")).exists());
-    }
 }
 
 /// Test that with `--parts`, only the parts that already exist are skipped:

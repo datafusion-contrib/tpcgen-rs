@@ -7,7 +7,6 @@ use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use super::progress::share_handle_across_parts;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::worker_queue::WorkerQueue;
-use log::info;
 use std::collections::HashMap;
 use std::future::Future;
 use std::io;
@@ -50,11 +49,6 @@ pub(super) fn plan_tables(
             .filter_map(|session| {
                 let row_range = session.get_source_row_range(table);
                 if row_range.is_empty() && session.is_partitioned() {
-                    info!(
-                        "Skipping table {table} (part {}/{}): no source rows in this partition",
-                        session.get_chunk_number(),
-                        session.get_total_chunks()
-                    );
                     return None;
                 }
                 let plan =
