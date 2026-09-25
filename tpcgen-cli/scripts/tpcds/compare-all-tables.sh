@@ -50,6 +50,10 @@ Options:
     --quiet             Quiet mode (show only summary).
     --help              Show this help message.
 
+Environment:
+    TPCGEN_CLI_BIN      Prebuilt tpcgen-cli binary to use instead of building
+                        (CI builds it once and shares it across jobs).
+
 Examples:
     compare-all-tables.sh                         # MD5-only, all tables, scale 1, Trino.
     compare-all-tables.sh --scale 10              # MD5-only, scale 10, Trino.
@@ -135,6 +139,15 @@ ALL_TABLES=(
 
 # Build the unified Rust table generator
 build_generator() {
+    if [[ -n "${TPCGEN_CLI_BIN:-}" ]]; then
+        if [[ ! -x "$TPCGEN_CLI_BIN" ]]; then
+            log_error "TPCGEN_CLI_BIN is not an executable: $TPCGEN_CLI_BIN"
+            return 1
+        fi
+        log_info "Using prebuilt generator: $TPCGEN_CLI_BIN"
+        return 0
+    fi
+
     log_info "Building Rust TPC-DS generator..."
 
     if cargo build --locked --release -p tpcgen-cli --quiet 2>&1; then
