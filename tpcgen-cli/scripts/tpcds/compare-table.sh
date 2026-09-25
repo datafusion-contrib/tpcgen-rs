@@ -47,6 +47,10 @@ Options:
     --quiet             Quiet mode (minimal output).
     --help              Show this help message.
 
+Environment:
+    TPCGEN_CLI_BIN      tpcgen-cli binary to use. Defaults to the workspace's
+                        target/release (or target/debug) build.
+
 Examples:
     compare-table.sh call_center                         # MD5-only, vs. Trino, scale 1
     compare-table.sh reason --compat c                   # MD5-only, vs. C dsdgen
@@ -103,6 +107,12 @@ log_diff() {
 
 # Find the unified tpcgen-cli binary
 find_rust_binary() {
+    if [[ -n "${TPCGEN_CLI_BIN:-}" ]]; then
+        [[ -x "$TPCGEN_CLI_BIN" ]] || return 1
+        echo "$TPCGEN_CLI_BIN"
+        return 0
+    fi
+
     local target_dir
 
     # Detect if we're in a workspace using cargo
@@ -146,8 +156,12 @@ generate_rust_table() {
     local binary
 
     if ! binary=$(find_rust_binary); then
-        log_error "Rust binary not found"
-        log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
+        if [[ -n "${TPCGEN_CLI_BIN:-}" ]]; then
+            log_error "TPCGEN_CLI_BIN is not an executable: $TPCGEN_CLI_BIN"
+        else
+            log_error "Rust binary not found"
+            log_error "Build it with: cargo build --locked --release -p tpcgen-cli"
+        fi
         return 1
     fi
 

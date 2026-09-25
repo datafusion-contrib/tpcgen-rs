@@ -97,9 +97,8 @@ See https://github.com/datafusion-contrib/tpcgen-rs/issues/457.
 ## Conformance in CI
 
 All the conformance tests described above run on every CI run.
-[`tpch-conformance.yml`](.github/workflows/tpch-conformance.yml) and
-[`tpcds-conformance.yml`](.github/workflows/tpcds-conformance.yml) runs
-MD5-only checks on every pull request.
+[`conformance.yml`](.github/workflows/conformance.yml) runs MD5-only checks
+on every pull request.
 [`full-conformance.yml`](.github/workflows/full-conformance.yml) rebuilds the
 reference data from the reference implementations themselves and re-checks it
 byte for byte on every merge to main.
