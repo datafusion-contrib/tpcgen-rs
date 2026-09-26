@@ -14,6 +14,7 @@
 //!    paths that register items lazily.
 //! 3. [`ProgressHandle::increment`] after output units are written.
 //!    Cloned handles may be advanced concurrently by generation tasks.
+//!    Writers may also report emitted bytes with [`ProgressHandle::increment_bytes`].
 //! 4. [`ProgressHandle::complete`] after an item's output is committed.
 //!    This is optional for paths without a distinct item-completion boundary.
 //! 5. [`ProgressTracker::finish`] after the generation run completes
@@ -104,6 +105,7 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 pub struct ProgressHandle {
     increment: Arc<dyn Fn(u64) + Send + Sync>,
     complete: Arc<dyn Fn() + Send + Sync>,
+    increment_bytes: Arc<dyn Fn(u64) + Send + Sync>,
 }
 
 impl ProgressHandle {
@@ -124,12 +126,30 @@ impl ProgressHandle {
         Self {
             increment: Arc::new(increment),
             complete: Arc::new(complete),
+            increment_bytes: Arc::new(|_| {}),
         }
+    }
+
+    /// Attach a callback for bytes reported by [`Self::increment_bytes`].
+    pub fn with_increment_bytes<B>(mut self, increment_bytes: B) -> Self
+    where
+        B: Fn(u64) + Send + Sync + 'static,
+    {
+        self.increment_bytes = Arc::new(increment_bytes);
+        self
     }
 
     /// Advance this item's counter by `units` output units.
     pub fn increment(&self, units: u64) {
         (self.increment)(units);
+    }
+
+    /// Report `bytes` written to this item's output.
+    ///
+    /// Writers also call this when they start writing, possibly with zero
+    /// bytes, so trackers can measure throughput from the first write.
+    pub fn increment_bytes(&self, bytes: u64) {
+        (self.increment_bytes)(bytes);
     }
 
     /// Optionally notify the tracker that this item completed successfully.
@@ -177,9 +197,11 @@ mod indicatif_impl {
     #[cfg(test)]
     use indicatif::ProgressDrawTarget;
     use indicatif::{
-        HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState, ProgressStyle,
+        HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState,
+        ProgressStyle,
     };
     use std::io::{self, Write};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
     use std::time::{Duration, Instant};
 
@@ -187,6 +209,8 @@ mod indicatif_impl {
     const BAR_WIDTH: usize = 18;
     const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
+    // Minimum write window before showing throughput.
+    const MIN_THROUGHPUT_ELAPSED: Duration = Duration::from_millis(100);
 
     /// Default [`ProgressTracker`] implementation backed by
     /// [`indicatif::MultiProgress`].
@@ -199,6 +223,8 @@ mod indicatif_impl {
     pub struct IndicatifProgress {
         multi: MultiProgress,
         bars: Mutex<Vec<ProgressBar>>,
+        total_bytes_written: AtomicU64,
+        started: Instant,
     }
 
     impl IndicatifProgress {
@@ -208,6 +234,8 @@ mod indicatif_impl {
             Self {
                 multi: MultiProgress::new(),
                 bars: Mutex::new(Vec::new()),
+                total_bytes_written: AtomicU64::new(0),
+                started: Instant::now(),
             }
         }
 
@@ -230,6 +258,8 @@ mod indicatif_impl {
             Self {
                 multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
                 bars: Mutex::new(Vec::new()),
+                total_bytes_written: AtomicU64::new(0),
+                started: Instant::now(),
             }
         }
     }
@@ -244,14 +274,18 @@ mod indicatif_impl {
         fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
             // Indicatif treats zero-length items as complete.
             let total = total_units.max(1);
+            let bytes_written = Arc::new(Mutex::new(BytesWritten::default()));
             let bar = self.multi.add(
                 ProgressBar::new(total)
-                    .with_style(bar_style())
+                    .with_style(bar_style(bytes_written.clone()))
                     .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
             self.lock_bars().push(bar.clone());
-            throttled_progress_handle(bar, total)
+            throttled_progress_handle(bar, total).with_increment_bytes(move |bytes| {
+                lock_bytes_written(&bytes_written).add(bytes, Instant::now());
+                self.total_bytes_written.fetch_add(bytes, Ordering::Relaxed);
+            })
         }
 
         fn start(&self) {
@@ -272,6 +306,22 @@ mod indicatif_impl {
 
             for bar in bars {
                 bar.finish_using_style();
+            }
+
+            let total_bytes_written = self.total_bytes_written.load(Ordering::Relaxed);
+            if total_bytes_written > 0 {
+                let summary = format!(
+                    "{:LABEL_WIDTH$} {} in {:.2?}",
+                    "total",
+                    HumanBytes(total_bytes_written),
+                    self.started.elapsed()
+                );
+                // A finished bar keeps the summary below the table rows.
+                let style =
+                    ProgressStyle::with_template("{msg}").expect("summary template is valid");
+                self.multi
+                    .add(ProgressBar::new(1).with_style(style).with_message(summary))
+                    .finish();
             }
         }
     }
@@ -389,7 +439,33 @@ mod indicatif_impl {
         }
     }
 
-    fn bar_style() -> ProgressStyle {
+    /// Bytes written to one progress item, rendered by [`write_bytes_and_throughput`].
+    #[derive(Debug, Default)]
+    struct BytesWritten {
+        bytes: u64,
+        /// When the writer started, from its initial (possibly zero-byte) report.
+        /// Starts the throughput window.
+        first_write: Option<Instant>,
+        /// When bytes were last reported. Ends the throughput window, so the
+        /// rate doesn't decay once writing stops.
+        last_write: Option<Instant>,
+    }
+
+    impl BytesWritten {
+        fn add(&mut self, bytes: u64, now: Instant) {
+            self.bytes = self.bytes.saturating_add(bytes);
+            self.first_write.get_or_insert(now);
+            self.last_write = Some(now);
+        }
+    }
+
+    fn lock_bytes_written(bytes_written: &Mutex<BytesWritten>) -> MutexGuard<'_, BytesWritten> {
+        bytes_written
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn bar_style(bytes_written: Arc<Mutex<BytesWritten>>) -> ProgressStyle {
         static STYLE: OnceLock<ProgressStyle> = OnceLock::new();
         STYLE
             .get_or_init(|| {
@@ -400,12 +476,38 @@ mod indicatif_impl {
                     .with_key("status", write_progress_status)
             })
             .clone()
+            .with_key(
+                "bytes_written",
+                move |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
+                    write_bytes_and_throughput(&lock_bytes_written(&bytes_written), writer)
+                },
+            )
     }
 
     fn bar_template() -> String {
         format!(
-            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%){{status}}"
+            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%){{bytes_written}}{{status}}"
         )
+    }
+
+    /// Write the bytes written and average throughput between the first and last write.
+    fn write_bytes_and_throughput(bytes_written: &BytesWritten, writer: &mut dyn std::fmt::Write) {
+        let (Some(first_write), Some(last_write)) =
+            (bytes_written.first_write, bytes_written.last_write)
+        else {
+            return;
+        };
+        if bytes_written.bytes == 0 {
+            return;
+        }
+
+        let _ = write!(writer, " {}", HumanBytes(bytes_written.bytes));
+        let elapsed = last_write.saturating_duration_since(first_write);
+        // Short writes can display an unrealistic throughput estimate.
+        if elapsed >= MIN_THROUGHPUT_ELAPSED {
+            let per_second = (bytes_written.bytes as f64 / elapsed.as_secs_f64()) as u64;
+            let _ = write!(writer, " {}/s", HumanBytes(per_second));
+        }
     }
 
     fn write_progress_status(state: &ProgressState, writer: &mut dyn std::fmt::Write) {
@@ -538,6 +640,23 @@ mod indicatif_impl {
 
             assert_eq!(bar.position(), 5);
             assert!(bar.is_finished());
+        }
+
+        #[test]
+        fn bytes_written_shows_size_and_throughput() {
+            let start = Instant::now();
+            let mut bytes_written = BytesWritten::default();
+            let render = |bytes_written: &BytesWritten| {
+                let mut out = String::new();
+                write_bytes_and_throughput(bytes_written, &mut out);
+                out
+            };
+
+            bytes_written.add(0, start);
+            assert_eq!(render(&bytes_written), "");
+
+            bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
+            assert_eq!(render(&bytes_written), " 4.00 MiB 2.00 MiB/s");
         }
 
         #[test]
