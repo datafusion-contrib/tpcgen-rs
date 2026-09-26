@@ -194,6 +194,8 @@ where
             progress.increment(1);
         }
         writer.finish()?;
+        // Report the footer written by `finish`.
+        progress.increment_bytes((writer.bytes_written() - bytes_reported) as u64);
         statistics.increment_bytes(writer.bytes_written());
         Ok(()) as Result<(), io::Error>
     });
