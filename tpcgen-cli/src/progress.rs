@@ -146,10 +146,10 @@ impl ProgressHandle {
 
     /// Report `bytes` written to this item's output.
     ///
-    /// Callers should call this when the writer starts, before waiting for any
-    /// data and even with zero bytes, to start the throughput timer, then call
-    /// it after each write. Otherwise the first write isn't timed and
-    /// throughput is overstated.
+    /// Callers should call this immediately when the writer starts (even with
+    /// zero bytes), then again after each write. The first call starts the
+    /// throughput timer; calling it only at the first write delays the timer and
+    /// can skew the throughput calculation.
     pub fn increment_bytes(&self, bytes: u64) {
         (self.increment_bytes)(bytes);
     }
@@ -211,7 +211,7 @@ mod indicatif_impl {
     const BAR_WIDTH: usize = 18;
     const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
-    // Minimum time on the throughput timer before showing throughput.
+    // Throughput is hidden until the timer has run at least this long.
     const MIN_THROUGHPUT_ELAPSED: Duration = Duration::from_millis(100);
 
     /// Default [`ProgressTracker`] implementation backed by
