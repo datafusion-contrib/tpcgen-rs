@@ -395,6 +395,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn format_specific_options_have_logging_policy() {
+        use clap::{Args, Subcommand};
+        crate::args::assert_format_options_have_logging_policy(
+            Commands::augment_subcommands(clap::Command::new("tpch")),
+            CommonArgs::augment_args(clap::Command::new("common")),
+        );
+    }
+
+    #[test]
     fn format_specific_options_are_grouped_in_help() {
         use clap::{Args, Subcommand};
         crate::args::assert_format_options_grouped(
