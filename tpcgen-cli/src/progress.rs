@@ -215,7 +215,9 @@ mod indicatif_impl {
     /// Default [`ProgressTracker`] implementation backed by
     /// [`indicatif::MultiProgress`].
     ///
-    /// Renders one compact progress bar per progress item on stderr.
+    /// Renders one compact progress bar per progress item on stderr, showing
+    /// bytes written and write throughput when the writer reports bytes. After
+    /// a successful run, a `total` row shows all bytes written and elapsed time.
     ///
     /// Items are added in [`ProgressTracker::register`], which returns a handle
     /// that advances and completes its progress bar directly.
