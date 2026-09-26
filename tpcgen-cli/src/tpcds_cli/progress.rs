@@ -23,6 +23,7 @@ pub(super) fn share_handle_across_parts(
             let remaining = remaining.clone();
             let increment_handle = handle.clone();
             let complete_handle = handle.clone();
+            let increment_bytes_handle = handle.clone();
             ProgressHandle::new_with_complete(
                 move |units| increment_handle.increment(units),
                 move || {
@@ -31,6 +32,7 @@ pub(super) fn share_handle_across_parts(
                     }
                 },
             )
+            .with_increment_bytes(move |bytes| increment_bytes_handle.increment_bytes(bytes))
         })
         .collect()
 }
@@ -70,6 +72,22 @@ mod tests {
             part.increment(1);
         }
         assert_eq!(increments.load(Ordering::Relaxed), 4);
+    }
+
+    #[test]
+    fn share_handle_across_parts_forwards_bytes() {
+        let bytes = Arc::new(AtomicU64::new(0));
+        let handle = {
+            let bytes = bytes.clone();
+            ProgressHandle::new(|_| {}).with_increment_bytes(move |written| {
+                bytes.fetch_add(written, Ordering::Relaxed);
+            })
+        };
+
+        for part in share_handle_across_parts(handle, 2) {
+            part.increment_bytes(10);
+        }
+        assert_eq!(bytes.load(Ordering::Relaxed), 20);
     }
 
     #[test]
