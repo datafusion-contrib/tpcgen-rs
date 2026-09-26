@@ -196,11 +196,9 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::{ProgressHandle, ProgressTracker};
-    #[cfg(test)]
-    use indicatif::ProgressDrawTarget;
     use indicatif::{
-        HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState,
-        ProgressStyle,
+        HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressDrawTarget, ProgressFinish,
+        ProgressState, ProgressStyle,
     };
     use std::io::{self, Write};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -228,7 +226,7 @@ mod indicatif_impl {
         multi: MultiProgress,
         bars: Mutex<Vec<ProgressBar>>,
         total_bytes_written: AtomicU64,
-        started: Instant,
+        started: OnceLock<Instant>,
     }
 
     impl IndicatifProgress {
@@ -239,7 +237,7 @@ mod indicatif_impl {
                 multi: MultiProgress::new(),
                 bars: Mutex::new(Vec::new()),
                 total_bytes_written: AtomicU64::new(0),
-                started: Instant::now(),
+                started: OnceLock::new(),
             }
         }
 
@@ -263,7 +261,7 @@ mod indicatif_impl {
                 multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
                 bars: Mutex::new(Vec::new()),
                 total_bytes_written: AtomicU64::new(0),
-                started: Instant::now(),
+                started: OnceLock::new(),
             }
         }
     }
@@ -293,6 +291,7 @@ mod indicatif_impl {
         }
 
         fn start(&self) {
+            self.started.get_or_init(Instant::now);
             let bars = self.lock_bars().clone();
 
             // Populate every bar's initial draw state, then force one render so
@@ -313,19 +312,19 @@ mod indicatif_impl {
             }
 
             let total_bytes_written = self.total_bytes_written.load(Ordering::Relaxed);
-            if total_bytes_written > 0 {
-                let summary = format!(
-                    "{:LABEL_WIDTH$} {} in {:.2?}",
+            if total_bytes_written > 0 && !self.multi.is_hidden() {
+                let mut summary = format!(
+                    "{:LABEL_WIDTH$} {}",
                     "total",
-                    HumanBytes(total_bytes_written),
-                    self.started.elapsed()
+                    HumanBytes(total_bytes_written)
                 );
-                // A finished bar keeps the summary below the table rows.
-                let style =
-                    ProgressStyle::with_template("{msg}").expect("summary template is valid");
-                self.multi
-                    .add(ProgressBar::new(1).with_style(style).with_message(summary))
-                    .finish();
+                if let Some(started) = self.started.get() {
+                    summary.push_str(&format!(" in {:.2?}", started.elapsed()));
+                }
+                // Stop redrawing the finished bars and print the summary below them. As a bar
+                // row, indicatif would drop it when the bars don't fit the terminal height.
+                self.multi.set_draw_target(ProgressDrawTarget::hidden());
+                let _ = writeln!(io::stderr(), "\n{summary}");
             }
         }
     }
