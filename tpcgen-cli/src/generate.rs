@@ -113,8 +113,11 @@ where
     let writer_task = tokio::task::spawn_blocking(move || {
         // The header is not an output unit; only generated chunks from the channel advance progress.
         sink.sink(&header)?;
+        // Start the throughput timer before waiting for the first write.
+        progress.increment_bytes(header.len() as u64);
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
+            progress.increment_bytes(buffer.len() as u64);
             captured_recycler.return_buffer(buffer);
             progress.increment(1);
         }
