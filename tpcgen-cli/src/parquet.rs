@@ -188,7 +188,8 @@ where
             }
             row_group_writer.close().map_err(io::Error::other)?;
             statistics.increment_chunks(1);
-            let bytes_written = writer.bytes_written();
+            // `bytes_written` is cumulative; report only the bytes since the last report.            
+            let bytes_written = writer.bytes_written();       
             progress.increment_bytes((bytes_written - bytes_reported) as u64);
             bytes_reported = bytes_written;
             progress.increment(1);
