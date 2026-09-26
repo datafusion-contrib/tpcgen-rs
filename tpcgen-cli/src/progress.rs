@@ -205,19 +205,21 @@ mod indicatif_impl {
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
     use std::time::{Duration, Instant};
 
+    // Fixed-width columns so rows line up. The widest running row is 78 chars:
+    //   household_demographics [=====>------] ( 52%) 1023.99 MiB 1023.99 MiB/s ETA 89s
+    // Keep it within 80 columns, the default width of many terminals; longer rows wrap and
+    // break the layout.
     const LABEL_WIDTH: usize = 22;
-    const BAR_WIDTH: usize = 18;
+    const BAR_WIDTH: usize = 12;
+    const BYTES_WIDTH: usize = 11;
     const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
-    // Throughput is hidden until the timer has run at least this long.
-    const MIN_THROUGHPUT_ELAPSED: Duration = Duration::from_millis(100);
 
     /// Default [`ProgressTracker`] implementation backed by
     /// [`indicatif::MultiProgress`].
     ///
-    /// Renders one compact progress bar per progress item on stderr, showing
-    /// bytes written and write throughput when the writer reports bytes. After
-    /// a successful run, a `total` row shows all bytes written and elapsed time.
+    /// Renders one compact progress bar per progress item on stderr, with bytes
+    /// written and throughput, followed by a `total` row after a successful run.
     ///
     /// Items are added in [`ProgressTracker::register`], which returns a handle
     /// that advances and completes its progress bar directly.
@@ -319,7 +321,9 @@ mod indicatif_impl {
                     HumanBytes(total_bytes_written)
                 );
                 if let Some(started) = self.started.get() {
-                    summary.push_str(&format!(" in {:.2?}", started.elapsed()));
+                    let elapsed = started.elapsed();
+                    let per_second = (total_bytes_written as f64 / elapsed.as_secs_f64()) as u64;
+                    summary.push_str(&format!(" in {elapsed:.2?} ({}/s)", HumanBytes(per_second)));
                 }
                 // Stop redrawing the finished bars and print the summary below them. As a bar
                 // row, indicatif would drop it when the bars don't fit the terminal height.
@@ -480,8 +484,8 @@ mod indicatif_impl {
             .clone()
             .with_key(
                 "bytes_written",
-                move |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
-                    write_bytes_and_throughput(&lock_bytes_written(&bytes_written), writer)
+                move |state: &ProgressState, writer: &mut dyn std::fmt::Write| {
+                    write_bytes_and_throughput(state, &lock_bytes_written(&bytes_written), writer)
                 },
             )
     }
@@ -492,22 +496,28 @@ mod indicatif_impl {
         )
     }
 
-    /// Write the bytes written and average throughput between the first and last report.
-    fn write_bytes_and_throughput(bytes_written: &BytesWritten, writer: &mut dyn std::fmt::Write) {
-        let (Some(first_report), Some(last_report)) =
+    /// Write the bytes written and, while the item runs, its average throughput. Finished rows
+    /// show only the size, so short items never show a noisy rate.
+    fn write_bytes_and_throughput(
+        state: &ProgressState,
+        bytes_written: &BytesWritten,
+        writer: &mut dyn std::fmt::Write,
+    ) {
+        let mut bytes = String::new();
+        let mut per_second = None;
+        if let (Some(first_report), Some(last_report)) =
             (bytes_written.first_report, bytes_written.last_report)
-        else {
-            return;
-        };
-        if bytes_written.bytes == 0 {
-            return;
+        {
+            if bytes_written.bytes > 0 {
+                bytes = HumanBytes(bytes_written.bytes).to_string();
+                let elapsed = last_report.saturating_duration_since(first_report);
+                if !state.is_finished() && !elapsed.is_zero() {
+                    per_second = Some((bytes_written.bytes as f64 / elapsed.as_secs_f64()) as u64);
+                }
+            }
         }
-
-        let _ = write!(writer, " {}", HumanBytes(bytes_written.bytes));
-        let elapsed = last_report.saturating_duration_since(first_report);
-        // Skip throughput until the timer has run long enough for a realistic rate.
-        if elapsed >= MIN_THROUGHPUT_ELAPSED {
-            let per_second = (bytes_written.bytes as f64 / elapsed.as_secs_f64()) as u64;
+        let _ = write!(writer, " {bytes:>BYTES_WIDTH$}");
+        if let Some(per_second) = per_second {
             let _ = write!(writer, " {}/s", HumanBytes(per_second));
         }
     }
@@ -647,18 +657,25 @@ mod indicatif_impl {
         #[test]
         fn bytes_written_shows_size_and_throughput() {
             let start = Instant::now();
+            let bar = ProgressBar::with_draw_target(Some(2), ProgressDrawTarget::hidden());
             let mut bytes_written = BytesWritten::default();
             let render = |bytes_written: &BytesWritten| {
                 let mut out = String::new();
-                write_bytes_and_throughput(bytes_written, &mut out);
+                bar.update(|state| write_bytes_and_throughput(state, bytes_written, &mut out));
                 out
             };
 
+            let blank = " ".repeat(BYTES_WIDTH + 1);
+            assert_eq!(render(&bytes_written), blank);
+
             bytes_written.add(0, start);
-            assert_eq!(render(&bytes_written), "");
+            assert_eq!(render(&bytes_written), blank);
 
             bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
-            assert_eq!(render(&bytes_written), " 4.00 MiB 2.00 MiB/s");
+            assert_eq!(render(&bytes_written), "    4.00 MiB 2.00 MiB/s");
+
+            bar.finish();
+            assert_eq!(render(&bytes_written), "    4.00 MiB");
         }
 
         #[test]
