@@ -172,6 +172,9 @@ where
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
+        let mut bytes_reported = writer.bytes_written();
+        progress.increment_bytes(bytes_reported as u64);
+
         while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
             let mut row_group_writer = writer.next_row_group().unwrap();
@@ -184,6 +187,9 @@ where
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
+            let bytes_written = writer.bytes_written();
+            progress.increment_bytes((bytes_written - bytes_reported) as u64);
+            bytes_reported = bytes_written;
             progress.increment(1);
         }
         writer.finish()?;
