@@ -172,6 +172,7 @@ where
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
+        // Start the throughput timer before waiting for the first row group.
         let mut bytes_reported = writer.bytes_written();
         progress.increment_bytes(bytes_reported as u64);
 

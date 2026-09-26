@@ -146,8 +146,10 @@ impl ProgressHandle {
 
     /// Report `bytes` written to this item's output.
     ///
-    /// Writers also call this when they start writing, possibly with zero
-    /// bytes, so trackers can measure throughput from the first write.
+    /// Callers should call this when the writer starts, before waiting for any
+    /// data and even with zero bytes, to start the throughput timer, then call
+    /// it after each write. Otherwise the first write isn't timed and
+    /// throughput is overstated.
     pub fn increment_bytes(&self, bytes: u64) {
         (self.increment_bytes)(bytes);
     }
@@ -209,7 +211,7 @@ mod indicatif_impl {
     const BAR_WIDTH: usize = 18;
     const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
-    // Minimum write window before showing throughput.
+    // Minimum time on the throughput timer before showing throughput.
     const MIN_THROUGHPUT_ELAPSED: Duration = Duration::from_millis(100);
 
     /// Default [`ProgressTracker`] implementation backed by
@@ -445,19 +447,18 @@ mod indicatif_impl {
     #[derive(Debug, Default)]
     struct BytesWritten {
         bytes: u64,
-        /// When the writer started, from its initial (possibly zero-byte) report.
-        /// Starts the throughput window.
-        first_write: Option<Instant>,
-        /// When bytes were last reported. Ends the throughput window, so the
-        /// rate doesn't decay once writing stops.
-        last_write: Option<Instant>,
+        /// Time of the first report. Starts the throughput timer.
+        first_report: Option<Instant>,
+        /// Time of the last report. Stops the throughput timer, so the rate
+        /// doesn't decay once writing stops.
+        last_report: Option<Instant>,
     }
 
     impl BytesWritten {
         fn add(&mut self, bytes: u64, now: Instant) {
             self.bytes = self.bytes.saturating_add(bytes);
-            self.first_write.get_or_insert(now);
-            self.last_write = Some(now);
+            self.first_report.get_or_insert(now);
+            self.last_report = Some(now);
         }
     }
 
@@ -492,10 +493,10 @@ mod indicatif_impl {
         )
     }
 
-    /// Write the bytes written and average throughput between the first and last write.
+    /// Write the bytes written and average throughput between the first and last report.
     fn write_bytes_and_throughput(bytes_written: &BytesWritten, writer: &mut dyn std::fmt::Write) {
-        let (Some(first_write), Some(last_write)) =
-            (bytes_written.first_write, bytes_written.last_write)
+        let (Some(first_report), Some(last_report)) =
+            (bytes_written.first_report, bytes_written.last_report)
         else {
             return;
         };
@@ -504,8 +505,8 @@ mod indicatif_impl {
         }
 
         let _ = write!(writer, " {}", HumanBytes(bytes_written.bytes));
-        let elapsed = last_write.saturating_duration_since(first_write);
-        // Short writes can display an unrealistic throughput estimate.
+        let elapsed = last_report.saturating_duration_since(first_report);
+        // Skip throughput until the timer has run long enough for a realistic rate.
         if elapsed >= MIN_THROUGHPUT_ELAPSED {
             let per_second = (bytes_written.bytes as f64 / elapsed.as_secs_f64()) as u64;
             let _ = write!(writer, " {}/s", HumanBytes(per_second));
