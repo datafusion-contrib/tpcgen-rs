@@ -463,6 +463,13 @@ mod indicatif_impl {
             self.first_report.get_or_insert(now);
             self.last_report = Some(now);
         }
+
+        /// Average throughput between the first and last report.
+        fn per_second(&self) -> Option<u64> {
+            let (first, last) = (self.first_report?, self.last_report?);
+            let elapsed = last.saturating_duration_since(first);
+            (!elapsed.is_zero()).then(|| (self.bytes as f64 / elapsed.as_secs_f64()) as u64)
+        }
     }
 
     fn lock_bytes_written(bytes_written: &Mutex<BytesWritten>) -> MutexGuard<'_, BytesWritten> {
@@ -503,21 +510,16 @@ mod indicatif_impl {
         bytes_written: &BytesWritten,
         writer: &mut dyn std::fmt::Write,
     ) {
-        let mut bytes = String::new();
-        let mut per_second = None;
-        if let (Some(first_report), Some(last_report)) =
-            (bytes_written.first_report, bytes_written.last_report)
-        {
-            if bytes_written.bytes > 0 {
-                bytes = HumanBytes(bytes_written.bytes).to_string();
-                let elapsed = last_report.saturating_duration_since(first_report);
-                if !state.is_finished() && !elapsed.is_zero() {
-                    per_second = Some((bytes_written.bytes as f64 / elapsed.as_secs_f64()) as u64);
-                }
-            }
-        }
+        // Blank until the writer starts reporting.
+        let bytes = bytes_written
+            .first_report
+            .map(|_| HumanBytes(bytes_written.bytes).to_string())
+            .unwrap_or_default();
         let _ = write!(writer, " {bytes:>BYTES_WIDTH$}");
-        if let Some(per_second) = per_second {
+        if state.is_finished() {
+            return;
+        }
+        if let Some(per_second) = bytes_written.per_second() {
             let _ = write!(writer, " {}/s", HumanBytes(per_second));
         }
     }
@@ -669,7 +671,7 @@ mod indicatif_impl {
             assert_eq!(render(&bytes_written), blank);
 
             bytes_written.add(0, start);
-            assert_eq!(render(&bytes_written), blank);
+            assert_eq!(render(&bytes_written), "         0 B");
 
             bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
             assert_eq!(render(&bytes_written), "    4.00 MiB 2.00 MiB/s");
