@@ -28,7 +28,6 @@ tpcgen-cli tpcds csv --output-dir=/tmp/tpcds
 # TPC-H Apache Parquet data (Scale Factor 100, single table, 10 files per table):
 
 tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
-
 "#
 )]
 struct Cli {

@@ -38,11 +38,11 @@ pub struct Cli {
 pub fn long_about(bin: &str) -> String {
     format!(
         r#"
-TPCH Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
+TPC-H Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
 
 By default each table is written to a single file named <output_dir>/<table>.<format>
 
-If `--part` option is specified, each table is written to a subdirectory in
+If `--parts` option is specified, each table is written to a subdirectory in
 multiple files named <output_dir>/<table>/<table>.<part>.<format>
 
 Examples
