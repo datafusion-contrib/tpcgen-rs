@@ -172,9 +172,9 @@ where
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
-        // Start the throughput timer before waiting for the first write.
-        let mut bytes_reported = writer.bytes_written();
-        progress.increment_bytes(bytes_reported as u64);
+        progress.start();
+        // The first row group's report also covers the magic bytes written by `new`.
+        let mut bytes_reported = 0;
 
         while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
@@ -190,13 +190,12 @@ where
             statistics.increment_chunks(1);
             // `bytes_written` is cumulative; report only the bytes since the last report.
             let bytes_written = writer.bytes_written();
-            progress.increment_bytes((bytes_written - bytes_reported) as u64);
+            progress.increment(1, (bytes_written - bytes_reported) as u64);
             bytes_reported = bytes_written;
-            progress.increment(1);
         }
         writer.finish()?;
         // Report the footer written by `finish`.
-        progress.increment_bytes((writer.bytes_written() - bytes_reported) as u64);
+        progress.increment(0, (writer.bytes_written() - bytes_reported) as u64);
         statistics.increment_bytes(writer.bytes_written());
         Ok(()) as Result<(), io::Error>
     });
@@ -324,7 +323,7 @@ mod tests {
 
     impl ProgressTracker for CountingProgress {
         fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
-            ProgressHandle::new(move |row_groups| {
+            ProgressHandle::new(move |row_groups, _bytes| {
                 self.increments.fetch_add(row_groups, Ordering::Relaxed);
             })
         }
@@ -354,7 +353,7 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             None,
-            ProgressHandle::new(|_| {}),
+            ProgressHandle::new(|_, _| {}),
         )
         .await
         .unwrap_err();

@@ -507,7 +507,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push((item.clone(), total_units));
-            ProgressHandle::new(move |units| {
+            ProgressHandle::new(move |units, _bytes| {
                 self.increments.lock().unwrap().push((item.clone(), units));
             })
         }
@@ -576,9 +576,10 @@ mod tests {
             *tracker.registered.lock().unwrap(),
             vec![("region".to_owned(), 1)]
         );
+        // The writer reports the header (zero units), then one unit per chunk.
         assert_eq!(
             *tracker.increments.lock().unwrap(),
-            vec![("region".to_owned(), 1)]
+            vec![("region".to_owned(), 0), ("region".to_owned(), 1)]
         );
         assert_eq!(tracker.finishes.load(Ordering::Relaxed), 1);
     }

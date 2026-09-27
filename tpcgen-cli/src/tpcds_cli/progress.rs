@@ -21,18 +21,18 @@ pub(super) fn share_handle_across_parts(
     (0..num_parts.max(1))
         .map(|_| {
             let remaining = remaining.clone();
+            let start_handle = handle.clone();
             let increment_handle = handle.clone();
             let complete_handle = handle.clone();
-            let increment_bytes_handle = handle.clone();
             ProgressHandle::new_with_complete(
-                move |units| increment_handle.increment(units),
+                move |units, bytes| increment_handle.increment(units, bytes),
                 move || {
                     if remaining.fetch_sub(1, Ordering::AcqRel) == 1 {
                         complete_handle.complete();
                     }
                 },
             )
-            .with_increment_bytes(move |bytes| increment_bytes_handle.increment_bytes(bytes))
+            .with_start(move || start_handle.start())
         })
         .collect()
 }
@@ -51,7 +51,7 @@ mod tests {
             let increments = increments.clone();
             let completions = completions.clone();
             ProgressHandle::new_with_complete(
-                move |units| {
+                move |units, _bytes| {
                     increments.fetch_add(units, Ordering::Relaxed);
                 },
                 move || {
@@ -69,9 +69,25 @@ mod tests {
         assert_eq!(parts.len(), 4);
 
         for part in &parts {
-            part.increment(1);
+            part.increment(1, 0);
         }
         assert_eq!(increments.load(Ordering::Relaxed), 4);
+    }
+
+    #[test]
+    fn share_handle_across_parts_forwards_start() {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let handle = {
+            let starts = starts.clone();
+            ProgressHandle::new(|_, _| {}).with_start(move || {
+                starts.fetch_add(1, Ordering::Relaxed);
+            })
+        };
+
+        for part in share_handle_across_parts(handle, 2) {
+            part.start();
+        }
+        assert_eq!(starts.load(Ordering::Relaxed), 2);
     }
 
     #[test]
@@ -79,13 +95,13 @@ mod tests {
         let bytes = Arc::new(AtomicU64::new(0));
         let handle = {
             let bytes = bytes.clone();
-            ProgressHandle::new(|_| {}).with_increment_bytes(move |written| {
+            ProgressHandle::new(move |_units, written| {
                 bytes.fetch_add(written, Ordering::Relaxed);
             })
         };
 
         for part in share_handle_across_parts(handle, 2) {
-            part.increment_bytes(10);
+            part.increment(0, 10);
         }
         assert_eq!(bytes.load(Ordering::Relaxed), 20);
     }

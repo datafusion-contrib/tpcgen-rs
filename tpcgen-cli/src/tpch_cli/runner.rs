@@ -150,7 +150,7 @@ where
         );
     } else {
         // Skipped, so count all chunks at once
-        progress.increment(plan.chunk_count() as u64);
+        progress.increment(plan.chunk_count() as u64, 0);
     }
     Ok(())
 }
@@ -190,7 +190,7 @@ where
         );
     } else {
         // Skipped, so count all chunks at once
-        progress.increment(plan.chunk_count() as u64);
+        progress.increment(plan.chunk_count() as u64, 0);
     }
     Ok(())
 }
@@ -362,7 +362,7 @@ mod tests {
 
     impl ProgressTracker for CountingProgress {
         fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
-            ProgressHandle::new(move |units| {
+            ProgressHandle::new(move |units, _bytes| {
                 self.increments.fetch_add(units, Ordering::Relaxed);
             })
         }
