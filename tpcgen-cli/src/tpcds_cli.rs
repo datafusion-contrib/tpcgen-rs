@@ -55,7 +55,31 @@ impl OutputFormat {
 
 #[derive(Args)]
 #[command(version)]
-#[command(args_conflicts_with_subcommands = true)]
+#[command(
+    // -h output
+    about = "TPC-DS Data Generator",
+    // --help output
+    long_about = r#"
+TPC-DS Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
+
+By default each table is written to a single file named <output_dir>/<table>.<format>
+
+If `--part` option is specified, each table is written to a subdirectory in
+multiple files named <output_dir>/<table>/<table>.<part>.<format>
+
+Examples
+
+# Generate all tables at scale factor 1 (1GB) in DAT format (default) to /tmp/tpcds directory:
+
+tpcgen-cli tpcds -s 1 --output-dir=/tmp/tpcds
+
+# Generate the store_sales table at scale factor 100 in 10 Apache Parquet files to
+# /tmp/tpcds/store_sales:
+
+tpcgen-cli tpcds parquet -s 100 --tables=store_sales --parts=10 --output-dir=/tmp/tpcds
+"#,
+    args_conflicts_with_subcommands = true
+)]
 pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

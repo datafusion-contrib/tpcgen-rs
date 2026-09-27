@@ -47,8 +47,7 @@ hyperfine --runs 5 \
 "target/release/tpcgen-cli tpch parquet --scale-factor=100 --tables=lineitem --parts=10 --output-dir /tmp/output" \
 ```
 
-To benchmark the performance of generating TPC-DS data using `tpcgen-cli` we use
-a command such as
+To benchmark the performance of generating TPC-DS data using `tpcgen-cli` we use a command such as
 ```shell
 hyperfine --runs 5 \
 --prepare "rm -rf /tmp/output" \

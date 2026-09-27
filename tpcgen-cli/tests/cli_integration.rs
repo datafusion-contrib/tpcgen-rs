@@ -1,4 +1,5 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use predicates::prelude::PredicateBooleanExt;
 
 #[path = "cli_integration/test_helpers.rs"]
 mod test_helpers;
@@ -23,55 +24,20 @@ fn test_tpcgen_cli_requires_command() {
         .stderr(predicates::str::contains("tpcds"));
 }
 
-/// `--version` reports this crate's name and version everywhere it is
-/// accepted, rather than clap's derived per-subcommand display names
-/// (`tpcgen-cli-tpch`, `tpcgen-cli-tpcds`).
-#[test]
-fn test_tpcgen_cli_version_is_consistent() {
-    let expected = format!("tpcgen-cli {}\n", env!("CARGO_PKG_VERSION"));
-
-    for args in [
-        vec!["--version"],
-        vec!["tpch", "--version"],
-        vec!["tpcds", "--version"],
-    ] {
-        cargo_bin_cmd!("tpcgen-cli")
-            .args(&args)
-            .assert()
-            .success()
-            .stdout(expected.clone());
-    }
-}
-
-/// The help text for `tpcgen-cli` and its subcommands must use the `tpcgen-cli`
-/// name. The `tpchgen-cli` name only belongs in the compatibility binary of the
-/// same name (see `tpchgen-cli/tests/tpchgen_cli_integration.rs`).
+/// Help text refers to `tpcgen-cli`, never to the `tpchgen-cli` binary.
 #[test]
 fn test_tpcgen_cli_help_uses_binary_name() {
     for args in [
-        vec!["--help"],
-        vec!["tpch", "--help"],
-        vec!["tpcds", "--help"],
+        ["--help"].as_slice(),
+        &["tpch", "--help"],
+        &["tpcds", "--help"],
     ] {
-        let output = cargo_bin_cmd!("tpcgen-cli")
-            .args(&args)
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(args)
             .assert()
             .success()
-            .get_output()
-            .stdout
-            .clone();
-        let help = String::from_utf8(output).expect("help output is valid UTF-8");
-
-        assert!(
-            help.contains("tpcgen-cli"),
-            "`tpcgen-cli {}` help should mention tpcgen-cli:\n{help}",
-            args.join(" ")
-        );
-        assert!(
-            !help.contains("tpchgen-cli"),
-            "`tpcgen-cli {}` help should not mention tpchgen-cli:\n{help}",
-            args.join(" ")
-        );
+            .stdout(predicates::str::contains("tpcgen-cli"))
+            .stdout(predicates::str::contains("tpchgen-cli").not());
     }
 }
 

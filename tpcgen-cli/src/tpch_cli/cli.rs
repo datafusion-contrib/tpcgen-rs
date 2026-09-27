@@ -15,25 +15,29 @@ use std::str::FromStr;
 #[cfg(feature = "indicatif-progress")]
 use std::sync::Arc;
 
-/// TPC-H command line interface.
-///
-/// This is used in two places:
-/// 1. As the `tpch` subcommand of `tpcgen-cli`, where the parent command
-///    supplies its own name, version, and help text.
-/// 2. As the entire command line of the compatibility `tpchgen-cli` binary,
-///    which overrides the name and version with its own (see
-///    `tpchgen-cli/bin/tpchgen_cli.rs`).
-///
-/// The examples below are therefore written in terms of `tpchgen-cli`: they are
-/// only ever shown by that binary.
 #[derive(Parser)]
-#[command(name = "tpcgen-cli")]
+#[command(name = "tpchgen")]
 #[command(version)]
 #[command(
     // -h output
     about = "TPC-H Data Generator",
     // --help output
-    long_about = r#"
+    long_about = long_about("tpchgen-cli"),
+    args_conflicts_with_subcommands = true
+)]
+pub struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    #[command(flatten)]
+    args: CommonArgs,
+}
+
+/// `--help` text with examples that invoke `bin` (`tpchgen-cli` or
+/// `tpcgen-cli tpch`)
+pub fn long_about(bin: &str) -> String {
+    format!(
+        r#"
 TPCH Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
 
 By default each table is written to a single file named <output_dir>/<table>.<format>
@@ -45,33 +49,26 @@ Examples
 
 # Generate all tables at scale factor 1 (1GB) in TBL format (default) to /tmp/tpch directory:
 
-tpchgen-cli -s 1 --output-dir=/tmp/tpch
+{bin} -s 1 --output-dir=/tmp/tpch
 
 # Generate all tables in CSV format:
 
-tpchgen-cli csv -s 1 --output-dir=/tmp/tpch
+{bin} csv -s 1 --output-dir=/tmp/tpch
 
 # Generate scale factor one in CSV format with tab delimiter:
 
-tpchgen-cli csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
+{bin} csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
 
 # Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
 # /tmp/tpch/lineitem:
 
-tpchgen-cli parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
+{bin} parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
 
 # Generate scale factor one in current directory, seeing debug output
 
-RUST_LOG=debug tpchgen-cli -s 1 --output-dir=/tmp/tpch
-"#,
-    args_conflicts_with_subcommands = true
-)]
-pub struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-
-    #[command(flatten)]
-    args: CommonArgs,
+RUST_LOG=debug {bin} -s 1 --output-dir=/tmp/tpch
+"#
+    )
 }
 
 #[derive(clap::Subcommand)]
