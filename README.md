@@ -1,4 +1,4 @@
-# tpcgen-rs: Quickly and easily create TPC-* benchmark data
+# tpcgen-rs: Quickly and Easily Create TPC-* Benchmark Data
 
 > [!NOTE]
 > Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
