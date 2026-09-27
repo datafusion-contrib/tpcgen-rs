@@ -10,6 +10,7 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::basic::{Compression, Encoding};
 use parquet::file::metadata::ParquetMetaDataReader;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
@@ -1145,6 +1146,50 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
         .field_with_name("dv_create_time")
         .expect("dv_create_time field");
     assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_fields_have_ids() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            "parquet",
+            "--scale-factor",
+            "0.001",
+            "--tables",
+            "reason,store_sales",
+            "--no-progress",
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for table in ["reason", "store_sales"] {
+        let file = File::open(temp_dir.path().join(format!("{table}.parquet")))
+            .expect("Failed to open Parquet file");
+        let reader = SerializedFileReader::new(file).expect("Failed to read Parquet file");
+        let fields = reader
+            .metadata()
+            .file_metadata()
+            .schema_descr()
+            .root_schema()
+            .get_fields();
+
+        assert!(!fields.is_empty(), "{table} must have fields");
+        for (index, field) in fields.iter().enumerate() {
+            let basic_info = field.get_basic_info();
+            assert!(basic_info.has_id(), "{} must have a field ID", field.name());
+            assert_eq!(
+                basic_info.id(),
+                (index + 1) as i32,
+                "unexpected field ID for {}",
+                field.name()
+            );
+        }
+    }
 }
 
 /// Test that `--help` lists each selectable TPC-DS table.
