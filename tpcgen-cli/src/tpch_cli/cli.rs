@@ -116,7 +116,7 @@ struct CommonArgs {
     quiet: bool,
 
     /// Write output to stdout instead of a file.
-    /// 
+    ///
     /// Interleaves output when generating multiple tables.
     #[arg(long, default_value_t = false)]
     stdout: bool,
