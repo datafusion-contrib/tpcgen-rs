@@ -3,7 +3,7 @@
 > [!NOTE]
 > Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
 > 
-> Originally written by [@clflushopt] at  [`clflushopt/tpchgen-rs`], the project is now maintained at
+> Originally located at [`clflushopt/tpchgen-rs`], the project is now maintained at
 > [`datafusion-contrib/tpcgen-rs`]
 
 [@clflushopt]: https://github.com/clflushopt
