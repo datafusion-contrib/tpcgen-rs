@@ -55,7 +55,7 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 
 ## Representative Performance (10x Faster)
 
-![Parquet Generation Performance](tpchgen-cli/benchmarks/parquet-performance.png)
+![Parquet Generation Performance](summary-performance.png)
 
 ## Testing
 
