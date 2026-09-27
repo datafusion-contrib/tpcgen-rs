@@ -38,12 +38,21 @@
 //! # Feature Flags
 //!
 //! * `arrow_60` - build against [Arrow 60.x] (default)
-//! * `arrow_59` - build against [Arrow 59.x]. Use with `default-features = false`
-//!   so that arrow 60 is not compiled as well.
+//! * `arrow_59` - build against [Arrow 59.x]
 //!
-//! The selected version is re-exported as [`arrow`]
+//! Pick the one that matches your project's arrow version. For arrow 59, also
+//! disable the default features so that arrow 60 is not compiled as well:
 //!
-//! [arrow-rs]: https://github.com/apache/arrow-rs
+//! ```toml
+//! # arrow 60
+//! tpchgen-arrow = "..."
+//! # arrow 59
+//! tpchgen-arrow = { version = "...", default-features = false, features = ["arrow_59"] }
+//! ```
+//!
+//! If both are enabled, arrow 59 is used. The selected version is re-exported
+//! as [`arrow`].
+//!
 //! [Arrow 59.x]: https://docs.rs/arrow/59
 //! [Arrow 60.x]: https://docs.rs/arrow/60
 

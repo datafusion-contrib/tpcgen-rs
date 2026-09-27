@@ -6,6 +6,15 @@ Generate TPC-DS data directly into [Apache Arrow] format using the [tpcdsgen] an
 [tpcdsgen]: https://crates.io/crates/tpcdsgen
 [arrow]: https://crates.io/crates/arrow
 
+Supports arrow 60 (default) and arrow 59:
+
+```toml
+# arrow 60
+tpcdsgen-arrow = "..."
+# arrow 59
+tpcdsgen-arrow = { version = "...", default-features = false, features = ["arrow_59"] }
+```
+
 # Example usage:
 
 See [docs.rs page](https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/)
