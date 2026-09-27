@@ -19,7 +19,7 @@ project details
 uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
 
-![Running tpchgen-cli](tpchgen-cli-run.gif)
+![Running tpchgen-cli](https://raw.githubusercontent.com/datafusion-contrib/tpcgen-rs/main/tpchgen-cli/tpchgen-cli-run.gif)
 
 ## Install with `pip`
 
@@ -98,7 +98,7 @@ Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` f
 - Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
 
-![Parquet Generation Performance](benchmarks/parquet-performance.png)
+![Parquet Generation Performance](https://raw.githubusercontent.com/datafusion-contrib/tpcgen-rs/main/tpchgen-cli/benchmarks/parquet-performance.png)
 
 ## More information
 

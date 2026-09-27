@@ -57,6 +57,11 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 
 ![Representative Generation Performance](summary-performance.png)
 
+Time to generate TPC-H Scale Factor 100 data in Parquet format. See the
+[performance spreadsheet] for details and more comparisons.
+
+[performance spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=718004686#gid=718004686
+
 ## Testing
 
 We go through great lengths to ensure our data generators produce the same exact
