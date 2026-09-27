@@ -1,7 +1,7 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 use tempfile::tempdir;
 
-/// Help text refers to `tpchgen-cli`, not `tpcgen-cli tpch`.
+/// Help text refers to `tpchgen-cli`, not `tpcgen-cli`.
 #[test]
 fn test_tpchgen_cli_help_uses_binary_name() {
     let output = cargo_bin_cmd!("tpchgen-cli")

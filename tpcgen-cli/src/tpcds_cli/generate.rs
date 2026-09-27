@@ -10,9 +10,7 @@ use std::ops::RangeInclusive;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::*;
 
-/// Return the output location for `table`, relative to `base_location` (the
-/// output directory, or stdout), following `tpcgen-cli tpch`'s `--parts`/`--part`
-/// naming convention:
+/// Return the output location for `table`, relative to `base_location`.
 ///
 /// When `--parts` was not requested creates a single `<table>.<ext>` file, otherwise
 /// written into a subdirectory like `<table>/<table>.<chunk>.<ext>`.

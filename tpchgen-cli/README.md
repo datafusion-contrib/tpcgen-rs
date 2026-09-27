@@ -3,10 +3,7 @@
 `tpchgen-cli` is a high-performance, parallel TPC-H data generator command line
 tool
 
-> **Note:** `tpchgen-cli` generates TPC-H data only. For a single tool that
-> generates both TPC-H and TPC-DS data, see [`tpcgen-cli`]. `tpchgen-cli` is a
-> thin wrapper around the same implementation, so `tpchgen-cli <args>` and
-> `tpcgen-cli tpch <args>` generate identical data.
+> **Note:** See [`tpcgen-cli`] to create both TPC-H and TPC-DS data
 
 [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
 

@@ -49,10 +49,9 @@
 //! generation logic.
 //!
 //! If you want an easy way to generate the TPC-H dataset for use with external
-//! tools, see the
-//! [`tpcgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli)
-//! command line tool instead (or the TPC-H only
-//! [`tpchgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli)).
+//! tools, see the [`tpcgen-cli`] command line tool.
+//!
+//! [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli
 pub mod csv;
 pub mod dates;
 pub mod decimal;

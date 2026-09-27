@@ -17,25 +17,18 @@ TPC-H and TPC-DS data generator (https://github.com/datafusion-contrib/tpcgen-rs
 
 Examples
 
-# TPC-H TBL data:
+# TPC-H TBL data (Scale Factor 1):
 
-tpcgen-cli tpch -s 1 --output-dir=/tmp/tpch
+tpcgen-cli tpch --output-dir=/tmp/tpch
 
-# TPC-H CSV data:
+# TPC-DS CSV data (Scale Factor 1):
 
-tpcgen-cli tpch csv -s 1 --output-dir=/tmp/tpch
+tpcgen-cli tpcds csv --output-dir=/tmp/tpcds
 
-# TPC-H Apache Parquet data:
+# TPC-H Apache Parquet data (Scale Factor 100, single table, 10 files per table):
 
 tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
 
-# TPC-DS DAT data:
-
-tpcgen-cli tpcds -s 1 --output-dir=/tmp/tpcds
-
-# TPC-DS Apache Parquet data:
-
-tpcgen-cli tpcds parquet -s 100 --tables=store_sales --parts=10 --output-dir=/tmp/tpcds
 "#
 )]
 struct Cli {

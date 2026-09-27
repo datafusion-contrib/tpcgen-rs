@@ -11,8 +11,7 @@ use tpchgen::generators::{
 /// A list of generator "parts" (data generator chunks, not TPCH parts) for a
 /// single output file.
 ///
-/// Controls the parallelization and layout of Parquet files written by the
-/// TPC-H CLI (`tpcgen-cli tpch`, and the compatibility `tpchgen-cli` binary).
+/// Controls the parallelization and layout of Parquet files.
 ///
 /// # Background
 ///
