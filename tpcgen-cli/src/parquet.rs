@@ -1,11 +1,13 @@
 //! Shared Parquet output helpers.
 
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{Schema, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk, ArrowRowGroupWriterFactory};
-use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
+use parquet::arrow::{
+    add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter, PARQUET_FIELD_ID_META_KEY,
+};
 use parquet::basic::{Compression, Encoding};
 use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAULT_COERCE_TYPES};
 use parquet::file::writer::SerializedFileWriter;
@@ -19,6 +21,24 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
+
+fn schema_with_field_ids(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields()
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let mut metadata = field.metadata().clone();
+            metadata.insert(
+                PARQUET_FIELD_ID_META_KEY.to_string(),
+                (index + 1).to_string(),
+            );
+            field.as_ref().clone().with_metadata(metadata)
+        })
+        .collect::<Vec<_>>();
+
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
 
 pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
     let Some((name, encoding)) = s.split_once('=') else {
@@ -111,7 +131,7 @@ where
     let Some(first_iter) = iter_iter.peek() else {
         return Ok(()); // no data
     };
-    let schema = first_iter.schema();
+    let schema = Arc::new(schema_with_field_ids(&first_iter.schema()));
 
     // Compute the parquet schema first. apply_column_encodings needs it to
     // map column names to a ColumnPath and check they exist. Nothing here
@@ -287,6 +307,8 @@ where
 mod tests {
     use super::*;
     use crate::progress::{ProgressHandle, ProgressTracker};
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    use parquet::file::reader::{FileReader, SerializedFileReader};
     use std::fs::File;
     use std::io::BufWriter;
     use std::sync::{
@@ -375,6 +397,41 @@ mod tests {
 
         assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
+    }
+
+    #[tokio::test]
+    async fn parquet_fields_have_sequential_ids() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let output_path = output_dir.path().join("region.parquet");
+        write_region(None, &output_path).await.unwrap();
+
+        let reader = SerializedFileReader::new(File::open(output_path).unwrap()).unwrap();
+        let fields = reader
+            .metadata()
+            .file_metadata()
+            .schema_descr()
+            .root_schema()
+            .get_fields();
+
+        assert_eq!(fields.len(), 3);
+        for (index, field) in fields.iter().enumerate() {
+            let basic_info = field.get_basic_info();
+            assert!(basic_info.has_id());
+            assert_eq!(basic_info.id(), (index + 1) as i32);
+        }
+
+        let arrow_schema = ParquetRecordBatchReaderBuilder::try_new(
+            File::open(output_dir.path().join("region.parquet")).unwrap(),
+        )
+        .unwrap()
+        .schema()
+        .clone();
+        for (index, field) in arrow_schema.fields().iter().enumerate() {
+            assert_eq!(
+                field.metadata().get(PARQUET_FIELD_ID_META_KEY),
+                Some(&(index + 1).to_string())
+            );
+        }
     }
 
     async fn write_region(

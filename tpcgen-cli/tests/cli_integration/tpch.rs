@@ -432,7 +432,7 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
 
     let original_metadata =
         fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
-    assert_eq!(original_metadata.len(), 12793);
+    assert_eq!(original_metadata.len(), 13483);
 
     // Run the tpchgen-cli command again with the same parameters and expect the
     // file to not be overwritten and a warning to be logged

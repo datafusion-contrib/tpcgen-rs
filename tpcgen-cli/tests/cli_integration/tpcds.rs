@@ -1011,6 +1011,12 @@ fn read_concatenated_reference<R: RecordBatchReader>(mut reader: R) -> RecordBat
     concat_batches(&schema, &batches).expect("Failed to concatenate reference batches")
 }
 
+fn assert_batch_data_eq(actual: &RecordBatch, expected: &RecordBatch) {
+    let actual = RecordBatch::try_new(expected.schema(), actual.columns().to_vec())
+        .expect("actual columns should match the expected schema");
+    assert_eq!(&actual, expected);
+}
+
 /// Parquet files are generated using multiple source row ranges. Each
 /// Row Group comes from a particular row range, potentially encoded in parallel.
 ///
@@ -1048,14 +1054,14 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
         read_concatenated_parquet(&temp_dir.path().join("store_sales.parquet"));
     assert_eq!(num_row_groups, 24);
     let expected = read_concatenated_reference(StoreSalesArrow::new(test_session(0.001)));
-    assert_eq!(store_sales, expected);
+    assert_batch_data_eq(&store_sales, &expected);
 
     // regenerate same data directly from arrow generator
     let (store_returns, num_row_groups) =
         read_concatenated_parquet(&temp_dir.path().join("store_returns.parquet"));
     assert_eq!(num_row_groups, 3);
     let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
-    assert_eq!(store_returns, expected);
+    assert_batch_data_eq(&store_returns, &expected);
 
     let (item, num_row_groups) = read_concatenated_parquet(&temp_dir.path().join("item.parquet"));
     // 2,000 source rows over 2 row groups starts the second range at row 1,001,
@@ -1065,7 +1071,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     assert_eq!(num_row_groups, 2);
     assert_eq!(item.num_rows(), 2_000);
     let expected = read_concatenated_reference(ItemArrow::new(test_session(0.001)));
-    assert_eq!(item, expected);
+    assert_batch_data_eq(&item, &expected);
 }
 
 /// Test that the number of threads does not change the generated files.
