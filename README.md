@@ -38,9 +38,9 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 ## Features
 
 1. Blazing Speed 🚀 
-2. Obsessively Tested 📋
-3. Resource Efficient: multi-core and constant memory use 🧠
-4. Easy to use CLI or embeddable libraries
+2. Easy to Use: CLI or embeddable libraries
+3. Obsessively Tested 📋
+4. Resource Efficient: multi-core and constant memory use 🧠
 
 ## Sub projects
 
