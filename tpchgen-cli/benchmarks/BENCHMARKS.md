@@ -4,7 +4,7 @@ This directory contains a set of scripts to generate TPCH data at various scale 
 
 # IO Throughput Limitations
 
-[`tpchgen-cli`](../tpchgen-cli/README.md) is the fastest TPCH generator we know of
+[`tpchgen-cli`](../README.md) is the fastest TPCH generator we know of
 at the time of this writing. On a 2023 Mac M3 Max laptop, it easily generates
 data faster than can be written to SSD (which tops out about 1GB/s).
 
@@ -23,7 +23,7 @@ tpchgen-cli parquet -s 100 --stdout | pv -arb > /dev/null
 
 # Benchmarking Columnar file formats
 
-![Parquet Generation Performance](../parquet-performance.png)
+![Parquet Generation Performance](../../parquet-performance.png)
 
 See [tpcgen-rs performance Spreadsheet] for more details.
 
@@ -103,7 +103,7 @@ CALL dbgen(sf = 10);
 
 # Benchmarking `TBL` format
 
-![TBL Performance](../tbl-performance.png)
+![TBL Performance](../../tbl-performance.png)
 
 The classic `dbgen` program produces data in a format known as
 `TBL` (or `tbl`), which is a simple text format delimited by `|` characters.

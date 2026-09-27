@@ -60,7 +60,7 @@ tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 
 [`tpchgen-cli`] is more than 10x faster than the next fastest TPCH generator we
 know of. On a 2023 Mac M3 Max laptop, it easily generates data faster than can
-be written to SSD. See [BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more
+be written to SSD. See [BENCHMARKS.md](./tpchgen-cli/benchmarks/BENCHMARKS.md) for more
 details on performance and benchmarking.
 
 [`tpchgen-cli`]: ./tpchgen-cli/README.md
