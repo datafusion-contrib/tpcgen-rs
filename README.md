@@ -1,4 +1,4 @@
-# tpcgen-rs: Modern, blazing fast easy to use TPC-* benchmark data generators
+# tpcgen-rs: Quickly and easily create TPC-* benchmark data
 
 > [!NOTE]
 > Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
@@ -20,15 +20,15 @@
 [actions-badge]: https://github.com/datafusion-contrib/tpcgen-rs/actions/workflows/rust.yml/badge.svg
 [actions-url]: https://github.com/datafusion-contrib/tpcgen-rs/actions?query=branch%3Amain
 
-Modern, blazing fast and easy to use [TPC-H] and [TPC-DS] benchmark data generator.
+Modern, blazing fast and easy to use [TPC-H] and [TPC-DS] benchmark data generators.
 
 [TPC-H]: https://www.tpc.org/tpch/
 [TPC-DS]: https://www.tpc.org/tpcds/
 
 ## Goal
 
-Democratize the comparison of analytical systems with tools to easily and
-efficiently generate benchmark data for common benchmarks in modern formats
+Democratize the comparison of analytical systems with tools for easily and
+efficiently generating benchmark data for common benchmarks in modern formats
 such as [Apache Parquet], [Apache Arrow], and CSV.
 
 [Apache Parquet]: https://parquet.apache.org/
@@ -46,24 +46,24 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 
 | Project                            | Description                                                               |
 | ---------------------------------- | ------------------------------------------------------------------------- |
-| [`tpcgen-cli`](tpchgen-cli)        | a command line tool to generate TPC-H and TPC-DS data in multiple formats |
-| [`tpchgen-cli`](tpchgen-cli)       | a command line tool to generate TPC-H data in multiple formats            |
+| [`tpcgen-cli`](tpchgen-cli)        | Command line tool to generate TPC-H and TPC-DS data in multiple formats   |
+| [`tpchgen-cli`](tpchgen-cli)       | Command line tool to generate TPC-H data in multiple formats              |
 | [`tpchgen`](tpchgen)               | Rust library to generate TPC-H data (no dependencies)                     |
 | [`tpchgen-arrow`](tpchgen-arrow)   | Rust library to generate TPC-H data in [Apache Arrow] format              |
 | [`tpcdsgen`](tpcdsgen)             | Rust library to generate TPC-DS data (no dependencies)                    |
 | [`tpcdsgen-arrow`](tpcdsgen-arrow) | Rust library to generate TPC-DS data in [Apache Arrow] format             |
 
-## Representative Performance
+## Representative Performance (10x Faster)
 
 ![Parquet Generation Performance](parquet-performance.png)
 
 ## Testing
 
-We have gone through great lengths to ensure our data generators produce the
-same exact output (byte-for-byte), as the reference implementations, both for
-single and multi-part output. Our multi-level strategy for ensuring correctness
-is detailed in [TESTING.md](TESTING.md) and includes comparing the output of our
-generators to the original reference implementations as part of CI.
+We go through great lengths to ensure our data generators produce the same exact
+bytes as the reference implementations, both for single and multi-part output.
+Our multi-level strategy for ensuring correctness is detailed in
+[TESTING.md](TESTING.md) and includes comparing the output of our generators to
+the original reference implementations as part of CI.
 
 ## Contributing
 
