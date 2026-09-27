@@ -5,7 +5,7 @@ authors = { workspace = true }
 description = "Blazing fast pure Rust TPC-H data generator command line tool."
 readme = "README.md"
 edition = { workspace = true }
-homepage = { workspace = true }
+homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli"
 license = { workspace = true }
 repository = { workspace = true }
 

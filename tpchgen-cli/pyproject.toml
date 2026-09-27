@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
+Homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli"
 Repository = "https://github.com/datafusion-contrib/tpcgen-rs"
 Issues = "https://github.com/datafusion-contrib/tpcgen-rs/issues"
 

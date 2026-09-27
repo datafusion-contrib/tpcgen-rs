@@ -21,7 +21,7 @@
 [actions-badge]: https://github.com/datafusion-contrib/tpcgen-rs/actions/workflows/rust.yml/badge.svg
 [actions-url]: https://github.com/datafusion-contrib/tpcgen-rs/actions?query=branch%3Amain
 
-Blazing fast [TPC-H] and [TPC-DS] benchmark data generator.
+Modern, blazing fast and easy to use [TPC-H] and [TPC-DS] benchmark data generator.
 
 [TPC-H]: https://www.tpc.org/tpch/
 [TPC-DS]: https://www.tpc.org/tpcds/
@@ -35,13 +35,11 @@ Blazing fast [TPC-H] and [TPC-DS] benchmark data generator.
 
 ## Try it now
 
-Try with `uvx`:
-
 ```shell
 uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
 
-![Running tpcgen-cli](tpcgen-cli-run.gif)
+![Running tpcgen-cli](tpchgen-cli-run.gif)
 
 Install with `pip`:
 
