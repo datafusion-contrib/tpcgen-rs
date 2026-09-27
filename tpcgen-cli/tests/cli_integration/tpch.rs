@@ -504,7 +504,7 @@ fn test_tpcgen_cli_tpch_failed_write_has_no_completion_log() {
 /// Test that with `--parts`, only the parts that already exist are skipped:
 /// the missing parts are still generated into the table's directory.
 #[test]
-fn test_tpchgen_cli_tbl_parts_generates_missing_parts() {
+fn test_tpcgen_cli_tpch_tbl_parts_generates_missing_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let parts_dir = temp_dir.path().join("part");
     let existing = parts_dir.join("part.1.tbl");
@@ -537,13 +537,13 @@ fn test_tpchgen_cli_tbl_parts_generates_missing_parts() {
 
 /// Test that `--overwrite` regenerates an existing TBL file
 #[test]
-fn test_tpchgen_cli_tbl_overwrite() {
+fn test_tpcgen_cli_tpch_tbl_overwrite() {
     assert_overwrites_existing_file("tpch", "tbl", "part");
 }
 
 /// Test that `--overwrite` regenerates an existing Parquet file
 #[test]
-fn test_tpchgen_cli_parquet_overwrite() {
+fn test_tpcgen_cli_tpch_parquet_overwrite() {
     assert_overwrites_existing_file("tpch", "parquet", "part");
 }
 
@@ -610,7 +610,7 @@ fn test_tpcgen_cli_tpch_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // generate 4 parts of the orders table with scale factor 0.001 and let
-    // tpcgen-cli generates the multiple files
+    // tpcgen-cli generate the multiple files
 
     let num_parts = 4;
     let output_dir = temp_dir.path().to_path_buf();
