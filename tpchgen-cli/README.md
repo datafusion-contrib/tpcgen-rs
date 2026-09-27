@@ -12,12 +12,6 @@ benchmarking.
 
 * See the tpchgen [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
 project details
-* Watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
-[@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
-* Read the companion blog post in the
-[Datafusion
-blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
-* Try it yourself by following the instructions below
 
 ## Try with `uvx`
 
@@ -95,3 +89,12 @@ is not a terminal, e.g. in CI logs).
   which is why it is not included in the table above.
 
 Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+
+
+## More information
+
+* Watch this [demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
+  [@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
+* Read the companion blog post in the
+  [Datafusion
+  blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history

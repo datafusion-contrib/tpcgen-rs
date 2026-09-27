@@ -1,4 +1,4 @@
-# tpcgen-rs
+# tpcgen-rs: Modern, blazing fast easy to use TPC-* benchmark data generators
 
 > [!NOTE]
 > Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
