@@ -6,13 +6,6 @@ name: Conformance
 # through TPCGEN_CLI_BIN instead of rebuilding it themselves.
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - 'tpchgen/**'
-      - 'tpcdsgen/**'
-      - 'tpcgen-cli/**'
-      - '.github/**'
   pull_request:
   merge_group:
   workflow_dispatch:
@@ -45,7 +38,9 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          # Restore only. full-conformance.yml saves this cache on main.
+          shared-key: tpcgen-cli-release
+          save-if: false
 
       - name: Build Rust table generators
         run: cargo build --locked --release -p tpcgen-cli
@@ -62,8 +57,6 @@ jobs:
   # See tpcgen-cli/scripts/tpch/generate-fixtures.sh for how the sums are
   # produced.
   tpch:
-    # This job name is a required status check in the 'main' branch
-    # ruleset — rename both together, or PRs block on a phantom check.
     name: TPC-H Conformance Tests
     needs: build
     runs-on: ubuntu-latest
@@ -157,3 +150,27 @@ jobs:
         run: |
           cd tpcgen-cli
           ./scripts/tpcds/compare-all-tables.sh --compat c --scale 4 --quiet
+
+  # Provide one stable status check for branch rules and the merge queue.
+  conformance-checks:
+    name: Conformance checks
+    if: ${{ always() }}
+    needs:
+      - build
+      - tpch
+      - tpcds-java
+      - tpcds-c
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all conformance jobs passed
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          TPCH_RESULT: ${{ needs.tpch.result }}
+          TPCDS_JAVA_RESULT: ${{ needs.tpcds-java.result }}
+          TPCDS_C_RESULT: ${{ needs.tpcds-c.result }}
+        run: |
+          set -e
+          test "$BUILD_RESULT" = success
+          test "$TPCH_RESULT" = success
+          test "$TPCDS_JAVA_RESULT" = success
+          test "$TPCDS_C_RESULT" = success

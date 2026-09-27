@@ -118,10 +118,11 @@ impl Display for OutputPlan {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "table {} (SF={}, {} chunks) to {}",
+            "table {} (SF={}, {} chunk{}) to {}",
             self.table,
             self.scale_factor,
             self.chunk_count(),
+            if self.chunk_count() == 1 { "" } else { "s" },
             self.output_location
         )
     }

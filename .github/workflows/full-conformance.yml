@@ -43,6 +43,8 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
+          # Saved when run on main. Restored by other workflows using the same key.
+          shared-key: tpcgen-cli-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Build Rust table generators

@@ -1,5 +1,21 @@
 //! Shared command-line argument parsing.
 
+/// Parse a delimiter string, handling the `\t` escape sequence.
+///
+/// Restrict delimiters to comma, pipe, tab, and semicolon so unquoted fields
+/// remain intact. Reject unsupported values before generation starts.
+pub(crate) fn parse_delimiter(value: &str) -> Result<char, String> {
+    match value {
+        "," => Ok(','),
+        "|" => Ok('|'),
+        "\t" | "\\t" => Ok('\t'),
+        ";" => Ok(';'),
+        _ => Err(format!(
+            "CSV delimiter must be ',' (comma), '|' (pipe), '\\t' (tab), or ';' (semicolon), got {value:?}"
+        )),
+    }
+}
+
 /// Parses a positive byte count using case-insensitive GNU size suffixes.
 ///
 /// * `KB`, `MB`, `GB`, `TB`: powers of 1000
@@ -71,9 +87,60 @@ pub(crate) fn assert_format_options_grouped(
     }
 }
 
+/// Requires an explicit info-logging decision for every format-specific option.
+#[cfg(test)]
+pub(crate) fn assert_format_options_have_logging_policy(
+    commands: clap::Command,
+    common: clap::Command,
+) {
+    use std::collections::BTreeSet;
+
+    let common_ids: BTreeSet<_> = common
+        .get_arguments()
+        .map(|arg| arg.get_id().as_str())
+        .collect();
+
+    for subcommand in commands.get_subcommands() {
+        let name = subcommand.get_name();
+        let (logged, omitted): (&[&str], &[&str]) = match name {
+            "tbl" | "dat" => (&[], &[]),
+            "csv" => (&["delimiter"], &[]),
+            // Per-column overrides are too detailed for the info-level summary.
+            "parquet" => (&["compression", "row_group_bytes"], &["column_encoding"]),
+            other => panic!("add a logging policy for the `{other}` subcommand"),
+        };
+        let expected: BTreeSet<_> = logged.iter().chain(omitted).copied().collect();
+        let actual: BTreeSet<_> = subcommand
+            .get_arguments()
+            .map(|arg| arg.get_id().as_str())
+            .filter(|id| !common_ids.contains(id))
+            .collect();
+        assert_eq!(
+            actual, expected,
+            "`{name}` options changed: decide whether to log each option at info or intentionally omit it"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn csv_delimiter_parses_and_validates_values() {
+        for delimiter in (0..=127u8).map(char::from).chain(['\u{20ac}', '\u{e9}']) {
+            let expected = matches!(delimiter, ',' | '|' | '\t' | ';');
+            let parsed = parse_delimiter(&delimiter.to_string());
+            assert_eq!(parsed.is_ok(), expected, "{delimiter:?}");
+            if expected {
+                assert_eq!(parsed.unwrap(), delimiter);
+            }
+        }
+        assert_eq!(parse_delimiter("\\t"), Ok('\t'));
+        for value in ["", "\\n", "\\r", "\\\\", "\\t\\t", "||", "tab"] {
+            assert!(parse_delimiter(value).is_err(), "{value:?}");
+        }
+    }
 
     #[test]
     fn row_group_bytes_parses_and_validates_values() {

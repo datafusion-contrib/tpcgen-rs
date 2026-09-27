@@ -1,5 +1,5 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
-use crate::args::parse_row_group_bytes;
+use crate::args::{parse_delimiter, parse_row_group_bytes};
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
 use crate::parquet::parse_column_encoding_pair;
@@ -10,12 +10,14 @@ use crate::tpcds_cli::dat::Dat;
 use crate::tpch_cli::{Compression, Encoding};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
+use log::info;
 use std::collections::HashSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use tpcdsgen::config::{CompatMode, Session, SessionBuilder, Table};
 use tpcdsgen::error::{InvalidOptionError, TpcdsError};
 
@@ -39,6 +41,16 @@ enum OutputFormat {
     Dat(dat::Dat),
     Csv(csv::Csv),
     Parquet(parquet::Parquet),
+}
+
+impl OutputFormat {
+    fn extension(&self) -> &'static str {
+        match self {
+            Self::Dat(_) => "dat",
+            Self::Csv(_) => "csv",
+            Self::Parquet(_) => "parquet",
+        }
+    }
 }
 
 #[derive(Args)]
@@ -77,8 +89,7 @@ struct CsvArgs {
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
-    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
-    /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
+    /// Supported delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon).
     #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
     delimiter: char,
 }
@@ -282,6 +293,7 @@ impl CommonArgs {
     /// rows it covers; the output splits those rows into chunks it generates
     /// in parallel.
     async fn run_output(self, output_format: OutputFormat) -> Result<()> {
+        let total_start = Instant::now();
         let num_threads = self.num_threads;
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
@@ -291,7 +303,29 @@ impl CommonArgs {
 
         // Create the output directory if it doesn't exist (writing to stdout
         // creates no directories)
-        self.base_location()?.create_dir_all()?;
+        let base_location = self.base_location()?;
+        base_location.create_dir_all()?;
+
+        let partition = match (self.parts, self.part) {
+            (Some(parts), Some(part)) => format!(", part={part}/{parts}"),
+            (Some(parts), None) => format!(", parts={parts} (all)"),
+            (None, _) => String::new(),
+        };
+        info!(
+            "Generating TPC-DS (SF={}, format={}, compat={}, tables={}, threads={num_threads}{partition}) to {base_location}",
+            self.scale_factor,
+            output_format.extension(),
+            self.compat,
+            tables.len()
+        );
+        match &output_format {
+            OutputFormat::Dat(_) => {}
+            OutputFormat::Csv(output) => info!("CSV settings: delimiter={:?}", output.delimiter),
+            OutputFormat::Parquet(output) => info!(
+                "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
+                output.compression, output.row_group_bytes
+            ),
+        }
 
         // Every output generates all of its tables in one call so that
         // multiple tables can be generated concurrently
@@ -322,6 +356,7 @@ impl CommonArgs {
         }
 
         progress.finish();
+        info!("Generation complete in {:.2?}!", total_start.elapsed());
         Ok(())
     }
 
@@ -534,35 +569,17 @@ fn expected_table_names() -> String {
         .join(", ")
 }
 
-fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
-    let parsed = match s {
-        "\\t" => '\t',
-        "\\n" => '\n',
-        "\\r" => '\r',
-        "\\\\" => '\\',
-        _ => {
-            let chars: Vec<char> = s.chars().collect();
-            if chars.len() != 1 {
-                return Err(format!(
-                    "Delimiter must be a single character or escape sequence (\\t, \\n, \\r, \\\\), got: '{}'",
-                    s
-                ));
-            }
-            chars[0]
-        }
-    };
-    if !parsed.is_ascii() {
-        return Err(format!(
-            "Delimiter must be an ASCII character, got: '{}'",
-            parsed
-        ));
-    }
-    Ok(parsed)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_specific_options_have_logging_policy() {
+        crate::args::assert_format_options_have_logging_policy(
+            Commands::augment_subcommands(clap::Command::new("tpcds")),
+            CommonArgs::augment_args(clap::Command::new("common")),
+        );
+    }
 
     #[test]
     fn format_specific_options_are_grouped_in_help() {
