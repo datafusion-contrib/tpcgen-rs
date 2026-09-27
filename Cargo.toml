@@ -14,7 +14,7 @@ repository = "https://github.com/datafusion-contrib/tpcgen-rs"
 version = "3.0.0"
 
 [workspace.dependencies]
-arrow = { version = "60", default-features = false, features = ["prettyprint"] }
+arrow = "60"
 parquet = "60"
 # `tpchgen-arrow` and `tpcdsgen-arrow` build against arrow 60 (`arrow_60`,
 # default) or arrow 59 (`arrow_59`); the selected version is aliased to `arrow`
