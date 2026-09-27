@@ -307,8 +307,6 @@ where
 mod tests {
     use super::*;
     use crate::progress::{ProgressHandle, ProgressTracker};
-    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-    use parquet::file::reader::{FileReader, SerializedFileReader};
     use std::fs::File;
     use std::io::BufWriter;
     use std::sync::{
@@ -397,41 +395,6 @@ mod tests {
 
         assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
-    }
-
-    #[tokio::test]
-    async fn parquet_fields_have_sequential_ids() {
-        let output_dir = tempfile::tempdir().unwrap();
-        let output_path = output_dir.path().join("region.parquet");
-        write_region(None, &output_path).await.unwrap();
-
-        let reader = SerializedFileReader::new(File::open(output_path).unwrap()).unwrap();
-        let fields = reader
-            .metadata()
-            .file_metadata()
-            .schema_descr()
-            .root_schema()
-            .get_fields();
-
-        assert_eq!(fields.len(), 3);
-        for (index, field) in fields.iter().enumerate() {
-            let basic_info = field.get_basic_info();
-            assert!(basic_info.has_id());
-            assert_eq!(basic_info.id(), (index + 1) as i32);
-        }
-
-        let arrow_schema = ParquetRecordBatchReaderBuilder::try_new(
-            File::open(output_dir.path().join("region.parquet")).unwrap(),
-        )
-        .unwrap()
-        .schema()
-        .clone();
-        for (index, field) in arrow_schema.fields().iter().enumerate() {
-            assert_eq!(
-                field.metadata().get(PARQUET_FIELD_ID_META_KEY),
-                Some(&(index + 1).to_string())
-            );
-        }
     }
 
     async fn write_region(

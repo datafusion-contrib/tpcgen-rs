@@ -1,6 +1,7 @@
 use super::test_helpers::{
     assert_flags_under_help_heading, assert_overwrites_existing_file,
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes,
+    expect_sequential_field_ids, RowGroups,
 };
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -10,7 +11,6 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::basic::{Compression, Encoding};
 use parquet::file::metadata::ParquetMetaDataReader;
-use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
@@ -1157,7 +1157,7 @@ fn test_tpcgen_cli_tpcds_parquet_fields_have_ids() {
             "tpcds",
             "parquet",
             "--scale-factor",
-            "0.001",
+            "0",
             "--tables",
             "reason,store_sales",
             "--no-progress",
@@ -1168,27 +1168,7 @@ fn test_tpcgen_cli_tpcds_parquet_fields_have_ids() {
         .success();
 
     for table in ["reason", "store_sales"] {
-        let file = File::open(temp_dir.path().join(format!("{table}.parquet")))
-            .expect("Failed to open Parquet file");
-        let reader = SerializedFileReader::new(file).expect("Failed to read Parquet file");
-        let fields = reader
-            .metadata()
-            .file_metadata()
-            .schema_descr()
-            .root_schema()
-            .get_fields();
-
-        assert!(!fields.is_empty(), "{table} must have fields");
-        for (index, field) in fields.iter().enumerate() {
-            let basic_info = field.get_basic_info();
-            assert!(basic_info.has_id(), "{} must have a field ID", field.name());
-            assert_eq!(
-                basic_info.id(),
-                (index + 1) as i32,
-                "unexpected field ID for {}",
-                field.name()
-            );
-        }
+        expect_sequential_field_ids(&temp_dir.path().join(format!("{table}.parquet")));
     }
 }
 
