@@ -1,7 +1,7 @@
 //! Explicit expected Arrow schemas for the TPC-DS tables.
 
-use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use tpcdsgen::config::Table;
+use tpcdsgen_arrow::arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 pub(super) fn expected_schema(table: Table) -> Schema {
     match table {

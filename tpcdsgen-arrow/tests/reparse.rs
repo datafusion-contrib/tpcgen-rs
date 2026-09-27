@@ -13,12 +13,7 @@
 //! - re-parse the output with the Arrow CSV reader using the same schema
 //! - assert that the reparsed and direct Arrow RecordBatches are equal
 
-// See the `tpcdsgen_arrow` crate documentation for the `arrow_59` feature flag;
-// the selected versions are aliased back to `arrow` and `arrow_csv` here.
-#[cfg(feature = "arrow_59")]
-extern crate arrow_59 as arrow;
-#[cfg(not(feature = "arrow_59"))]
-extern crate arrow_60 as arrow;
+// Use the arrow-csv version matching the `arrow` re-exported by `tpcdsgen_arrow`.
 #[cfg(feature = "arrow_59")]
 extern crate arrow_csv_59 as arrow_csv;
 #[cfg(not(feature = "arrow_59"))]
@@ -41,6 +36,7 @@ use tpcdsgen::row::{
     TimeDimRowGenerator, WarehouseRowGenerator, WebPageRowGenerator, WebSalesRowGenerator,
     WebSiteRowGenerator,
 };
+use tpcdsgen_arrow::arrow;
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,

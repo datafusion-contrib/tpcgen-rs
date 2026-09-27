@@ -1,12 +1,7 @@
 //! Verifies the correctness of the Arrow TPCH generator by parsing the canonical TBL format
 //! and comparing with the generated Arrow RecordBatches
 
-// See the `tpchgen_arrow` crate documentation for the `arrow_59` feature flag;
-// the selected versions are aliased back to `arrow` and `arrow_csv` here.
-#[cfg(feature = "arrow_59")]
-extern crate arrow_59 as arrow;
-#[cfg(not(feature = "arrow_59"))]
-extern crate arrow_60 as arrow;
+// Use the arrow-csv version matching the `arrow` re-exported by `tpchgen_arrow`.
 #[cfg(feature = "arrow_59")]
 extern crate arrow_csv_59 as arrow_csv;
 #[cfg(not(feature = "arrow_59"))]
@@ -25,6 +20,7 @@ use tpchgen::generators::{
     OrderGenerator, Part, PartGenerator, PartSupp, PartSuppGenerator, Region, RegionGenerator,
     Supplier, SupplierGenerator,
 };
+use tpchgen_arrow::arrow;
 use tpchgen_arrow::{
     CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
     SupplierArrow,
