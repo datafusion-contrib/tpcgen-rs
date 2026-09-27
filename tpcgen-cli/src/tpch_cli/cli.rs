@@ -115,7 +115,7 @@ struct CommonArgs {
     #[arg(short, long, default_value_t = false, conflicts_with = "verbose")]
     quiet: bool,
 
-    /// Write the output to stdout instead of a file.
+    /// Write output to stdout instead of a file; concurrent generators may interleave output.
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
