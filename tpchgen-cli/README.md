@@ -19,6 +19,8 @@ project details
 uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
 
+![Running tpchgen-cli](tpchgen-cli-run.gif)
+
 ## Install with `pip`
 
 ```shell
@@ -34,13 +36,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 RUSTFLAGS='-C target-cpu=native' cargo install --locked tpchgen-cli
 ```
 
-
 Then generate TPC-H data:
 
 ```shell
 tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
-
 
 ## Examples
 
@@ -83,12 +83,11 @@ automatically when `--quiet` is set, when `--stdout` is used, or when stderr
 is not a terminal, e.g. in CI logs).
 
 ## Performance
-[`tpchgen-cli`] is more than 10x faster than the next fastest TPCH generator we
-know of. On a 2023 Mac M3 Max laptop, it easily generates data faster than can
-be written to SSD. See [BENCHMARKS.md](./tpchgen-cli/benchmarks/BENCHMARKS.md) for more
-details on performance and benchmarking.
 
-[`tpchgen-cli`]: ./tpchgen-cli/README.md
+`tpchgen-cli` is more than 10x faster than the next fastest TPCH generator we
+know of. On a 2023 Mac M3 Max laptop, it easily generates data faster than can
+be written to SSD. See [BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more
+details on performance and benchmarking.
 
 Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
@@ -104,7 +103,7 @@ Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` f
 - Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
 
-![Parquet Generation Performance](parquet-performance.png)
+![Parquet Generation Performance](../parquet-performance.png)
 
 ## More information
 
@@ -113,3 +112,8 @@ Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` f
 * Read the companion blog post in the
   [Datafusion
   blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
+
+## References
+
+- The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
+- The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)
