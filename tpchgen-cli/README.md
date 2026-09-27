@@ -34,6 +34,14 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 RUSTFLAGS='-C target-cpu=native' cargo install --locked tpchgen-cli
 ```
 
+
+Then generate TPC-H data:
+
+```shell
+tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
+```
+
+
 ## Examples
 
 ```shell
