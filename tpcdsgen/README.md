@@ -5,20 +5,17 @@ This crate provides the core data generator logic for TPC-DS.
 ## Usage
 
 ```bash
-# Build the unified generator CLI
-cargo build --locked --release -p tpcgen-cli
-
 # Generate all tables at scale factor 1 (default)
-./target/release/tpcgen-cli tpcds dat
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat
 
 # Generate all tables at scale factor 10
-./target/release/tpcgen-cli tpcds dat --scale-factor 10
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat --scale-factor 10
 
 # Generate specific table
-./target/release/tpcgen-cli tpcds dat --tables store_sales --scale-factor 10
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat --tables store_sales --scale-factor 10
 
 # Generate to a specific directory
-./target/release/tpcgen-cli tpcds dat --scale-factor 10 --output-dir /path/to/output
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat --scale-factor 10 --output-dir /path/to/output
 ```
 
 ## Generating Fixtures
