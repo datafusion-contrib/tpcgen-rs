@@ -43,19 +43,16 @@ For example to benchmark the performance of generating TPC-H data using
 
 ```shell
 hyperfine --warmup 1 --runs 5 \
---prepare "rm -rf /tmp/output" \
-"cargo run --release -p tpcgen-cli --bin tpcgen-cli -- tpch parquet --scale-factor=100 --tables=lineitem --parts=10 --output-dir /tmp/output"
+--prepare "rm -rf /tmp/tpch" \
+"cargo run --release -p tpcgen-cli --bin tpcgen-cli -- tpch parquet --scale-factor=100 --tables=lineitem --parts=10 --output-dir /tmp/tpch"
 ```
 
 To benchmark the performance of generating TPC-DS data using `tpcgen` we use a command such as
 ```shell
 hyperfine --warmup 1 --runs 5 \
---prepare "rm -rf /tmp/output" \
-"cargo run --release -p tpcgen-cli --bin tpcgen-cli -- tpcds parquet --scale-factor=100 --tables=store_sales --output-dir /tmp/output"
+--prepare "rm -rf /tmp/tpcds" \
+"cargo run --release -p tpcgen-cli --bin tpcgen-cli -- tpcds parquet --scale-factor=100 --tables=store_sales --output-dir /tmp/tpcds"
 ```
-
-`cargo run` rebuilds the binary if needed, so the benchmark never uses a stale
-build; `--warmup 1` keeps that first (building) run out of the timings.
 
 ## License
 
