@@ -84,11 +84,6 @@ is not a terminal, e.g. in CI logs).
 
 ## Performance
 
-`tpchgen-cli` is more than 10x faster than the next fastest TPCH generator we
-know of. On a 2023 Mac M3 Max laptop, it easily generates data faster than can
-be written to SSD. See [BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more
-details on performance and benchmarking.
-
 Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
 | Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
@@ -103,7 +98,7 @@ Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` f
 - Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
 
-![Parquet Generation Performance](../parquet-performance.png)
+![Parquet Generation Performance](benchmarks/parquet-performance.png)
 
 ## More information
 

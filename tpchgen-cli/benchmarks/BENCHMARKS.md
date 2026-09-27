@@ -23,7 +23,7 @@ tpchgen-cli parquet -s 100 --stdout | pv -arb > /dev/null
 
 # Benchmarking Columnar file formats
 
-![Parquet Generation Performance](../../parquet-performance.png)
+![Parquet Generation Performance](parquet-performance.png)
 
 See [tpcgen-rs performance Spreadsheet] for more details.
 
@@ -39,6 +39,10 @@ including Apache Spark, DataFusion, Snowflake, DataBricks, and DuckDB.
 | [parquet_tpchgen.sh]  | `tpchgen` | Parquet (snappy)     |                                             |
 | [parquet_duckdb.sh]   | `duckdb`  | Parquet (snappy)     | Includes DuckDB --> Parquet |
 | [duckdb_duckdb.sh]    | `duckdb`  | DuckDB (proprietary) |                                             |
+
+[parquet_tpchgen.sh]: parquet_tpchgen.sh
+[parquet_duckdb.sh]: parquet_duckdb.sh
+[duckdb_duckdb.sh]: duckdb_duckdb.sh
 
 
 ## `parquet_tpchgen.sh`
@@ -103,7 +107,7 @@ CALL dbgen(sf = 10);
 
 # Benchmarking `TBL` format
 
-![TBL Performance](../../tbl-performance.png)
+![TBL Performance](tbl-performance.png)
 
 The classic `dbgen` program produces data in a format known as
 `TBL` (or `tbl`), which is a simple text format delimited by `|` characters.
@@ -120,6 +124,11 @@ could be executed. This format is still useful for benchmarking and comparison.
 | [tbl_tpchgen_1.sh]    | `dbgen`   | TBL                  | Restricted to 1 core (`--num-threads=1`) |
 | [tbl_dbgen.sh]        | `dbgen`   | TBL                  |                                          |
 | [tbl_dbgen_O3.sh]     | `dbgen`   | TBL                  | `dbgen` modified (compiled with `-O3`)   |
+
+[tbl_tpchgen.sh]: tbl_tpchgen.sh
+[tbl_tpchgen_1.sh]: tbl_tpchgen_1.sh
+[tbl_dbgen.sh]: tbl_dbgen.sh
+[tbl_dbgen_O3.sh]: tbl_dbgen_O3.sh
 
 
 ## `tbl_tpchgen.sh`
