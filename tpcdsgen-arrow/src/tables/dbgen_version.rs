@@ -73,30 +73,26 @@ impl Iterator for DbgenVersionArrow {
             return None;
         }
 
-        let mut version: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut version: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut create_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut create_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cmdline: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cmdline: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
-            version.push(opt(nbm, 0, r.get_dv_version().to_owned()));
+            version.push(opt(nbm, 0, r.get_dv_version()));
             create_date.push(opt(nbm, 1, date_to_date32(r.get_dv_create_date())));
             create_time.push(opt(nbm, 2, r.get_dv_create_time()));
-            cmdline.push(opt(nbm, 3, r.get_dv_cmdline_args().to_owned()));
+            cmdline.push(opt(nbm, 3, r.get_dv_cmdline_args()));
         }
 
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(string_view_array_from_opt_iter(
-                    version.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(version.iter().copied())),
                 Arc::new(Date32Array::from(create_date)),
                 Arc::new(Time32SecondArray::from(create_time)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cmdline.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(cmdline.iter().copied())),
             ],
         );
         Some(batch)

@@ -77,20 +77,20 @@ impl Iterator for WebSiteArrow {
         }
 
         let mut web_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut web_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut web_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut web_open_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut web_close_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut web_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut web_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut web_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_market_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut web_market_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut web_market_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_market_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut web_market_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut web_market_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut web_company_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_company_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
             Vec::with_capacity(rows.len());
         let mut web_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -98,20 +98,20 @@ impl Iterator for WebSiteArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             web_sk.push(integer_sk_opt(nbm, 0, r.get_web_site_sk()));
-            web_id.push(opt(nbm, 1, r.get_web_site_id().to_owned()));
+            web_id.push(opt(nbm, 1, r.get_web_site_id()));
             web_rec_start.push(julian_to_date32(r.get_web_rec_start_date_id()));
             web_rec_end.push(julian_to_date32(r.get_web_rec_end_date_id()));
-            web_name.push(opt(nbm, 4, r.web_name().to_owned()));
+            web_name.push(opt(nbm, 4, r.web_name()));
             web_open_date.push(integer_sk_opt(nbm, 5, r.web_open_date()));
             web_close_date.push(integer_sk_opt(nbm, 6, r.web_close_date()));
-            web_class.push(opt(nbm, 7, r.web_class().to_owned()));
-            web_manager.push(opt(nbm, 8, r.web_manager().to_owned()));
+            web_class.push(opt(nbm, 7, r.web_class()));
+            web_manager.push(opt(nbm, 8, r.web_manager()));
             web_market_id.push(opt(nbm, 9, r.web_market_id()));
-            web_market_class.push(opt(nbm, 10, r.web_market_class().to_owned()));
-            web_market_desc.push(opt(nbm, 11, r.web_market_desc().to_owned()));
-            web_market_manager.push(opt(nbm, 12, r.web_market_manager().to_owned()));
+            web_market_class.push(opt(nbm, 10, r.web_market_class()));
+            web_market_desc.push(opt(nbm, 11, r.web_market_desc()));
+            web_market_manager.push(opt(nbm, 12, r.web_market_manager()));
             web_company_id.push(opt(nbm, 13, r.web_company_id()));
-            web_company_name.push(opt(nbm, 14, r.web_company_name().to_owned()));
+            web_company_name.push(opt(nbm, 14, r.web_company_name()));
             addr_rows.push((r.web_address().clone(), nbm, 15));
             web_tax_pct.push(opt(nbm, 25, decimal_to_i128(*r.web_tax_percentage())));
         }
@@ -135,35 +135,27 @@ impl Iterator for WebSiteArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(web_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(web_id.iter().copied())),
                 Arc::new(Date32Array::from(web_rec_start)),
                 Arc::new(Date32Array::from(web_rec_end)),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_name.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(web_name.iter().copied())),
                 Arc::new(Int32Array::from(web_open_date)),
                 Arc::new(Int32Array::from(web_close_date)),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_class.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_manager.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(web_class.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(web_manager.iter().copied())),
                 Arc::new(Int32Array::from(web_market_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    web_market_class.iter().map(|s| s.as_deref()),
+                    web_market_class.iter().copied(),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    web_market_desc.iter().map(|s| s.as_deref()),
+                    web_market_desc.iter().copied(),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    web_market_manager.iter().map(|s| s.as_deref()),
+                    web_market_manager.iter().copied(),
                 )),
                 Arc::new(Int32Array::from(web_company_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    web_company_name.iter().map(|s| s.as_deref()),
+                    web_company_name.iter().copied(),
                 )),
                 Arc::new(street_number),
                 Arc::new(street_name),

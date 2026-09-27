@@ -77,23 +77,23 @@ impl Iterator for StoreArrow {
         }
 
         let mut s_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut s_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut s_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut s_closed_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut s_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut s_floor_space: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_hours: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut s_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_hours: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut s_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut s_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_geography_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut s_market_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut s_market_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_geography_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut s_market_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut s_market_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut s_division_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_division_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_division_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut s_company_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_company_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
             Vec::with_capacity(rows.len());
         let mut s_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
@@ -101,23 +101,23 @@ impl Iterator for StoreArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             s_sk.push(integer_sk_opt(nbm, 0, r.get_store_sk()));
-            s_id.push(opt(nbm, 1, r.get_store_id().to_owned()));
+            s_id.push(opt(nbm, 1, r.get_store_id()));
             s_rec_start.push(julian_to_date32(r.get_rec_start_date_id()));
             s_rec_end.push(julian_to_date32(r.get_rec_end_date_id()));
             s_closed_date.push(integer_sk_opt(nbm, 4, r.get_closed_date_id()));
-            s_name.push(opt(nbm, 5, r.get_store_name().to_owned()));
+            s_name.push(opt(nbm, 5, r.get_store_name()));
             s_employees.push(opt(nbm, 6, r.get_employees()));
             s_floor_space.push(opt(nbm, 7, r.get_floor_space()));
-            s_hours.push(opt(nbm, 8, r.get_hours().to_owned()));
-            s_manager.push(opt(nbm, 9, r.get_store_manager().to_owned()));
+            s_hours.push(opt(nbm, 8, r.get_hours()));
+            s_manager.push(opt(nbm, 9, r.get_store_manager()));
             s_market_id.push(opt(nbm, 10, r.get_market_id()));
-            s_geography_class.push(opt(nbm, 11, r.get_geography_class().to_owned()));
-            s_market_desc.push(opt(nbm, 12, r.get_market_desc().to_owned()));
-            s_market_manager.push(opt(nbm, 13, r.get_market_manager().to_owned()));
+            s_geography_class.push(opt(nbm, 11, r.get_geography_class()));
+            s_market_desc.push(opt(nbm, 12, r.get_market_desc()));
+            s_market_manager.push(opt(nbm, 13, r.get_market_manager()));
             s_division_id.push(integer_opt(nbm, 14, r.get_division_id()));
-            s_division_name.push(opt(nbm, 15, r.get_division_name().to_owned()));
+            s_division_name.push(opt(nbm, 15, r.get_division_name()));
             s_company_id.push(integer_opt(nbm, 16, r.get_company_id()));
-            s_company_name.push(opt(nbm, 17, r.get_company_name().to_owned()));
+            s_company_name.push(opt(nbm, 17, r.get_company_name()));
             addr_rows.push((r.get_address().clone(), nbm, 18));
             s_tax_pct.push(opt(nbm, 28, decimal_to_i128(r.get_d_tax_percentage())));
         }
@@ -141,40 +141,32 @@ impl Iterator for StoreArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(s_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(s_id.iter().copied())),
                 Arc::new(Date32Array::from(s_rec_start)),
                 Arc::new(Date32Array::from(s_rec_end)),
                 Arc::new(Int32Array::from(s_closed_date)),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_name.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(s_name.iter().copied())),
                 Arc::new(Int32Array::from(s_employees)),
                 Arc::new(Int32Array::from(s_floor_space)),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_hours.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_manager.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(s_hours.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(s_manager.iter().copied())),
                 Arc::new(Int32Array::from(s_market_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    s_geography_class.iter().map(|s| s.as_deref()),
+                    s_geography_class.iter().copied(),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    s_market_desc.iter().map(|s| s.as_deref()),
+                    s_market_desc.iter().copied(),
                 )),
                 Arc::new(string_view_array_from_opt_iter(
-                    s_market_manager.iter().map(|s| s.as_deref()),
+                    s_market_manager.iter().copied(),
                 )),
                 Arc::new(Int32Array::from(s_division_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    s_division_name.iter().map(|s| s.as_deref()),
+                    s_division_name.iter().copied(),
                 )),
                 Arc::new(Int32Array::from(s_company_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    s_company_name.iter().map(|s| s.as_deref()),
+                    s_company_name.iter().copied(),
                 )),
                 Arc::new(street_number),
                 Arc::new(street_name),

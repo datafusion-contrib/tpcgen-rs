@@ -74,26 +74,22 @@ impl Iterator for ReasonArrow {
         }
 
         let mut sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut reason_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut reason_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             sk.push(integer_sk_opt(nbm, 0, r.get_r_reason_sk()));
-            id.push(opt(nbm, 1, r.get_r_reason_id().to_owned()));
-            reason_desc.push(opt(nbm, 2, r.get_r_reason_desc().to_owned()));
+            id.push(opt(nbm, 1, r.get_r_reason_id()));
+            reason_desc.push(opt(nbm, 2, r.get_r_reason_desc()));
         }
 
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    id.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    reason_desc.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(id.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(reason_desc.iter().copied())),
             ],
         );
         Some(batch)

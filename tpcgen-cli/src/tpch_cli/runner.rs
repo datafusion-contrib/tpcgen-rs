@@ -1,23 +1,20 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
-use crate::parquet::generate_parquet;
+use crate::generate::{Source, TextOutput};
+use crate::parquet::ParquetOutput;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
-use crate::temp_path::inprogress_path;
 use crate::tpch_cli::csv::*;
-use crate::tpch_cli::generate::generate_in_chunks;
-use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::generator::column_encodings_for_table;
-use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
+use crate::tpch_cli::output_plan::OutputPlan;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
-use crate::tpch_cli::{OutputFormat, Table, WriterSink};
+use crate::tpch_cli::{OutputFormat, Table};
 use crate::worker_queue::WorkerQueue;
 use arrow::record_batch::RecordBatchReader;
 use log::{debug, info};
 use std::collections::BTreeMap;
 use std::io;
-use std::io::BufWriter;
 use std::sync::Arc;
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
@@ -127,22 +124,6 @@ async fn run_plan(
     }
 }
 
-/// If `path` already exists, log a warning, advance progress by the full
-/// output-unit count for this plan, and return `true` so the caller can skip
-/// generation. Returns `false` otherwise.
-fn maybe_skip_existing(
-    path: &std::path::Path,
-    plan: &OutputPlan,
-    progress: &ProgressHandle,
-) -> bool {
-    if !path.exists() {
-        return false;
-    }
-    log::warn!("{} already exists, skipping generation", path.display());
-    progress.increment(plan.chunk_count() as u64);
-    true
-}
-
 /// Writes a CSV/TSV output from the sources
 async fn write_file<I>(
     plan: OutputPlan,
@@ -153,33 +134,25 @@ async fn write_file<I>(
 where
     I: Iterator<Item: Source> + 'static,
 {
-    // Since generate_in_chunks already buffers, there is no need to buffer
-    // again (aka don't use BufWriter here)
-    match plan.output_location() {
-        OutputLocation::Stdout => {
-            let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads, progress).await
-        }
-        OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
-                return Ok(());
-            }
-            // write to a temp file and then rename to avoid partial files
-            let temp_path = inprogress_path(path);
-            let file = std::fs::File::create(&temp_path).map_err(|err| {
-                io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
-            })?;
-            let sink = WriterSink::new(file);
-            generate_in_chunks(sink, sources, num_threads, progress).await?;
-            // rename the temp file to the final path
-            std::fs::rename(&temp_path, path).map_err(|e| {
-                io::Error::other(format!(
-                    "Failed to rename {temp_path:?} to {path:?} file: {e}"
-                ))
-            })?;
-            Ok(())
-        }
+    let written = plan
+        .output_location()
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
+        .await?;
+    if written {
+        info!(
+            "Generated table {} to {}",
+            plan.table(),
+            plan.output_location()
+        );
+    } else {
+        // Skipped, so count all chunks at once
+        progress.increment(plan.chunk_count() as u64);
     }
+    Ok(())
 }
 
 /// Generates an output parquet file from the sources
@@ -199,47 +172,27 @@ where
         .map(|encodings| column_encodings_for_table(plan.table(), encodings));
     let column_encodings = column_encodings.as_deref();
 
-    match plan.output_location() {
-        OutputLocation::Stdout => {
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(
-                writer,
-                sources,
-                num_threads,
-                plan.parquet_compression(),
-                column_encodings,
-                progress,
-            )
-            .await
-        }
-        OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
-                return Ok(());
-            }
-            // write to a temp file and then rename to avoid partial files
-            let temp_path = inprogress_path(path);
-            let file = std::fs::File::create(&temp_path).map_err(|err| {
-                io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
-            })?;
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(
-                writer,
-                sources,
-                num_threads,
-                plan.parquet_compression(),
-                column_encodings,
-                progress,
-            )
-            .await?;
-            // rename the temp file to the final path
-            std::fs::rename(&temp_path, path).map_err(|e| {
-                io::Error::other(format!(
-                    "Failed to rename {temp_path:?} to {path:?} file: {e}"
-                ))
-            })?;
-            Ok(())
-        }
+    let written = plan
+        .output_location()
+        .write(ParquetOutput {
+            sources,
+            num_threads,
+            compression: plan.parquet_compression(),
+            column_encodings,
+            progress: progress.clone(),
+        })
+        .await?;
+    if written {
+        info!(
+            "Generated table {} to {}",
+            plan.table(),
+            plan.output_location()
+        );
+    } else {
+        // Skipped, so count all chunks at once
+        progress.increment(plan.chunk_count() as u64);
     }
+    Ok(())
 }
 
 /// macro to create a function for generating a part of a particular able
@@ -259,7 +212,10 @@ macro_rules! define_run {
         ) -> io::Result<usize> {
             use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
-            info!("Writing {plan} using {num_threads} threads");
+            info!(
+                "Writing {plan} using {num_threads} thread{}",
+                if num_threads == 1 { "" } else { "s" }
+            );
 
             /// These interior functions are used to tell the compiler that the lifetime is 'static
             /// (when these were closures, the compiler could not figure out the lifetime) and
@@ -390,6 +346,7 @@ define_run!(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::output_location::OutputLocation;
     use crate::progress::ProgressTracker;
     use crate::tpch_cli::output_plan::ParquetWriterOptions;
     use crate::tpch_cli::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
@@ -411,8 +368,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn skip_existing_advances_progress_by_full_plan() {
+    #[tokio::test]
+    async fn skip_existing_advances_progress_by_full_plan() {
         let output_dir = tempfile::tempdir().unwrap();
         let output_path = output_dir.path().join("lineitem.tbl");
         std::fs::write(&output_path, b"already here").unwrap();
@@ -431,7 +388,10 @@ mod tests {
             1.0,
             OutputFormat::Tbl,
             ParquetWriterOptions::default(),
-            OutputLocation::File(output_path.clone()),
+            OutputLocation::File {
+                path: output_path.clone(),
+                overwrite: false,
+            },
             generation_plan,
             ',',
         );
@@ -442,7 +402,10 @@ mod tests {
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
         let progress = progress.register(plan.table().name(), expected_units);
 
-        assert!(maybe_skip_existing(&output_path, &plan, &progress));
+        write_file(plan, 1, std::iter::empty::<LineItemTblSource>(), progress)
+            .await
+            .unwrap();
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);
+        assert_eq!(std::fs::read(&output_path).unwrap(), b"already here");
     }
 }

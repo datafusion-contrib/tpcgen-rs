@@ -33,6 +33,9 @@ OPTIONS:
                   of the MD5-only check.
     --help        Show this help.
 
+ENVIRONMENT:
+    TPCGEN_CLI_BIN  Prebuilt tpcgen-cli binary to use instead of building.
+
 EXAMPLES:
     compare-all-tables.sh                     # MD5-only, scale 1.
     compare-all-tables.sh --scale 0.01        # MD5-only, scale 0.01.
@@ -101,10 +104,15 @@ main() {
     log_info "TPC-H conformance, scale ${SCALE_FACTOR} ($([[ $FULL -eq 1 ]] && echo 'byte-for-byte' || echo 'MD5-only'))"
     log_info "========================================="
 
-    log_info "Building Rust generator..."
-    (cd "$PROJECT_ROOT" && cargo build --locked --release -p tpcgen-cli --quiet)
     local generator
-    generator=$(find_generator)
+    if [[ -n "${TPCGEN_CLI_BIN:-}" ]]; then
+        generator="$TPCGEN_CLI_BIN"
+        log_info "Using prebuilt generator: $generator"
+    else
+        log_info "Building Rust generator..."
+        (cd "$PROJECT_ROOT" && cargo build --locked --release -p tpcgen-cli --quiet)
+        generator=$(find_generator)
+    fi
     if [[ ! -x "$generator" ]]; then
         log_error "Generator not found at $generator"
         exit 1

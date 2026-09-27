@@ -19,6 +19,7 @@
 //!
 //! See ISSUE-004 for details.
 
+use crate::config::Table;
 use crate::row::{
     CallCenterRow, CatalogPageRow, CatalogReturnsRow, CatalogSalesRow, CustomerAddressRow,
     CustomerDemographicsRow, CustomerRow, DateDimRow, DbgenVersionRow, HouseholdDemographicsRow,
@@ -59,6 +60,42 @@ pub enum GeneratedRow {
     WebReturns(WebReturnsRow),
     WebSales(WebSalesRow),
     WebSite(WebSiteRow),
+}
+
+impl GeneratedRow {
+    /// The table this row belongs to.
+    ///
+    /// The sales generators emit rows for two tables (sales and returns); This
+    /// function can be used to filter for rows from only one table.
+    pub fn table(&self) -> Table {
+        match self {
+            GeneratedRow::CallCenter(_) => Table::CallCenter,
+            GeneratedRow::CatalogPage(_) => Table::CatalogPage,
+            GeneratedRow::CatalogReturns(_) => Table::CatalogReturns,
+            GeneratedRow::CatalogSales(_) => Table::CatalogSales,
+            GeneratedRow::Customer(_) => Table::Customer,
+            GeneratedRow::CustomerAddress(_) => Table::CustomerAddress,
+            GeneratedRow::CustomerDemographics(_) => Table::CustomerDemographics,
+            GeneratedRow::DateDim(_) => Table::DateDim,
+            GeneratedRow::DbgenVersion(_) => Table::DbgenVersion,
+            GeneratedRow::HouseholdDemographics(_) => Table::HouseholdDemographics,
+            GeneratedRow::IncomeBand(_) => Table::IncomeBand,
+            GeneratedRow::Inventory(_) => Table::Inventory,
+            GeneratedRow::Item(_) => Table::Item,
+            GeneratedRow::Promotion(_) => Table::Promotion,
+            GeneratedRow::Reason(_) => Table::Reason,
+            GeneratedRow::ShipMode(_) => Table::ShipMode,
+            GeneratedRow::Store(_) => Table::Store,
+            GeneratedRow::StoreReturns(_) => Table::StoreReturns,
+            GeneratedRow::StoreSales(_) => Table::StoreSales,
+            GeneratedRow::TimeDim(_) => Table::TimeDim,
+            GeneratedRow::Warehouse(_) => Table::Warehouse,
+            GeneratedRow::WebPage(_) => Table::WebPage,
+            GeneratedRow::WebReturns(_) => Table::WebReturns,
+            GeneratedRow::WebSales(_) => Table::WebSales,
+            GeneratedRow::WebSite(_) => Table::WebSite,
+        }
+    }
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
@@ -264,5 +301,11 @@ mod tests {
 
         // The enum's Display delegates to the variant's Display.
         assert_eq!(row.to_string(), generated.to_string());
+    }
+
+    #[test]
+    fn table_reports_the_variant_s_table() {
+        let generated: GeneratedRow = CallCenterRow::builder().build().into();
+        assert_eq!(generated.table(), Table::CallCenter);
     }
 }

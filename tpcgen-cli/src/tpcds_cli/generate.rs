@@ -1,39 +1,36 @@
-//! Driving the TPC-DS row generators, shared by the DAT and CSV outputs.
-//!
-//! Both outputs walk the generators identically — same row order, same seed
-//! consumption, same sales/returns pairing — and differ only in how a table's
-//! rows are written to a file. That difference is captured by [`TableOutput`]
-//! and [`TableWriter`]; everything else lives here so the two formats cannot
-//! drift apart.
+//! Drivers for the TPC-DS row generators, shared by the DAT and CSV outputs.
 
-use super::progress::TableProgress;
+use super::runner::PlannedTable;
+use crate::generate::{Source, TextOutput};
+use crate::output_location::OutputLocation;
 use log::info;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::marker::PhantomData;
+use std::ops::RangeInclusive;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::*;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-/// Return the output path for `table`'s file, following `tpcgen-cli tpch`'s
-/// `--parts`/`--part` naming convention:
+/// Return the output location for `table`, relative to `base_location` (the
+/// output directory, or stdout), following `tpcgen-cli tpch`'s `--parts`/`--part`
+/// naming convention:
 ///
 /// When `--parts` was not requested creates a single `<table>.<ext>` file, otherwise
 /// written into a subdirectory like `<table>/<table>.<chunk>.<ext>`.
 ///
 /// Note that `--parts 1` is also written to a subdirectory.
 ///
-/// This function creates the per-table subdirectory as needed.
-pub(super) fn output_path(
-    output_dir: &Path,
+/// This function creates the per-table subdirectory as needed. Writing to
+/// stdout creates no directories: every table shares the one stream.
+pub(super) fn output_location_for_table(
+    base_location: &OutputLocation,
     table: Table,
     ext: &str,
     session: &Session,
-) -> io::Result<PathBuf> {
+) -> io::Result<OutputLocation> {
     // sub directory `<table>/<table>.<chunk>.<ext>`
     if session.is_partitioned() {
-        let dir = output_dir.join(table.get_name());
-        std::fs::create_dir_all(&dir)?;
+        let dir = base_location.join(table.get_name());
+        dir.create_dir_all()?;
         Ok(dir.join(format!(
             "{}.{}.{ext}",
             table.get_name(),
@@ -41,25 +38,23 @@ pub(super) fn output_path(
         )))
     } else {
         // single `<table>.<ext>` file
-        Ok(output_dir.join(format!("{}.{ext}", table.get_name())))
+        Ok(base_location.join(format!("{}.{ext}", table.get_name())))
     }
 }
 
-/// The output file for one table.
-pub(super) trait TableWriter {
-    /// Write one generated row.
-    fn write_row(&mut self, row: &GeneratedRow) -> io::Result<()>;
+/// Trait for formatting text output for the TPC-DS row generators (DAT or CSV).
+pub(super) trait RowFormat: Clone + Send + 'static {
+    /// The file extension of this format's output files.
+    const EXTENSION: &'static str;
 
-    /// Flush and finalize the file, returning the path it was written to.
-    fn finish(self) -> Result<PathBuf>;
-}
+    /// Write the header line for `table`, if this format has one. Called once
+    /// per file, before any rows.
+    fn write_header(&self, table: Table, buffer: Vec<u8>) -> Vec<u8>;
 
-/// An output format: creates the per-table writers.
-pub(super) trait TableOutput {
-    type Writer: TableWriter;
-
-    /// Create the output file for `table`, ready to accept rows.
-    fn create_writer(&self, table: Table, session: &Session) -> Result<Self::Writer>;
+    /// Format `rows` (all belonging to `table`) into `buffer`.
+    fn write_rows<I>(&self, table: Table, rows: I, buffer: Vec<u8>) -> Vec<u8>
+    where
+        I: Iterator<Item = GeneratedRow>;
 }
 
 /// Trait for creating row generators.
@@ -107,225 +102,151 @@ impl_factory!(
     WebSalesRowGenerator
 );
 
-/// Generate one requested table into `output`.
-pub(super) fn generate_table<O: TableOutput>(
-    output: &O,
-    table: Table,
-    session: &Session,
-    progress: TableProgress,
-) -> Result<()> {
-    match table {
-        // Simple dimension tables
-        Table::CallCenter => {
-            generate_simple::<CallCenterRowGenerator, O>(output, table, session, progress)
-        }
-        Table::CatalogPage => {
-            generate_simple::<CatalogPageRowGenerator, O>(output, table, session, progress)
-        }
-        Table::Customer => {
-            generate_simple::<CustomerRowGenerator, O>(output, table, session, progress)
-        }
-        Table::CustomerAddress => {
-            generate_simple::<CustomerAddressRowGenerator, O>(output, table, session, progress)
-        }
-        Table::CustomerDemographics => {
-            generate_simple::<CustomerDemographicsRowGenerator, O>(output, table, session, progress)
-        }
-        Table::DateDim => {
-            generate_simple::<DateDimRowGenerator, O>(output, table, session, progress)
-        }
-        Table::DbgenVersion => {
-            generate_simple::<DbgenVersionRowGenerator, O>(output, table, session, progress)
-        }
-        Table::HouseholdDemographics => generate_simple::<HouseholdDemographicsRowGenerator, O>(
-            output, table, session, progress,
-        ),
-        Table::IncomeBand => {
-            generate_simple::<IncomeBandRowGenerator, O>(output, table, session, progress)
-        }
-        Table::Item => generate_simple::<ItemRowGenerator, O>(output, table, session, progress),
-        Table::Promotion => {
-            generate_simple::<PromotionRowGenerator, O>(output, table, session, progress)
-        }
-        Table::Reason => generate_simple::<ReasonRowGenerator, O>(output, table, session, progress),
-        Table::ShipMode => {
-            generate_simple::<ShipModeRowGenerator, O>(output, table, session, progress)
-        }
-        Table::Store => generate_simple::<StoreRowGenerator, O>(output, table, session, progress),
-        Table::TimeDim => {
-            generate_simple::<TimeDimRowGenerator, O>(output, table, session, progress)
-        }
-        Table::Warehouse => {
-            generate_simple::<WarehouseRowGenerator, O>(output, table, session, progress)
-        }
-        Table::WebPage => {
-            generate_simple::<WebPageRowGenerator, O>(output, table, session, progress)
-        }
-        Table::WebSite => {
-            generate_simple::<WebSiteRowGenerator, O>(output, table, session, progress)
-        }
-        Table::Inventory => {
-            generate_simple::<InventoryRowGenerator, O>(output, table, session, progress)
-        }
+/// Generate one planned table (one `--parts` chunk of one table) into
+/// `base_location`, using up to `num_threads` threads.
+///
+/// A sales generator emits rows for its returns table too; each output keeps
+/// only its own rows, the same way the Arrow generators produce them.
+pub(super) async fn generate_table<F: RowFormat>(
+    format: F,
+    base_location: OutputLocation,
+    planned: PlannedTable,
+    num_threads: usize,
+) -> io::Result<()> {
+    macro_rules! generate {
+        ($GENERATOR:ty) => {
+            write_table::<F, $GENERATOR>(format, &base_location, planned, num_threads).await
+        };
+    }
 
-        // Sales generators write their return tables at the same time.
-        Table::StoreSales => generate_sales_and_returns::<StoreSalesRowGenerator, O>(
-            output,
-            Table::StoreSales,
-            Table::StoreReturns,
-            session,
-            progress,
-        ),
-        Table::StoreReturns => Ok(()), // Generated with StoreSales
-        Table::CatalogSales => generate_sales_and_returns::<CatalogSalesRowGenerator, O>(
-            output,
-            Table::CatalogSales,
-            Table::CatalogReturns,
-            session,
-            progress,
-        ),
-        Table::CatalogReturns => Ok(()), // Generated with CatalogSales
-        Table::WebSales => generate_sales_and_returns::<WebSalesRowGenerator, O>(
-            output,
-            Table::WebSales,
-            Table::WebReturns,
-            session,
-            progress,
-        ),
-        Table::WebReturns => Ok(()), // Generated with WebSales
+    match planned.table {
+        // Simple dimension tables
+        Table::CallCenter => generate!(CallCenterRowGenerator),
+        Table::CatalogPage => generate!(CatalogPageRowGenerator),
+        Table::Customer => generate!(CustomerRowGenerator),
+        Table::CustomerAddress => generate!(CustomerAddressRowGenerator),
+        Table::CustomerDemographics => generate!(CustomerDemographicsRowGenerator),
+        Table::DateDim => generate!(DateDimRowGenerator),
+        Table::DbgenVersion => generate!(DbgenVersionRowGenerator),
+        Table::HouseholdDemographics => generate!(HouseholdDemographicsRowGenerator),
+        Table::IncomeBand => generate!(IncomeBandRowGenerator),
+        Table::Inventory => generate!(InventoryRowGenerator),
+        Table::Item => generate!(ItemRowGenerator),
+        Table::Promotion => generate!(PromotionRowGenerator),
+        Table::Reason => generate!(ReasonRowGenerator),
+        Table::ShipMode => generate!(ShipModeRowGenerator),
+        Table::Store => generate!(StoreRowGenerator),
+        Table::TimeDim => generate!(TimeDimRowGenerator),
+        Table::Warehouse => generate!(WarehouseRowGenerator),
+        Table::WebPage => generate!(WebPageRowGenerator),
+        Table::WebSite => generate!(WebSiteRowGenerator),
+
+        // Sales tables and the returns tables their generator also emits
+        Table::StoreSales | Table::StoreReturns => generate!(StoreSalesRowGenerator),
+        Table::CatalogSales | Table::CatalogReturns => generate!(CatalogSalesRowGenerator),
+        Table::WebSales | Table::WebReturns => generate!(WebSalesRowGenerator),
 
         // Source tables - skip
         _ => Ok(()),
     }
 }
 
-/// Generate a simple table (one row per row_number, no child tables)
-fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
-    output: &O,
-    table: Table,
-    session: &Session,
-    progress: TableProgress,
-) -> Result<()> {
-    let TableProgress::Single(progress) = progress else {
-        unreachable!("simple table must have one progress handle")
+/// Generate the rows in `planned`.
+///
+/// Progress is counted in chunks; the totals are registered by
+/// [`super::runner::plan_tables`]
+async fn write_table<F, G>(
+    format: F,
+    base_location: &OutputLocation,
+    planned: PlannedTable,
+    num_threads: usize,
+) -> io::Result<()>
+where
+    F: RowFormat,
+    G: RowGeneratorFactory + Send + 'static,
+{
+    let PlannedTable {
+        table,
+        session,
+        plan,
+        progress,
+    } = planned;
+
+    let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
+    let chunk_count = plan.chunk_count() as u64;
+    let scale_factor = session.get_scaling().get_scale();
+    let part = session.get_chunk_number();
+    let parts = session.get_total_chunks();
+    let partition = if session.is_partitioned() {
+        format!(" (part {part}/{parts})")
+    } else {
+        String::new()
     };
-    let row_range = session.get_source_row_range(table);
-    if row_range.is_empty() && session.is_partitioned() {
-        progress.complete();
-        return Ok(());
-    }
+    let source_rows = session.get_scaling().get_row_count(table.source_table());
+    let sources = plan.into_iter().map(move |range| RowSource::<F, G> {
+        format: format.clone(),
+        table,
+        session: session.clone(),
+        source_rows,
+        range,
+        generator: PhantomData,
+    });
 
-    let mut generator = G::create();
-    generator.skip_rows_until_starting_row_number(*row_range.start());
-
-    let mut writer = output.create_writer(table, session)?;
-
-    info!("Generating {}...", table.get_name());
-
-    let mut generated_rows = 0u64;
-    for row_number in row_range {
-        let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-
-        for row in result.get_rows() {
-            writer.write_row(row)?;
-        }
-
-        generator.consume_remaining_seeds_for_row();
-        progress.increment(1);
-        generated_rows += 1;
-    }
-
-    let path = writer.finish()?;
-    progress.complete();
     info!(
-        "Generated {}: {} rows -> {}",
-        table.get_name(),
-        generated_rows,
-        path.display()
+        "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+        if chunk_count == 1 { "" } else { "s" },
+        if num_threads == 1 { "" } else { "s" }
     );
-
+    let written = location
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
+        .await?;
+    if written {
+        info!("Generated table {table}{partition} to {location}");
+    } else {
+        // Skipped, so count all chunks at once
+        progress.increment(chunk_count);
+    }
+    progress.complete();
     Ok(())
 }
 
-/// Generate sales and returns tables in one pass.
-///
-/// Sales generators can emit rows for both output tables. Keeping them paired
-/// preserves row advancement and seed consumption.
-fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
-    output: &O,
-    sales_table: Table,
-    returns_table: Table,
-    session: &Session,
-    progress: TableProgress,
-) -> Result<()> {
-    let TableProgress::Paired {
-        sales: sales_progress,
-        returns: returns_progress,
-    } = progress
-    else {
-        unreachable!("sales table must have sales and returns progress handles")
-    };
-    let source_row_range = session.get_source_row_range(sales_table);
-    // See `generate_simple`: only a partitioned table skips its empty chunks.
-    if source_row_range.is_empty() && session.is_partitioned() {
-        sales_progress.complete();
-        returns_progress.complete();
-        return Ok(());
+/// Generates the text for one chunk (a range of source rows) of one table.
+struct RowSource<F, G> {
+    format: F,
+    table: Table,
+    session: Session,
+    source_rows: u64,
+    /// The 1-based inclusive source rows of this chunk
+    range: RangeInclusive<u64>,
+    generator: PhantomData<G>,
+}
+
+impl<F, G> Source for RowSource<F, G>
+where
+    F: RowFormat,
+    G: RowGeneratorFactory + Send + 'static,
+{
+    fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
+        self.format.write_header(self.table, buffer)
     }
 
-    let mut generator = G::create();
-    generator.skip_rows_until_starting_row_number(*source_row_range.start());
-    let last_row_number = *source_row_range.end();
+    fn create(self, buffer: Vec<u8>) -> Vec<u8> {
+        let Self {
+            format,
+            table,
+            session,
+            source_rows,
+            range,
+            ..
+        } = self;
 
-    let mut sales_writer = output.create_writer(sales_table, session)?;
-    let mut returns_writer = output.create_writer(returns_table, session)?;
+        let mut rows = RowIter::new(G::create(), session, source_rows);
+        rows.set_source_row_range(*range.start(), *range.end());
 
-    info!(
-        "Generating {} + {}...",
-        sales_table.get_name(),
-        returns_table.get_name()
-    );
-
-    let mut sales_count = 0u64;
-    let mut returns_count = 0u64;
-    let mut row_number = *source_row_range.start();
-
-    while row_number <= last_row_number {
-        let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-        let (rows, should_end_row) = result.into_parts();
-
-        if !rows.is_empty() {
-            sales_writer.write_row(&rows[0])?;
-            sales_count += 1;
-        }
-
-        if rows.len() > 1 {
-            returns_writer.write_row(&rows[1])?;
-            returns_count += 1;
-            returns_progress.increment(1);
-        }
-
-        if should_end_row {
-            generator.consume_remaining_seeds_for_row();
-            row_number += 1;
-            sales_progress.increment(1);
-        }
+        format.write_rows(table, rows.filter(|row| row.table() == table), buffer)
     }
-
-    let sales_path = sales_writer.finish()?;
-    let returns_path = returns_writer.finish()?;
-    sales_progress.complete();
-    returns_progress.complete();
-
-    info!(
-        "Generated {} + {}: {} sales, {} returns -> {}, {}",
-        sales_table.get_name(),
-        returns_table.get_name(),
-        sales_count,
-        returns_count,
-        sales_path.display(),
-        returns_path.display()
-    );
-
-    Ok(())
 }

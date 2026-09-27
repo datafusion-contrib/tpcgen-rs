@@ -74,41 +74,31 @@ impl Iterator for ShipModeArrow {
         }
 
         let mut sm_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sm_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut sm_type: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut sm_code: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut sm_carrier: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut sm_contract: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut sm_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut sm_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut sm_code: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut sm_carrier: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut sm_contract: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             sm_sk.push(integer_sk_opt(nbm, 0, r.get_sm_ship_mode_sk()));
-            sm_id.push(opt(nbm, 1, r.get_sm_ship_mode_id().to_owned()));
-            sm_type.push(opt(nbm, 2, r.get_sm_type().to_owned()));
-            sm_code.push(opt(nbm, 3, r.get_sm_code().to_owned()));
-            sm_carrier.push(opt(nbm, 4, r.get_sm_carrier().to_owned()));
-            sm_contract.push(opt(nbm, 5, r.get_sm_contract().to_owned()));
+            sm_id.push(opt(nbm, 1, r.get_sm_ship_mode_id()));
+            sm_type.push(opt(nbm, 2, r.get_sm_type()));
+            sm_code.push(opt(nbm, 3, r.get_sm_code()));
+            sm_carrier.push(opt(nbm, 4, r.get_sm_carrier()));
+            sm_contract.push(opt(nbm, 5, r.get_sm_contract()));
         }
 
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(sm_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    sm_id.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    sm_type.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    sm_code.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    sm_carrier.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    sm_contract.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(sm_id.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(sm_type.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(sm_code.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(sm_carrier.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(sm_contract.iter().copied())),
             ],
         );
         Some(batch)

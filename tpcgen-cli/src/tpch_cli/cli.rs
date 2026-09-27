@@ -1,8 +1,5 @@
-use super::{
-    Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
-    DEFAULT_PARQUET_ROW_GROUP_BYTES,
-};
-use crate::args::parse_row_group_bytes;
+use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
+use crate::args::{parse_delimiter, parse_row_group_bytes};
 use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
@@ -133,6 +130,10 @@ struct CommonArgs {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
+    /// Overwrite output files that already exist.
+    #[arg(long, default_value_t = false)]
+    overwrite: bool,
+
     /// Disable progress bars during data generation.
     ///
     /// Bars are also auto-suppressed by `--quiet`, `--stdout`, or when
@@ -157,7 +158,8 @@ impl CommonArgs {
             .with_output_dir(self.output_dir)
             .with_format(format)
             .with_num_threads(self.num_threads)
-            .with_stdout(self.stdout);
+            .with_stdout(self.stdout)
+            .with_overwrite(self.overwrite);
 
         if let Some(tables) = tables {
             builder = builder.with_tables(tables);
@@ -223,9 +225,8 @@ struct CsvArgs {
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
-    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
-    /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
-    #[arg(long, default_value = ",", value_parser = parse_delimiter)]
+    /// Supported delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon).
+    #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
     delimiter: char,
 }
 
@@ -247,25 +248,24 @@ struct ParquetArgs {
     ///   ZSTD(1):      1.9G  (0.52 GB/sec)
     ///   SNAPPY:       2.4G  (0.75 GB/sec)
     ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
-    #[arg(short = 'c', long, default_value = "SNAPPY")]
+    #[arg(
+        short = 'c',
+        long,
+        default_value = "SNAPPY",
+        help_heading = "Parquet Options"
+    )]
     compression: Compression,
 
-    /// Approximate target row-group size in uncompressed bytes
+    /// Approximate uncompressed size of each row group (e.g. 8000000, 8MB, 512KB)
     ///
-    /// Row groups are the typical unit of parallel processing and compression
-    /// with many query engines. Therefore, smaller row groups enable better
-    /// parallelism and lower peak memory use but may reduce compression
-    /// efficiency.
-    ///
-    /// Note: Parquet files are limited to 32k row groups, so at high scale
-    /// factors, the row group size may be increased to keep the number of row
-    /// groups under this limit.
-    ///
-    /// Typical values range from 10MB to 100MB.
+    /// Smaller row groups improve parallelism and lower peak memory use but
+    /// may reduce compression efficiency. At high scale factors the size may
+    /// be increased so a file stays within Parquet's 32,767 row-group limit.
     #[arg(
         long,
-        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
-        value_parser = parse_row_group_bytes
+        default_value = "7MiB", // DEFAULT_PARQUET_ROW_GROUP_BYTES
+        value_parser = parse_row_group_bytes,
+        help_heading = "Parquet Options"
     )]
     row_group_bytes: i64,
 
@@ -283,40 +283,13 @@ struct ParquetArgs {
     /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
     /// dictionary encoding is the writer default and cannot be requested
     /// through this flag, and BIT_PACKED is not supported for writing.
-    #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_parser = parse_column_encoding_pair,
+        help_heading = "Parquet Options"
+    )]
     column_encoding: Option<Vec<(String, Encoding)>>,
-}
-
-/// Parse a delimiter string, handling escape sequences.
-///
-/// The underlying arrow-csv writer requires an ASCII byte for the delimiter,
-/// so non-ASCII characters are rejected here rather than failing mid-generation.
-fn parse_delimiter(s: &str) -> Result<char, String> {
-    // Handle common escape sequences
-    let parsed = match s {
-        "\\t" => '\t',
-        "\\n" => '\n',
-        "\\r" => '\r',
-        "\\\\" => '\\',
-        _ => {
-            // If it's not an escape sequence, it should be a single character
-            let chars: Vec<char> = s.chars().collect();
-            if chars.len() != 1 {
-                return Err(format!(
-                    "Delimiter must be a single character or escape sequence (\\t, \\n, \\r, \\\\), got: '{}'",
-                    s
-                ));
-            }
-            chars[0]
-        }
-    };
-    if !parsed.is_ascii() {
-        return Err(format!(
-            "Delimiter must be an ASCII character, got: '{}'",
-            parsed
-        ));
-    }
-    Ok(parsed)
 }
 
 // TableValueParser is CLI-specific and uses the Table type from the library
@@ -432,6 +405,30 @@ impl ParquetArgs {
 mod tests {
     use super::*;
 
+    #[test]
+    fn format_specific_options_have_logging_policy() {
+        use clap::{Args, Subcommand};
+        crate::args::assert_format_options_have_logging_policy(
+            Commands::augment_subcommands(clap::Command::new("tpch")),
+            CommonArgs::augment_args(clap::Command::new("common")),
+        );
+    }
+
+    #[test]
+    fn format_specific_options_are_grouped_in_help() {
+        use clap::{Args, Subcommand};
+        crate::args::assert_format_options_grouped(
+            Commands::augment_subcommands(clap::Command::new("tpch")),
+            CommonArgs::augment_args(clap::Command::new("common")),
+            |format| match format {
+                "tbl" => "TBL Options",
+                "csv" => "CSV Options",
+                "parquet" => "Parquet Options",
+                other => panic!("add a help heading for the `{other}` subcommand"),
+            },
+        );
+    }
+
     fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
         CommonArgs {
             scale_factor: 1.0,
@@ -443,6 +440,7 @@ mod tests {
             verbose: false,
             quiet: false,
             stdout: false,
+            overwrite: false,
             progress_bars_enabled: false,
         }
     }
@@ -474,6 +472,19 @@ mod tests {
         assert_eq!(
             args.common.tables(),
             Some(vec![Table::Region, Table::Nation])
+        );
+    }
+
+    #[test]
+    fn parquet_row_group_bytes_default_matches_constant() {
+        let cli = Cli::try_parse_from(["tpchgen", "parquet"]).unwrap();
+        let Some(Commands::Parquet(args)) = cli.command else {
+            panic!("expected parquet command")
+        };
+
+        assert_eq!(
+            args.row_group_bytes,
+            crate::tpch_cli::DEFAULT_PARQUET_ROW_GROUP_BYTES
         );
     }
 }

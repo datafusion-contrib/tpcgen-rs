@@ -1,17 +1,13 @@
-use super::generate::Sink;
 use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
-use super::statistics::WriteStatistics;
-use crate::parquet::IntoSize;
+use crate::output_location::OutputLocation;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
 use arrow::datatypes::SchemaRef;
 use log::info;
 use std::fmt::Display;
-use std::fs::File;
 use std::io;
-use std::io::{BufWriter, Stdout, Write};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -21,48 +17,6 @@ use tpchgen_arrow::{
     CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
     SupplierArrow,
 };
-
-/// Wrapper around a buffer writer that counts the number of buffers and bytes written
-pub struct WriterSink<W: Write> {
-    statistics: WriteStatistics,
-    inner: W,
-}
-
-impl<W: Write> WriterSink<W> {
-    pub fn new(inner: W) -> Self {
-        Self {
-            inner,
-            statistics: WriteStatistics::new("buffers"),
-        }
-    }
-}
-
-impl<W: Write + Send> Sink for WriterSink<W> {
-    fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error> {
-        self.statistics.increment_chunks(1);
-        self.statistics.increment_bytes(buffer.len());
-        self.inner.write_all(buffer)
-    }
-
-    fn flush(mut self) -> Result<(), io::Error> {
-        self.inner.flush()
-    }
-}
-
-impl IntoSize for BufWriter<Stdout> {
-    fn into_size(self) -> Result<usize, io::Error> {
-        // we can't get the size of stdout, so just return 0
-        Ok(0)
-    }
-}
-
-impl IntoSize for BufWriter<File> {
-    fn into_size(self) -> Result<usize, io::Error> {
-        let file = self.into_inner()?;
-        let metadata = file.metadata()?;
-        Ok(metadata.len() as usize)
-    }
-}
 
 /// TPC-H table types
 ///
@@ -155,6 +109,17 @@ pub enum OutputFormat {
     Parquet,
 }
 
+impl OutputFormat {
+    /// return the file extension for this output format
+    pub fn extension(&self) -> &'static str {
+        match self {
+            OutputFormat::Tbl => "tbl",
+            OutputFormat::Csv => "csv",
+            OutputFormat::Parquet => "parquet",
+        }
+    }
+}
+
 impl FromStr for OutputFormat {
     type Err = String;
 
@@ -208,6 +173,8 @@ pub struct GeneratorConfig {
     pub part: Option<i32>,
     /// Write output to stdout instead of files
     pub stdout: bool,
+    /// Overwrite output files that already exist
+    pub overwrite: bool,
     /// CSV delimiter character (only applies to CSV format)
     pub csv_delimiter: char,
 }
@@ -226,6 +193,7 @@ impl Default for GeneratorConfig {
             parts: None,
             part: None,
             stdout: false,
+            overwrite: false,
             csv_delimiter: ',',
         }
     }
@@ -301,13 +269,13 @@ impl TpchGenerator {
 
     /// Generate TPC-H data with the configured settings.
     pub async fn generate(self) -> io::Result<()> {
+        let total_start = Instant::now();
         let config = self.config;
         let progress_tracker = self.progress_tracker;
 
         // Create output directory if it doesn't exist and we are not writing to stdout
-        if !config.stdout {
-            std::fs::create_dir_all(&config.output_dir)?;
-        }
+        let base_location = OutputLocation::new(config.stdout, config.output_dir, config.overwrite);
+        base_location.create_dir_all()?;
 
         // Determine which tables to generate
         let tables: Vec<Table> = if let Some(tables) = config.tables {
@@ -325,12 +293,34 @@ impl TpchGenerator {
             ]
         };
 
+        let partition = match (config.parts, config.part) {
+            (Some(parts), Some(part)) => format!(", part={part}/{parts}"),
+            (Some(parts), None) => format!(", parts={parts} (all)"),
+            (None, _) => String::new(),
+        };
+        info!(
+            "Generating TPC-H (SF={}, format={}, tables={}, threads={}{partition}) to {base_location}",
+            config.scale_factor,
+            config.format,
+            tables.len(),
+            config.num_threads
+        );
+
         // Reject a --column-encoding column that matches no selected table
         // (a typo) before any work starts. column_encodings_for_table
         // (below) skips a column that only matches some tables, so that
         // case is not an error.
         if let Some(encodings) = &config.parquet_column_encodings {
             validate_column_encodings(&tables, encodings)?;
+        }
+
+        match config.format {
+            OutputFormat::Tbl => {}
+            OutputFormat::Csv => info!("CSV settings: delimiter={:?}", config.csv_delimiter),
+            OutputFormat::Parquet => info!(
+                "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
+                config.parquet_compression, config.parquet_row_group_bytes
+            ),
         }
 
         // Determine what files to generate
@@ -342,8 +332,7 @@ impl TpchGenerator {
                 column_encodings: config.parquet_column_encodings,
             },
             config.parquet_row_group_bytes,
-            config.stdout,
-            config.output_dir,
+            base_location,
             config.csv_delimiter,
         );
 
@@ -358,12 +347,12 @@ impl TpchGenerator {
         Distributions::static_default();
         TextPool::get_or_init_default();
         let elapsed = start.elapsed();
-        info!("Created static distributions and text pools in {elapsed:?}");
+        info!("Created static distributions and text pools in {elapsed:.2?}");
 
         let runner = PlanRunner::new(output_plans, config.num_threads)
             .with_progress_tracker(progress_tracker);
         runner.run().await?;
-        info!("Generation complete!");
+        info!("Generation complete in {:.2?}!", total_start.elapsed());
         Ok(())
     }
 }
@@ -455,6 +444,12 @@ impl TpchGeneratorBuilder {
     /// Write output to stdout instead of files.
     pub fn with_stdout(mut self, stdout: bool) -> Self {
         self.config.stdout = stdout;
+        self
+    }
+
+    /// Overwrite output files that already exist.
+    pub fn with_overwrite(mut self, overwrite: bool) -> Self {
+        self.config.overwrite = overwrite;
         self
     }
 

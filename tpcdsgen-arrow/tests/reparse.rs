@@ -208,28 +208,6 @@ where
     );
 }
 
-/// Returns the source row to start skip tests from for the specified table.
-///
-/// Defaults to source row 100 and has special handling for slowly changing
-/// dimension (SCD) tables.
-fn skip_starting_row(table: Table, source_row_count: u64) -> u64 {
-    let max_skip_row = source_row_count.min(100);
-    if !matches!(
-        table,
-        Table::CallCenter | Table::Store | Table::WebPage | Table::WebSite | Table::Item
-    ) {
-        return max_skip_row;
-    }
-
-    // SCD tables reuse values from the previous source row for continuation
-    // records. Pick a new business-key row so a skipped generator does not need
-    // previous-row state initialized before the first generated row.
-    (1..=max_skip_row)
-        .rev()
-        .find(|row| row % 6 == 1)
-        .unwrap_or(1)
-}
-
 // ---------------------------------------------------------------------------
 // One test per table.
 // ---------------------------------------------------------------------------
@@ -286,10 +264,10 @@ macro_rules! table_test {
                 assert_record_batch_streams(arrow_gen, reparsed, row_limit);
             }
 
-            /// Parse after skipping some rows. See [`skip_starting_row`]
+            /// Parse after skipping some rows.
             fn skip(format: Format) {
                 let source_row_count = SESSION.get_scaling().get_row_count($table);
-                let starting_row_number = skip_starting_row($table, source_row_count);
+                let starting_row_number = source_row_count.min(100);
                 let remaining_source_rows = source_row_count - starting_row_number + 1;
                 let row_limit =
                     test_row_count($table).min(remaining_source_rows).min(1024) as usize;

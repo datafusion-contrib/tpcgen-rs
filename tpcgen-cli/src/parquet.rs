@@ -4,25 +4,21 @@ use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
-use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
+use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk, ArrowRowGroupWriterFactory};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
 use parquet::basic::{Compression, Encoding};
 use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAULT_COERCE_TYPES};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
 use std::io;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
-use crate::tpch_cli::statistics::WriteStatistics;
-
-pub trait IntoSize {
-    /// Convert the object into a size
-    fn into_size(self) -> Result<usize, io::Error>;
-}
+use crate::statistics::WriteStatistics;
 
 pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
     let Some((name, encoding)) = s.split_once('=') else {
@@ -103,7 +99,7 @@ pub async fn generate_parquet<W, I>(
     progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
-    W: Write + Send + IntoSize + 'static,
+    W: Write + Send + 'static,
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
 {
@@ -125,7 +121,7 @@ where
         ArrowSchemaConverter::new()
             .with_coerce_types(DEFAULT_COERCE_TYPES)
             .convert(&schema)
-            .unwrap(),
+            .map_err(io::Error::other)?,
     );
 
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
@@ -139,15 +135,27 @@ where
     add_encoded_arrow_schema_to_metadata(&schema, &mut writer_properties);
     let writer_properties = Arc::new(writer_properties);
 
+    // Create the parquet writer up front: the column writers for each row
+    // group are made by a factory that takes its schema and properties from it.
+    let mut writer = SerializedFileWriter::new(
+        writer,
+        parquet_schema.root_schema_ptr(),
+        Arc::clone(&writer_properties),
+    )
+    .map_err(io::Error::other)?;
+    let row_group_factory = Arc::new(ArrowRowGroupWriterFactory::new(
+        &writer,
+        Arc::clone(&schema),
+    ));
+
     // create a stream that computes the data for each row group
-    let mut row_group_stream = futures::stream::iter(iter_iter)
-        .map(async |iter| {
-            let parquet_schema = Arc::clone(&parquet_schema);
-            let writer_properties = Arc::clone(&writer_properties);
+    let mut row_group_stream = futures::stream::iter(iter_iter.enumerate())
+        .map(async |(row_group_index, iter)| {
+            let row_group_factory = Arc::clone(&row_group_factory);
             let schema = Arc::clone(&schema);
             // run on a separate thread
             tokio::task::spawn(async move {
-                encode_row_group(parquet_schema, writer_properties, schema, iter)
+                encode_row_group(row_group_factory, row_group_index, schema, iter)
             })
             .await
             .map_err(|e| io::Error::other(format!("Inner task panicked: {e}")))?
@@ -159,33 +167,27 @@ where
     // A blocking task that writes the row groups to the file
     // done in a blocking task to avoid having a thread waiting on IO
     // Now, read each completed row group and write it to the file
-    let root_schema = parquet_schema.root_schema_ptr();
-    let writer_properties_captured = Arc::clone(&writer_properties);
     let (tx, mut rx): (
         Sender<Vec<ArrowColumnChunk>>,
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
-        // Create parquet writer
-        let mut writer =
-            SerializedFileWriter::new(writer, root_schema, writer_properties_captured).unwrap();
-
         while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
-            let mut row_group_writer = writer.next_row_group().unwrap();
+            let mut row_group_writer = writer.next_row_group().map_err(io::Error::other)?;
 
             // Slap the chunks into the row group
             for column_chunk in column_chunks {
                 column_chunk
                     .append_to_row_group(&mut row_group_writer)
-                    .unwrap();
+                    .map_err(io::Error::other)?;
             }
-            row_group_writer.close().unwrap();
+            row_group_writer.close().map_err(io::Error::other)?;
             statistics.increment_chunks(1);
             progress.increment(1);
         }
-        let size = writer.into_inner()?.into_size()?;
-        statistics.increment_bytes(size);
+        writer.finish()?;
+        statistics.increment_bytes(writer.bytes_written());
         Ok(()) as Result<(), io::Error>
     });
 
@@ -207,6 +209,38 @@ where
     Ok(())
 }
 
+/// Parquet output generated in parallel, see [`generate_parquet`].
+pub(crate) struct ParquetOutput<'a, I> {
+    /// One reader per row group, in output order
+    pub(crate) sources: I,
+    /// Maximum number of row groups to encode in parallel
+    pub(crate) num_threads: usize,
+    /// Compression for every column
+    pub(crate) compression: Compression,
+    /// Per-column encodings (`--column-encoding`)
+    pub(crate) column_encodings: Option<&'a [(String, Encoding)]>,
+    /// Advanced once per written row group
+    pub(crate) progress: ProgressHandle,
+}
+
+impl<I> WriteOutput for ParquetOutput<'_, I>
+where
+    I: Iterator<Item: RecordBatchReader + Send> + 'static,
+{
+    async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()> {
+        let writer = BufWriter::with_capacity(32 * 1024 * 1024, writer); // 32MB buffer
+        generate_parquet(
+            writer,
+            self.sources,
+            self.num_threads,
+            self.compression,
+            self.column_encodings,
+            self.progress,
+        )
+        .await
+    }
+}
+
 /// Creates the data for a particular row group.
 ///
 /// Note at the moment it does not use multiple tasks/threads but it could
@@ -214,8 +248,8 @@ where
 ///
 /// Returns an array of [`ArrowColumnChunk`].
 fn encode_row_group<I>(
-    parquet_schema: SchemaDescPtr,
-    writer_properties: Arc<WriterProperties>,
+    row_group_factory: Arc<ArrowRowGroupWriterFactory>,
+    row_group_index: usize,
     schema: SchemaRef,
     iter: I,
 ) -> Result<Vec<ArrowColumnChunk>, io::Error>
@@ -223,13 +257,9 @@ where
     I: RecordBatchReader,
 {
     // Create writers for each of the leaf columns
-    #[allow(deprecated)]
-    let mut col_writers = parquet::arrow::arrow_writer::get_column_writers(
-        &parquet_schema,
-        &writer_properties,
-        &schema,
-    )
-    .map_err(io::Error::other)?;
+    let mut col_writers = row_group_factory
+        .create_column_writers(row_group_index)
+        .map_err(io::Error::other)?;
 
     // generate the data and send it to the tasks (via the sender channels)
     for batch in iter {
@@ -292,6 +322,34 @@ mod tests {
 
     fn region_source() -> RegionArrow {
         RegionArrow::new(RegionGenerator::default()).with_batch_size(5)
+    }
+
+    #[tokio::test]
+    async fn parquet_flush_failure_is_propagated() {
+        struct FlushFails;
+
+        impl Write for FlushFails {
+            fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+                Ok(buffer.len())
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                Err(io::Error::other("flush failed"))
+            }
+        }
+
+        let err = generate_parquet(
+            BufWriter::new(FlushFails),
+            vec![region_source()].into_iter(),
+            1,
+            Compression::UNCOMPRESSED,
+            None,
+            ProgressHandle::new(|_| {}),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.to_string().contains("flush failed"), "{err}");
     }
 
     #[tokio::test]

@@ -77,32 +77,32 @@ impl Iterator for ItemArrow {
         }
 
         let mut i_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut i_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut i_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut i_current_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut i_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut i_brand_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_brand: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_brand: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut i_class_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut i_category_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_category: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_category: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut i_manufact_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_manufact: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut i_size: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut i_formulation: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut i_color: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut i_units: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut i_container: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_manufact: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut i_size: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut i_formulation: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut i_color: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut i_units: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut i_container: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut i_manager_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_product_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut i_product_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             i_sk.push(integer_sk_opt(nbm, 0, r.get_i_item_sk()));
-            i_id.push(opt(nbm, 1, r.get_i_item_id().to_owned()));
+            i_id.push(opt(nbm, 1, r.get_i_item_id()));
             // IRecStartDateId is at bit 2 which CAN be set (not in not_null_bit_map);
             // check the null bit first, then apply the julian-day < 0 sentinel.
             i_rec_start.push(if is_null(nbm, 2) {
@@ -111,24 +111,24 @@ impl Iterator for ItemArrow {
                 julian_to_date32(r.get_i_rec_start_date_id())
             });
             i_rec_end.push(julian_to_date32(r.get_i_rec_end_date_id()));
-            i_desc.push(opt(nbm, 4, r.get_i_item_desc().to_owned()));
+            i_desc.push(opt(nbm, 4, r.get_i_item_desc()));
             i_current_price.push(opt(nbm, 5, decimal_to_i128(r.get_i_current_price())));
             i_wholesale_cost.push(opt(nbm, 6, decimal_to_i128(r.get_i_wholesale_cost())));
             i_brand_id.push(integer_opt(nbm, 7, r.get_i_brand_id()));
-            i_brand.push(opt(nbm, 8, r.get_i_brand().to_owned()));
+            i_brand.push(opt(nbm, 8, r.get_i_brand()));
             i_class_id.push(integer_opt(nbm, 9, r.get_i_class_id()));
-            i_class.push(opt(nbm, 10, r.get_i_class().to_owned()));
+            i_class.push(opt(nbm, 10, r.get_i_class()));
             i_category_id.push(integer_opt(nbm, 11, r.get_i_category_id()));
-            i_category.push(opt(nbm, 12, r.get_i_category().to_owned()));
+            i_category.push(opt(nbm, 12, r.get_i_category()));
             i_manufact_id.push(integer_opt(nbm, 13, r.get_i_manufact_id()));
-            i_manufact.push(opt(nbm, 14, r.get_i_manufact().to_owned()));
-            i_size.push(opt(nbm, 15, r.get_i_size().to_owned()));
-            i_formulation.push(opt(nbm, 16, r.get_i_formulation().to_owned()));
-            i_color.push(opt(nbm, 17, r.get_i_color().to_owned()));
-            i_units.push(opt(nbm, 18, r.get_i_units().to_owned()));
-            i_container.push(opt(nbm, 19, r.get_i_container().to_owned()));
+            i_manufact.push(opt(nbm, 14, r.get_i_manufact()));
+            i_size.push(opt(nbm, 15, r.get_i_size()));
+            i_formulation.push(opt(nbm, 16, r.get_i_formulation()));
+            i_color.push(opt(nbm, 17, r.get_i_color()));
+            i_units.push(opt(nbm, 18, r.get_i_units()));
+            i_container.push(opt(nbm, 19, r.get_i_container()));
             i_manager_id.push(integer_opt(nbm, 20, r.get_i_manager_id()));
-            i_product_name.push(opt(nbm, 21, r.get_i_product_name().to_owned()));
+            i_product_name.push(opt(nbm, 21, r.get_i_product_name()));
         }
 
         let price_arr = decimal128_7_2_array(i_current_price);
@@ -138,50 +138,30 @@ impl Iterator for ItemArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(i_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_id.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(i_id.iter().copied())),
                 Arc::new(Date32Array::from(i_rec_start)),
                 Arc::new(Date32Array::from(i_rec_end)),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_desc.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(i_desc.iter().copied())),
                 Arc::new(price_arr),
                 Arc::new(wholesale_arr),
                 Arc::new(Int32Array::from(i_brand_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_brand.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(i_brand.iter().copied())),
                 Arc::new(Int32Array::from(i_class_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_class.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(i_class.iter().copied())),
                 Arc::new(Int32Array::from(i_category_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_category.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(i_category.iter().copied())),
                 Arc::new(Int32Array::from(i_manufact_id)),
+                Arc::new(string_view_array_from_opt_iter(i_manufact.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(i_size.iter().copied())),
                 Arc::new(string_view_array_from_opt_iter(
-                    i_manufact.iter().map(|s| s.as_deref()),
+                    i_formulation.iter().copied(),
                 )),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_size.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_formulation.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_color.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_units.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_container.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(i_color.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(i_units.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(i_container.iter().copied())),
                 Arc::new(Int32Array::from(i_manager_id)),
                 Arc::new(string_view_array_from_opt_iter(
-                    i_product_name.iter().map(|s| s.as_deref()),
+                    i_product_name.iter().copied(),
                 )),
             ],
         );

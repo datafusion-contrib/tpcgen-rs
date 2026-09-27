@@ -74,8 +74,8 @@ impl Iterator for WarehouseArrow {
         }
 
         let mut w_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut w_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut w_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut w_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut w_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut w_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
             Vec::with_capacity(rows.len());
@@ -83,8 +83,8 @@ impl Iterator for WarehouseArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             w_sk.push(integer_sk_opt(nbm, 0, r.get_w_warehouse_sk()));
-            w_id.push(opt(nbm, 1, r.get_w_warehouse_id().to_owned()));
-            w_name.push(opt(nbm, 2, r.get_w_warehouse_name().to_owned()));
+            w_id.push(opt(nbm, 1, r.get_w_warehouse_id()));
+            w_name.push(opt(nbm, 2, r.get_w_warehouse_name()));
             w_sq_ft.push(opt(nbm, 3, r.get_w_warehouse_sq_ft()));
             addr_rows.push((r.get_w_address().clone(), nbm, 4));
         }
@@ -106,12 +106,8 @@ impl Iterator for WarehouseArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(w_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    w_id.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    w_name.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(w_id.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(w_name.iter().copied())),
                 Arc::new(Int32Array::from(w_sq_ft)),
                 Arc::new(street_number),
                 Arc::new(street_name),

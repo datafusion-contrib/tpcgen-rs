@@ -3,18 +3,20 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
+use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
+use crate::sink::WriterSink;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
-use std::io;
+use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinSet;
 
 /// Something that knows how to generate data into a buffer
 ///
-/// For example, this is implemented for the different generators in the tpchgen
-/// crate
+/// For example, this is implemented for the different generators in the
+/// `tpchgen` and `tpcdsgen` crates
 pub trait Source: Send {
     /// generates the data for this generator into the buffer, returning the buffer.
     fn create(self, buffer: Vec<u8>) -> Vec<u8>;
@@ -135,6 +137,34 @@ where
     // wait for writer to finish
     debug!("waiting for writer task to complete");
     writer_task.await.expect("writer task panicked")
+}
+
+/// Text output generated in parallel from [`Source`]s, see
+/// [`generate_in_chunks`].
+pub(crate) struct TextOutput<I> {
+    /// The chunks to generate, in output order
+    pub(crate) sources: I,
+    /// Maximum number of chunks to generate in parallel
+    pub(crate) num_threads: usize,
+    /// Advanced once per written chunk
+    pub(crate) progress: ProgressHandle,
+}
+
+impl<I> WriteOutput for TextOutput<I>
+where
+    I: Iterator<Item: Source + 'static>,
+{
+    async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()> {
+        // Since generate_in_chunks already buffers, there is no need to buffer
+        // again (aka don't use BufWriter here)
+        generate_in_chunks(
+            WriterSink::new(writer),
+            self.sources,
+            self.num_threads,
+            self.progress,
+        )
+        .await
+    }
 }
 
 /// A simple buffer recycler to avoid allocating new buffers for each part

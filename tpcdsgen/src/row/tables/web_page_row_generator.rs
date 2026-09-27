@@ -6,7 +6,7 @@ use crate::join_key_utils::generate_join_key;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult, WebPageRow};
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, get_value_for_slowly_changing_dimension,
+    compute_scd_key, generate_scd_history, get_value_for_slowly_changing_dimension,
 };
 use crate::table::Table;
 use crate::types::Date;
@@ -270,6 +270,12 @@ impl RowGenerator for WebPageRowGenerator {
         _parent_row_generator: Option<&mut dyn RowGenerator>,
         _child_row_generator: Option<&mut dyn RowGenerator>,
     ) -> Result<RowGeneratorResult> {
+        // Replay the missing slowly changing dimension (SCD) state this row
+        // inherits from, which `skip_rows_until_starting_row_number` cleared.
+        // This gives it the same values to copy from as an uninterrupted run.
+        if self.previous_row.is_none() {
+            generate_scd_history(self, row_number, session)?;
+        }
         let row = self.generate_web_page_row(row_number, session)?;
         Ok(RowGeneratorResult::new(row))
     }
@@ -281,5 +287,9 @@ impl RowGenerator for WebPageRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+        // Invalidate the retained slowly changing dimension (SCD) state.
+        // This tells `generate_row_and_child_rows` to replay it when needed.
+        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
+        self.previous_row = None;
     }
 }

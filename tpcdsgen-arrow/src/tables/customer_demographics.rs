@@ -76,11 +76,11 @@ impl Iterator for CustomerDemographicsArrow {
         }
 
         let mut demo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut gender: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut marital: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut education: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut gender: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut marital: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let mut education: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut purchase: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut credit: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut credit: Vec<Option<&str>> = Vec::with_capacity(rows.len());
         let mut dep_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut dep_emp: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut dep_college: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -88,11 +88,11 @@ impl Iterator for CustomerDemographicsArrow {
         for r in &rows {
             let nbm = r.null_bit_map();
             demo_sk.push(integer_sk_opt(nbm, 0, r.get_cd_demo_sk()));
-            gender.push(opt(nbm, 1, r.get_cd_gender().to_owned()));
-            marital.push(opt(nbm, 2, r.get_cd_marital_status().to_owned()));
-            education.push(opt(nbm, 3, r.get_cd_education_status().to_owned()));
+            gender.push(opt(nbm, 1, r.get_cd_gender()));
+            marital.push(opt(nbm, 2, r.get_cd_marital_status()));
+            education.push(opt(nbm, 3, r.get_cd_education_status()));
             purchase.push(opt(nbm, 4, r.get_cd_purchase_estimate()));
-            credit.push(opt(nbm, 5, r.get_cd_credit_rating().to_owned()));
+            credit.push(opt(nbm, 5, r.get_cd_credit_rating()));
             dep_count.push(opt(nbm, 6, r.get_cd_dep_count()));
             dep_emp.push(opt(nbm, 7, r.get_cd_dep_employed_count()));
             dep_college.push(opt(nbm, 8, r.get_cd_dep_college_count()));
@@ -102,19 +102,11 @@ impl Iterator for CustomerDemographicsArrow {
             self.schema(),
             vec![
                 Arc::new(Int32Array::from(demo_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    gender.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    marital.iter().map(|s| s.as_deref()),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    education.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(gender.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(marital.iter().copied())),
+                Arc::new(string_view_array_from_opt_iter(education.iter().copied())),
                 Arc::new(Int32Array::from(purchase)),
-                Arc::new(string_view_array_from_opt_iter(
-                    credit.iter().map(|s| s.as_deref()),
-                )),
+                Arc::new(string_view_array_from_opt_iter(credit.iter().copied())),
                 Arc::new(Int32Array::from(dep_count)),
                 Arc::new(Int32Array::from(dep_emp)),
                 Arc::new(Int32Array::from(dep_college)),

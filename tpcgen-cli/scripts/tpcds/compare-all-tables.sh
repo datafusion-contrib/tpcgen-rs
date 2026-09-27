@@ -44,17 +44,23 @@ Usage:
 Options:
     --scale N           Scale factor (default: 1).
     --compat trino|c    Reference implementation (default: trino).
+    --parts N           Generate each table as N parts (default: single file).
     --full              Byte-for-byte vs. .dat fixtures (slow; diff on
                         mismatch). Default: MD5-only.
     --quiet             Quiet mode (show only summary).
     --help              Show this help message.
 
+Environment:
+    TPCGEN_CLI_BIN      Prebuilt tpcgen-cli binary to use instead of building
+                        (CI builds it once and shares it across jobs).
+
 Examples:
-    compare-all-tables.sh                  # MD5-only, all tables, scale 1, Trino.
-    compare-all-tables.sh --scale 10       # MD5-only, scale 10, Trino.
-    compare-all-tables.sh --compat c       # MD5-only, scale 1, C dsdgen.
-    compare-all-tables.sh --full           # Byte-for-byte (requires fixtures).
-    compare-all-tables.sh --quiet          # Summary-only output.
+    compare-all-tables.sh                         # MD5-only, all tables, scale 1, Trino.
+    compare-all-tables.sh --scale 10              # MD5-only, scale 10, Trino.
+    compare-all-tables.sh --compat c              # MD5-only, scale 1, C dsdgen.
+    compare-all-tables.sh --full                  # Byte-for-byte (requires fixtures).
+    compare-all-tables.sh --quiet                 # Summary-only output.
+    compare-all-tables.sh --scale 10 --parts 10   # Multi-part generation.
 
 Exit codes:
     0 - All tested tables match.
@@ -80,6 +86,8 @@ SCALE_FACTOR=${TPCDS_SCALE:-1}
 COMPAT=${TPCDS_COMPAT:-trino}
 QUIET=0
 FULL=0
+# Empty means "generate a single, unpartitioned file per table"
+PARTS=""
 
 # Logging functions
 log_info() {
@@ -131,6 +139,15 @@ ALL_TABLES=(
 
 # Build the unified Rust table generator
 build_generator() {
+    if [[ -n "${TPCGEN_CLI_BIN:-}" ]]; then
+        if [[ ! -x "$TPCGEN_CLI_BIN" ]]; then
+            log_error "TPCGEN_CLI_BIN is not an executable: $TPCGEN_CLI_BIN"
+            return 1
+        fi
+        log_info "Using prebuilt generator: $TPCGEN_CLI_BIN"
+        return 0
+    fi
+
     log_info "Building Rust TPC-DS generator..."
 
     if cargo build --locked --release -p tpcgen-cli --quiet 2>&1; then
@@ -150,6 +167,7 @@ test_table() {
     local extra_args=()
     [[ $FULL  -eq 1 ]] && extra_args+=(--full)
     [[ $QUIET -eq 1 ]] && extra_args+=(--quiet)
+    [[ -n "$PARTS" ]] && extra_args+=(--parts "$PARTS")
 
     "$compare_script" "$table" --scale "$SCALE_FACTOR" --compat "$COMPAT" "${extra_args[@]}"
 }
@@ -170,6 +188,10 @@ main() {
                 ;;
             --compat)
                 COMPAT="$2"
+                shift 2
+                ;;
+            --parts)
+                PARTS="$2"
                 shift 2
                 ;;
             --full)
@@ -207,6 +229,7 @@ main() {
     log_info "TPC-DS Table Test Suite"
     log_info "Scale Factor:   $SCALE_FACTOR"
     log_info "Compat Mode:    $COMPAT"
+    log_info "Parts:          ${PARTS:-1 (unpartitioned)}"
     log_info "Comparison:     $mode_label"
     log_info "========================================="
 

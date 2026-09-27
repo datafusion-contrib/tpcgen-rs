@@ -257,7 +257,8 @@ fn generate_time_join_key(
 /// Generates a join key to a slowly changing dimension (SCD) table.
 ///
 /// SCD tables keep history, so the join key must match the appropriate
-/// version of the dimension based on the effective date.
+/// version of the dimension based on the effective date. See
+/// [`crate::slowly_changing_dimension_utils`].
 fn generate_scd_join_key(
     to_table: Table,
     random_number_stream: &mut dyn RandomNumberStream,
