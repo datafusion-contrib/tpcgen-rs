@@ -17,15 +17,15 @@ TPC-H and TPC-DS data generator (https://github.com/datafusion-contrib/tpcgen-rs
 
 Examples
 
-# TPC-H TBL data:
+# TPC-H TBL data (Scale Factor 1):
 
-tpcgen-cli tpch -s 1 --output-dir=/tmp/tpch
+tpcgen-cli tpch --output-dir=/tmp/tpch
 
-# TPC-H CSV data:
+# TPC-DS CSV data (Scale Factor 1):
 
-tpcgen-cli tpch csv -s 1 --output-dir=/tmp/tpch
+tpcgen-cli tpcds csv --output-dir=/tmp/tpcds
 
-# TPC-H Apache Parquet data:
+# TPC-H Apache Parquet data (Scale Factor 100, single table, 10 files per table):
 
 tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
 "#
@@ -37,9 +37,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// TPC-H data
+    #[command(long_about = tpcgen_cli::tpch_cli::long_about("tpcgen-cli tpch"))]
     Tpch(TpchCli),
-    /// TPC-DS data
     Tpcds(TpcdsCli),
 }
 

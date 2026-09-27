@@ -1,6 +1,7 @@
 use super::test_helpers::{
     assert_flags_under_help_heading, assert_overwrites_existing_file,
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes,
+    expect_sequential_field_ids, RowGroups,
 };
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -1011,6 +1012,12 @@ fn read_concatenated_reference<R: RecordBatchReader>(mut reader: R) -> RecordBat
     concat_batches(&schema, &batches).expect("Failed to concatenate reference batches")
 }
 
+fn assert_batch_data_eq(actual: &RecordBatch, expected: &RecordBatch) {
+    let actual = RecordBatch::try_new(expected.schema(), actual.columns().to_vec())
+        .expect("actual columns should match the expected schema");
+    assert_eq!(&actual, expected);
+}
+
 /// Parquet files are generated using multiple source row ranges. Each
 /// Row Group comes from a particular row range, potentially encoded in parallel.
 ///
@@ -1048,14 +1055,14 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
         read_concatenated_parquet(&temp_dir.path().join("store_sales.parquet"));
     assert_eq!(num_row_groups, 24);
     let expected = read_concatenated_reference(StoreSalesArrow::new(test_session(0.001)));
-    assert_eq!(store_sales, expected);
+    assert_batch_data_eq(&store_sales, &expected);
 
     // regenerate same data directly from arrow generator
     let (store_returns, num_row_groups) =
         read_concatenated_parquet(&temp_dir.path().join("store_returns.parquet"));
     assert_eq!(num_row_groups, 3);
     let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
-    assert_eq!(store_returns, expected);
+    assert_batch_data_eq(&store_returns, &expected);
 
     let (item, num_row_groups) = read_concatenated_parquet(&temp_dir.path().join("item.parquet"));
     // 2,000 source rows over 2 row groups starts the second range at row 1,001,
@@ -1065,7 +1072,7 @@ fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
     assert_eq!(num_row_groups, 2);
     assert_eq!(item.num_rows(), 2_000);
     let expected = read_concatenated_reference(ItemArrow::new(test_session(0.001)));
-    assert_eq!(item, expected);
+    assert_batch_data_eq(&item, &expected);
 }
 
 /// Test that the number of threads does not change the generated files.
@@ -1139,6 +1146,30 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
         .field_with_name("dv_create_time")
         .expect("dv_create_time field");
     assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_fields_have_ids() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            "parquet",
+            "--scale-factor",
+            "0",
+            "--tables",
+            "reason,store_sales",
+            "--no-progress",
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for table in ["reason", "store_sales"] {
+        expect_sequential_field_ids(&temp_dir.path().join(format!("{table}.parquet")));
+    }
 }
 
 /// Test that `--help` lists each selectable TPC-DS table.
@@ -1347,7 +1378,7 @@ fn test_tpcgen_cli_tpcds_dat_parts_outputs_directory() {
 
     assert!(
         temp_dir.path().join("reason/reason.1.dat").is_file(),
-        "--parts 1 should nest like tpchgen-cli"
+        "--parts 1 should nest like tpcgen-cli tpch"
     );
     assert!(
         !temp_dir.path().join("reason.dat").exists(),

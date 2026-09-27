@@ -55,7 +55,31 @@ impl OutputFormat {
 
 #[derive(Args)]
 #[command(version)]
-#[command(args_conflicts_with_subcommands = true)]
+#[command(
+    // -h output
+    about = "TPC-DS Data Generator",
+    // --help output
+    long_about = r#"
+TPC-DS Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
+
+By default each table is written to a single file named <output_dir>/<table>.<format>
+
+If `--parts` option is specified, each table is written to a subdirectory in
+multiple files named <output_dir>/<table>/<table>.<part>.<format>
+
+Examples
+
+# Generate all tables at scale factor 1 (1GB) in DAT format (default) to /tmp/tpcds directory:
+
+tpcgen-cli tpcds -s 1 --output-dir=/tmp/tpcds
+
+# Generate the store_sales table at scale factor 100 in 10 Apache Parquet files to
+# /tmp/tpcds/store_sales:
+
+tpcgen-cli tpcds parquet -s 100 --tables=store_sales --parts=10 --output-dir=/tmp/tpcds
+"#,
+    args_conflicts_with_subcommands = true
+)]
 pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -404,16 +428,7 @@ impl CommonArgs {
     }
 
     /// Return the list of 1-based part numbers to generate, or `[None]` when
-    /// no `--part`/`--parts` were given (a single, unnumbered file per
-    /// table).
-    ///
-    /// Mirrors `tpchgen-cli`'s `--parts`/`--part` semantics: `--parts` alone
-    /// generates every part as a separate file, `--part` requires `--parts`
-    /// to be set alongside it and restricts generation to just that part.
-    ///
-    /// The combination is fully validated here, before any output directory is
-    /// created, so an invalid selection such as `--parts 3 --part 4` leaves no
-    /// directories behind.
+    /// no `--part`/`--parts` were given
     fn part_list(&self) -> Result<Vec<Option<i32>>> {
         let Some(parts) = self.parts else {
             if self.part.is_some() {

@@ -10,7 +10,7 @@ pub mod runner;
 pub mod tbl;
 
 pub use crate::progress;
-pub use cli::Cli;
+pub use cli::{long_about, Cli};
 pub use generator::{
     Compression, Encoding, GeneratorConfig, OutputFormat, Table, TpchGenerator,
     TpchGeneratorBuilder,

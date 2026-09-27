@@ -1,6 +1,7 @@
 use super::test_helpers::{
     assert_flags_under_help_heading, assert_overwrites_existing_file,
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes, RowGroups,
+    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes,
+    expect_sequential_field_ids, RowGroups,
 };
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -105,6 +106,30 @@ fn test_tpcgen_cli_tpch_parquet_column_encoding() {
     let path = temp_dir.path().join("lineitem.parquet");
     expect_column_encoding(&path, "l_comment", Encoding::DELTA_LENGTH_BYTE_ARRAY);
     expect_column_encoding(&path, "l_shipinstruct", Encoding::DELTA_LENGTH_BYTE_ARRAY);
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_parquet_fields_have_ids() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpch",
+            "parquet",
+            "--scale-factor",
+            "0",
+            "--tables",
+            "region,lineitem",
+            "--no-progress",
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for table in ["region", "lineitem"] {
+        expect_sequential_field_ids(&temp_dir.path().join(format!("{table}.parquet")));
+    }
 }
 
 #[test]
@@ -297,12 +322,12 @@ fn test_tpcgen_cli_tpch_deduplicates_selected_tables() {
     assert_eq!(stderr.matches("Writing table nation").count(), 1);
 }
 
-/// Test TBL output for scale factor 0.001 using tpchgen-cli
+/// Test TBL output for scale factor 0.001 using `tpcgen-cli tpch`
 #[test]
-fn test_tpchgen_cli_tbl_scale_factor_0_001() {
+fn test_tpcgen_cli_tpch_tbl_scale_factor_0_001() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    // Run the tpchgen-cli command
+    // Run the tpcgen-cli command
     cargo_bin_cmd!("tpcgen-cli")
         .arg("tpch")
         .arg("--scale-factor")
@@ -355,7 +380,7 @@ fn test_tpchgen_cli_tbl_scale_factor_0_001() {
 
 /// Test that when creating output, if the file already exists it is not overwritten
 #[test]
-fn test_tpchgen_cli_tbl_no_overwrite() {
+fn test_tpcgen_cli_tpch_tbl_no_overwrite() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let expected_file = temp_dir.path().join("part.tbl");
 
@@ -375,7 +400,7 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
         fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
     assert_eq!(original_metadata.len(), 23498);
 
-    // Run the tpchgen-cli command again with the same parameters and expect the
+    // Run the tpcgen-cli command again with the same parameters and expect the
     // file to not be overwritten and a warning to be logged
     let output = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpch")
@@ -413,7 +438,7 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
 
 // Test that when creating output, if the file already exists it is not for parquet
 #[test]
-fn test_tpchgen_cli_parquet_no_overwrite() {
+fn test_tpcgen_cli_tpch_parquet_no_overwrite() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let expected_file = temp_dir.path().join("part.parquet");
 
@@ -432,9 +457,9 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
 
     let original_metadata =
         fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
-    assert_eq!(original_metadata.len(), 12793);
+    assert_eq!(original_metadata.len(), 13483);
 
-    // Run the tpchgen-cli command again with the same parameters and expect the
+    // Run the tpcgen-cli command again with the same parameters and expect the
     // file to not be overwritten and a warning to be logged
     let output = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpch")
@@ -504,7 +529,7 @@ fn test_tpcgen_cli_tpch_failed_write_has_no_completion_log() {
 /// Test that with `--parts`, only the parts that already exist are skipped:
 /// the missing parts are still generated into the table's directory.
 #[test]
-fn test_tpchgen_cli_tbl_parts_generates_missing_parts() {
+fn test_tpcgen_cli_tpch_tbl_parts_generates_missing_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let parts_dir = temp_dir.path().join("part");
     let existing = parts_dir.join("part.1.tbl");
@@ -537,19 +562,19 @@ fn test_tpchgen_cli_tbl_parts_generates_missing_parts() {
 
 /// Test that `--overwrite` regenerates an existing TBL file
 #[test]
-fn test_tpchgen_cli_tbl_overwrite() {
+fn test_tpcgen_cli_tpch_tbl_overwrite() {
     assert_overwrites_existing_file("tpch", "tbl", "part");
 }
 
 /// Test that `--overwrite` regenerates an existing Parquet file
 #[test]
-fn test_tpchgen_cli_parquet_overwrite() {
+fn test_tpcgen_cli_tpch_parquet_overwrite() {
     assert_overwrites_existing_file("tpch", "parquet", "part");
 }
 
 /// Test that --quiet flag suppresses stdout output
 #[test]
-fn test_tpchgen_cli_quiet_flag() {
+fn test_tpcgen_cli_tpch_quiet_flag() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let expected_file = temp_dir.path().join("part.tbl");
 
@@ -569,7 +594,7 @@ fn test_tpchgen_cli_quiet_flag() {
         fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
     assert_eq!(original_metadata.len(), 23498);
 
-    // Run the tpchgen-cli command again with --quiet flag
+    // Run the tpcgen-cli command again with --quiet flag
     // Expect the file to not be overwritten and NO warning even though warnings show by default
     let output = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpch")
@@ -606,11 +631,11 @@ fn test_tpchgen_cli_quiet_flag() {
 
 /// Test generating the order table using 4 parts implicitly
 #[test]
-fn test_tpchgen_cli_parts() {
+fn test_tpcgen_cli_tpch_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // generate 4 parts of the orders table with scale factor 0.001 and let
-    // tpchgen-cli generate the multiple files
+    // tpcgen-cli generate the multiple files
 
     let num_parts = 4;
     let output_dir = temp_dir.path().to_path_buf();
@@ -637,7 +662,7 @@ fn test_tpchgen_cli_parts() {
 /// Test generating the order table with multiple invocations using --parts and
 /// --part options
 #[test]
-fn test_tpchgen_cli_parts_explicit() {
+fn test_tpcgen_cli_tpch_parts_explicit() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // generate 4 parts of the orders table with scale factor 0.001
@@ -647,7 +672,7 @@ fn test_tpchgen_cli_parts_explicit() {
     for part in 1..=num_parts {
         let output_dir = temp_dir.path().to_path_buf();
         threads.push(std::thread::spawn(move || {
-            // Run the tpchgen-cli command for each part
+            // Run the tpcgen-cli command for each part
             // output goes into `output_dir/orders/orders.{part}.tbl`
             cargo_bin_cmd!("tpcgen-cli")
                 .arg("tpch")
@@ -678,7 +703,7 @@ fn test_tpchgen_cli_parts_explicit() {
 
 /// Create all tables using --parts option and verify the output layouts
 #[test]
-fn test_tpchgen_cli_parts_all_tables() {
+fn test_tpcgen_cli_tpch_parts_all_tables() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     let num_parts = 8;
@@ -904,7 +929,7 @@ async fn test_write_parquet_row_group_size_20mb() {
 }
 
 #[test]
-fn test_tpchgen_cli_part_no_parts() {
+fn test_tpcgen_cli_tpch_part_no_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // CLI Error test --part and but not --parts
@@ -922,7 +947,7 @@ fn test_tpchgen_cli_part_no_parts() {
 }
 
 #[test]
-fn test_tpchgen_cli_too_many_parts() {
+fn test_tpcgen_cli_tpch_too_many_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // This should fail because --part is 42 which is more than the --parts 10
@@ -942,7 +967,7 @@ fn test_tpchgen_cli_too_many_parts() {
 }
 
 #[test]
-fn test_tpchgen_cli_zero_part() {
+fn test_tpcgen_cli_tpch_zero_part() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     cargo_bin_cmd!("tpcgen-cli")
@@ -960,7 +985,7 @@ fn test_tpchgen_cli_zero_part() {
         ));
 }
 #[test]
-fn test_tpchgen_cli_zero_part_zero_parts() {
+fn test_tpcgen_cli_tpch_zero_part_zero_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     cargo_bin_cmd!("tpcgen-cli")
@@ -980,7 +1005,7 @@ fn test_tpchgen_cli_zero_part_zero_parts() {
 
 /// Test that --num-threads=0 is rejected at argument parse time
 #[test]
-fn test_tpchgen_cli_rejects_zero_num_threads() {
+fn test_tpcgen_cli_tpch_rejects_zero_num_threads() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     cargo_bin_cmd!("tpcgen-cli")
@@ -1006,7 +1031,7 @@ fn test_tpchgen_cli_rejects_zero_num_threads() {
 /// auto-disabled; this test mainly locks in the flag's existence and verifies
 /// no progress glyphs leak into the output.
 #[test]
-fn test_tpchgen_cli_no_progress_flag() {
+fn test_tpcgen_cli_tpch_no_progress_flag() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let output = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpch")
@@ -1034,7 +1059,7 @@ fn test_tpchgen_cli_no_progress_flag() {
 /// even without passing `--no-progress`. This locks in the contract that
 /// CI logs are never polluted with progress glyphs by default.
 #[test]
-fn test_tpchgen_cli_progress_auto_disabled_on_non_tty() {
+fn test_tpcgen_cli_tpch_progress_auto_disabled_on_non_tty() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let output = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpch")

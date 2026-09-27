@@ -1,11 +1,13 @@
 //! Shared Parquet output helpers.
 
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{Schema, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk, ArrowRowGroupWriterFactory};
-use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
+use parquet::arrow::{
+    add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter, PARQUET_FIELD_ID_META_KEY,
+};
 use parquet::basic::{Compression, Encoding};
 use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAULT_COERCE_TYPES};
 use parquet::file::writer::SerializedFileWriter;
@@ -19,6 +21,24 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
+
+fn schema_with_field_ids(schema: &Schema) -> Schema {
+    let fields = schema
+        .fields()
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let mut metadata = field.metadata().clone();
+            metadata.insert(
+                PARQUET_FIELD_ID_META_KEY.to_string(),
+                (index + 1).to_string(),
+            );
+            field.as_ref().clone().with_metadata(metadata)
+        })
+        .collect::<Vec<_>>();
+
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
 
 pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
     let Some((name, encoding)) = s.split_once('=') else {
@@ -111,7 +131,7 @@ where
     let Some(first_iter) = iter_iter.peek() else {
         return Ok(()); // no data
     };
-    let schema = first_iter.schema();
+    let schema = Arc::new(schema_with_field_ids(&first_iter.schema()));
 
     // Compute the parquet schema first. apply_column_encodings needs it to
     // map column names to a ColumnPath and check they exist. Nothing here
