@@ -46,7 +46,7 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 
 | Project                            | Description                                                               |
 | ---------------------------------- | ------------------------------------------------------------------------- |
-| [`tpcgen-cli`](tpchgen-cli)        | Command line tool to generate TPC-H and TPC-DS data in multiple formats   |
+| [`tpcgen-cli`](tpcgen-cli)         | Command line tool to generate TPC-H and TPC-DS data in multiple formats   |
 | [`tpchgen-cli`](tpchgen-cli)       | Command line tool to generate TPC-H data in multiple formats              |
 | [`tpchgen`](tpchgen)               | Rust library to generate TPC-H data (zero dependencies)                     |
 | [`tpchgen-arrow`](tpchgen-arrow)   | Rust library to generate TPC-H data in [Apache Arrow] format              |

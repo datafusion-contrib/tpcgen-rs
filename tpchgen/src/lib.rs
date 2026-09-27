@@ -51,10 +51,10 @@
 //! If you want an easy way to generate the TPC-H dataset for usage with external
 //! see the [`tpchgen-cli`](https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli)
 //! tool instead.
-//! 
+//!
 //! # TPCH Answers
-//! 
-//! The [`q_and_a`] crate provides answers for queries 1 to 22 and for a scale
+//!
+//! The [`q_and_a`] module provides answers for queries 1 to 22 and for a scale
 //! factor of 1. The answers exposed were derived from the [TPC-H
 //! Tools](https://www.tpc.org/) official distribution.
 pub mod csv;
