@@ -173,7 +173,6 @@ where
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
         progress.start();
-        // The first row group's report also covers the magic bytes written by `new`.
         let mut bytes_reported = 0;
 
         while let Some(column_chunks) = rx.blocking_recv() {
