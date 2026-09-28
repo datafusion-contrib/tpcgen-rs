@@ -12,14 +12,12 @@
 //! 2. [`ProgressTracker::start`] once after all known progress items have
 //!    been registered and before work starts. This hook is optional for
 //!    paths that register items lazily.
-//! 3. [`ProgressHandle::start`] when an item's writer starts, before it writes
-//!    any output. Items that are skipped (e.g. existing files) don't start.
-//! 4. [`ProgressHandle::increment`] after each write, with the output units
-//!    finished and the bytes written. Cloned handles may be advanced
-//!    concurrently by generation tasks.
-//! 5. [`ProgressHandle::complete`] after an item's output is committed.
+//! 3. [`ProgressHandle::increment`] after each write, including headers and
+//!    footers, with the output units finished and the bytes written. Cloned
+//!    handles may be advanced concurrently by generation tasks.
+//! 4. [`ProgressHandle::complete`] after an item's output is committed.
 //!    This is optional for paths without a distinct item-completion boundary.
-//! 6. [`ProgressTracker::finish`] after the generation run completes
+//! 5. [`ProgressTracker::finish`] after the generation run completes
 //!    successfully.
 //!
 //! Registration and run-level lifecycle callbacks are invoked serially.
@@ -105,7 +103,6 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 /// responsibility of the tracker owner.
 #[derive(Clone)]
 pub struct ProgressHandle {
-    start: Arc<dyn Fn() + Send + Sync>,
     increment: Arc<dyn Fn(u64, u64) + Send + Sync>,
     complete: Arc<dyn Fn() + Send + Sync>,
 }
@@ -126,25 +123,9 @@ impl ProgressHandle {
         C: Fn() + Send + Sync + 'static,
     {
         Self {
-            start: Arc::new(|| {}),
             increment: Arc::new(increment),
             complete: Arc::new(complete),
         }
-    }
-
-    /// Attach a callback for [`Self::start`].
-    pub fn with_start<S>(mut self, start: S) -> Self
-    where
-        S: Fn() + Send + Sync + 'static,
-    {
-        self.start = Arc::new(start);
-        self
-    }
-
-    /// Notify the tracker that this item's writer started, before it writes any
-    /// output, so throughput is timed from here rather than from registration.
-    pub fn start(&self) {
-        (self.start)();
     }
 
     /// Advance this item by `units` output units and `bytes` written since the
@@ -287,7 +268,6 @@ mod indicatif_impl {
             self.lock_bars().push(bar.clone());
             let throttled = Arc::new(ThrottledProgress::new(bar, total, Instant::now));
             let complete = throttled.clone();
-            let start_bytes = bytes_written.clone();
             ProgressHandle::new_with_complete(
                 move |units, bytes| {
                     // Record bytes first so a bar that finishes on these units draws them.
@@ -297,7 +277,6 @@ mod indicatif_impl {
                 },
                 move || complete.complete(),
             )
-            .with_start(move || lock_bytes_written(&start_bytes).start(Instant::now()))
         }
 
         fn start(&self) {
@@ -455,7 +434,8 @@ mod indicatif_impl {
     #[derive(Debug, Default)]
     struct BytesWritten {
         bytes: u64,
-        /// Time the writer started. Starts the throughput timer.
+        /// Time of the first report, usually the header, before any data is
+        /// generated. Starts the throughput timer.
         started: Option<Instant>,
         /// Time of the last report. Stops the throughput timer, so the rate
         /// doesn't decay once writing stops.
@@ -463,16 +443,13 @@ mod indicatif_impl {
     }
 
     impl BytesWritten {
-        fn start(&mut self, now: Instant) {
-            self.started.get_or_insert(now);
-        }
-
         fn add(&mut self, bytes: u64, now: Instant) {
+            self.started.get_or_insert(now);
             self.bytes = self.bytes.saturating_add(bytes);
             self.last_report = Some(now);
         }
 
-        /// Average throughput between the writer's start and the last report.
+        /// Average throughput between the first and last report.
         fn per_second(&self) -> Option<u64> {
             let (started, last) = (self.started?, self.last_report?);
             let elapsed = last.saturating_duration_since(started);
@@ -518,12 +495,16 @@ mod indicatif_impl {
         bytes_written: &BytesWritten,
         writer: &mut dyn std::fmt::Write,
     ) {
-        // Blank until the writer starts, so skipped items show no size.
-        let bytes = bytes_written
-            .started
-            .map(|_| HumanBytes(bytes_written.bytes).to_string())
-            .unwrap_or_default();
-        let _ = write!(writer, " {bytes:>BYTES_WIDTH$}");
+        // Blank until bytes are written, so skipped items show no size.
+        if bytes_written.bytes == 0 {
+            let _ = write!(writer, " {:BYTES_WIDTH$}", "");
+            return;
+        }
+        let _ = write!(
+            writer,
+            " {:>BYTES_WIDTH$}",
+            HumanBytes(bytes_written.bytes).to_string()
+        );
         if state.is_finished() {
             return;
         }
@@ -678,12 +659,9 @@ mod indicatif_impl {
             let blank = " ".repeat(BYTES_WIDTH + 1);
             assert_eq!(render(&bytes_written), blank);
 
-            // Reports without a start (a skipped item) show no size.
+            // Reports without bytes (a header-less or skipped item) show no size.
             bytes_written.add(0, start);
             assert_eq!(render(&bytes_written), blank);
-
-            bytes_written.start(start);
-            assert_eq!(render(&bytes_written), "         0 B");
 
             bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
             assert_eq!(render(&bytes_written), "    4.00 MiB 2.00 MiB/s");

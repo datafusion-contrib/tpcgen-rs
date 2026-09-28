@@ -21,7 +21,6 @@ pub(super) fn share_handle_across_parts(
     (0..num_parts.max(1))
         .map(|_| {
             let remaining = remaining.clone();
-            let start_handle = handle.clone();
             let increment_handle = handle.clone();
             let complete_handle = handle.clone();
             ProgressHandle::new_with_complete(
@@ -32,7 +31,6 @@ pub(super) fn share_handle_across_parts(
                     }
                 },
             )
-            .with_start(move || start_handle.start())
         })
         .collect()
 }
@@ -75,25 +73,18 @@ mod tests {
     }
 
     #[test]
-    fn share_handle_across_parts_forwards_start_and_bytes() {
-        let starts = Arc::new(AtomicUsize::new(0));
+    fn share_handle_across_parts_forwards_bytes() {
         let bytes = Arc::new(AtomicU64::new(0));
         let handle = {
-            let starts = starts.clone();
             let bytes = bytes.clone();
             ProgressHandle::new(move |_units, written| {
                 bytes.fetch_add(written, Ordering::Relaxed);
             })
-            .with_start(move || {
-                starts.fetch_add(1, Ordering::Relaxed);
-            })
         };
 
         for part in share_handle_across_parts(handle, 2) {
-            part.start();
             part.increment(0, 10);
         }
-        assert_eq!(starts.load(Ordering::Relaxed), 2);
         assert_eq!(bytes.load(Ordering::Relaxed), 20);
     }
 

@@ -172,8 +172,9 @@ where
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
-        progress.start();
-        let mut bytes_reported = 0;
+        // Report the magic bytes written by `new` before any data; this starts the throughput timer.
+        let mut bytes_reported = writer.bytes_written();
+        progress.increment(0, bytes_reported as u64);
 
         while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
