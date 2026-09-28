@@ -1,9 +1,9 @@
 [package]
 name = "tpcdsgen"
 authors = ["clflushopt", "alamb"]
-description = "TPC-DS data generation library."
+description = "Blazing fast pure Rust zero dependency TPC-DS data generation library."
 repository = { workspace = true }
 version = "0.1.0"
 edition = "2021"
 license = { workspace = true }
-homepage = { workspace = true }
+homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcdsgen"

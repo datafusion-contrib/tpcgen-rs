@@ -2,10 +2,10 @@
 name = "tpcgen-cli"
 version = "0.1.0"
 authors = { workspace = true }
-description = "Command line tool for TPC benchmark data generation."
+description = "Blazing fast pure Rust TPC-H and TPC-DS data generator command line tool."
 readme = "README.md"
 edition = { workspace = true }
-homepage = { workspace = true }
+homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli"
 license = { workspace = true }
 repository = { workspace = true }
 

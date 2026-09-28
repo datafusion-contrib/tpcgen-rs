@@ -1,10 +1,16 @@
-# tpcgen-rs
+# tpcgen-rs: Quickly and Easily Create TPC-* Benchmark Data
 
 > [!NOTE]
-> Originally written by [@clflushopt](https://github.com/clflushopt) at
-> [`clflushopt/tpchgen-rs`](https://github.com/clflushopt/tpchgen-rs).
-> The project is now maintained at
-> [`datafusion-contrib/tpcgen-rs`](https://github.com/datafusion-contrib/tpcgen-rs).
+> Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
+>
+> Originally located at [`clflushopt/tpchgen-rs`], the project is now maintained at
+> [`datafusion-contrib/tpcgen-rs`]
+
+[@clflushopt]: https://github.com/clflushopt
+[@alamb]: https://github.com/alamb
+[@kevinjqliu]: https://github.com/kevinjqliu
+[`clflushopt/tpchgen-rs`]: https://github.com/clflushopt/tpchgen-rs
+[`datafusion-contrib/tpcgen-rs`]: https://github.com/datafusion-contrib/tpcgen-rs
 
 [![Apache licensed][license-badge]][license-url]
 [![Build Status][actions-badge]][actions-url]
@@ -14,93 +20,74 @@
 [actions-badge]: https://github.com/datafusion-contrib/tpcgen-rs/actions/workflows/rust.yml/badge.svg
 [actions-url]: https://github.com/datafusion-contrib/tpcgen-rs/actions?query=branch%3Amain
 
-Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencies.
+Modern, blazing fast and easy to use [TPC-H] and [TPC-DS] benchmark data generators.
 
-[TPCH]: https://www.tpc.org/tpch/
+[TPC-H]: https://www.tpc.org/tpch/
+[TPC-DS]: https://www.tpc.org/tpcds/
+
+## Goal
+
+Democratize the comparison of analytical systems with tools for easily and
+efficiently generating benchmark data for common benchmarks in modern formats
+such as [Apache Parquet], [Apache Arrow], and CSV.
+
+[Apache Parquet]: https://parquet.apache.org/
+[Apache Arrow]: https://arrow.apache.org/
 
 ## Features
 
 1. Blazing Speed 🚀
-2. Obsessively Tested 📋
-3. Fully parallel, streaming, constant memory usage 🧠
+2. Easy to Use: CLI or embeddable libraries
+3. Obsessively Tested 📋
+4. Resource Efficient: multi-core and constant memory use 🧠
 
-## Try it now
+## Quick Start
 
-Try with `uvx`:
-
-```shell
-uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
-```
-
-![Running tpcgen-cli](tpcgen-cli-run.gif)
-
-Install with `pip`:
+[`tpcgen-cli`] is distributed as a Python package. Run it with `uvx`:
 
 ```shell
-python -m pip install tpchgen-cli
+uvx tpcgen-cli tpch parquet -s 1 --output-dir /tmp/tpch
+uvx tpcgen-cli tpcds parquet -s 1 --output-dir /tmp/tpcds
 ```
 
-Then generate TPC-H data:
+Or install it with `pip`:
 
 ```shell
-tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
+python -m pip install tpcgen-cli
+tpcgen-cli tpch parquet -s 1 --output-dir /tmp/tpch
 ```
 
-`tpchgen-cli` is a command-line program distributed as a Python package. See the
-[`tpchgen-cli`] README for more install options and examples.
+See the [`tpcgen-cli`] README for more examples.
 
-## Performance
+[`tpcgen-cli`]: tpcgen-cli/README.md
 
-[`tpchgen-cli`] is more than 10x faster than the next fastest TPCH generator we
-know of. On a 2023 Mac M3 Max laptop, it easily generates data faster than can
-be written to SSD. See [BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more
-details on performance and benchmarking.
+## Sub projects
 
-[`tpchgen-cli`]: ./tpchgen-cli/README.md
+| Project                            | Description                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [`tpcgen-cli`](tpcgen-cli)         | Command line tool to generate TPC-H and TPC-DS data in multiple formats                              |
+| [`tpchgen-cli`](tpchgen-cli)       | Command line tool to generate only TPC-H data in multiple formats (kept for backwards compatibility) |
+| [`tpchgen`](tpchgen)               | Rust library to generate TPC-H data (zero dependencies)                                              |
+| [`tpchgen-arrow`](tpchgen-arrow)   | Rust library to generate TPC-H data in [Apache Arrow] format                                         |
+| [`tpcdsgen`](tpcdsgen)             | Rust library to generate TPC-DS data (zero dependencies)                                             |
+| [`tpcdsgen-arrow`](tpcdsgen-arrow) | Rust library to generate TPC-DS data in [Apache Arrow] format                                        |
 
-Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+## Representative Performance (10x Faster)
 
-| Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
-| ------------ | ------------- | ---------- | -------------------- |
-| 1            | `0:02.24`     | `0:12.29`  | `0:10.68`            |
-| 10           | `0:09.97`     | `1:46.80`  | `1:41.14`            |
-| 100          | `1:14.22`     | `17:48.27` | `16:40.88`           |
-| 1000         | `10:26.26`    | N/A (OOM)  | N/A (OOM)            |
+![Representative Generation Performance](summary-performance.png)
 
-- DuckDB (proprietary) is the time required to create TPCH data using the
-  proprietary DuckDB format
-- Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
-  which is why it is not included in the table above.
+Time to generate TPC-H Scale Factor 100 data in Parquet format. See the
+[performance spreadsheet] for details and more comparisons.
 
-![Parquet Generation Performance](parquet-performance.png)
-
-
-## Answers
-
-The core `tpchgen` crate provides answers for queries 1 to 22 and for a scale factor
-of 1. The answers exposed were derived from the [TPC-H Tools](https://www.tpc.org/)
-official distribution.
+[performance spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=718004686#gid=718004686
 
 ## Testing
 
-This crate has extensive tests to ensure correctness and produces exactly the
-same, byte-for-byte output as the original [`dbgen`] implementation. We compare
-the output of this crate with [`dbgen`] as part of every checkin. See
-[TESTING.md](TESTING.md) for more details on testing methodology
-
-## Crates
-
-- [`tpchgen`](tpchgen): the core data generator logic for TPC-H. It has no
-  dependencies and is easy to embed in other Rust project.
-
-- [`tpchgen-arrow`](tpchgen-arrow) generates TPC-H data in [Apache Arrow]
-  format. It depends on the arrow-rs library
-
-- [`tpchgen-cli`](tpchgen-cli) is a [`dbgen`] compatible CLI tool that generates
-  benchmark dataset using multiple processes.
-
-[Apache Arrow]: https://arrow.apache.org/
-[`dbgen`]: https://github.com/electrum/tpch-dbgen
+We go to great lengths to ensure our data generators produce the same exact
+bytes as the reference implementations, both for single and multi-part output.
+Our multi-level strategy for ensuring correctness is detailed in
+[TESTING.md](TESTING.md) and includes comparing the output of our generators to
+the original reference implementations as part of CI.
 
 ## Contributing
 
@@ -115,8 +102,3 @@ is structured.
 ## License
 
 The project is licensed under the [APACHE 2.0](LICENSE) license.
-
-## References
-
-- The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
-- The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)

@@ -1,24 +1,22 @@
 # TPC-DS Data Generator Crate
 
-This crate provides the core data generator logic for TPC-DS.
+This crate provides the core data generator logic for TPC-DS, in pure Rust with
+zero dependencies, and is easy to embed in any other Rust project.
 
 ## Usage
 
 ```bash
-# Build the unified generator CLI
-cargo build --locked --release -p tpcgen-cli
-
 # Generate all tables at scale factor 1 (default)
-./target/release/tpcgen-cli tpcds dat
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat
 
 # Generate all tables at scale factor 10
-./target/release/tpcgen-cli tpcds dat --scale-factor 10
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat --scale-factor 10
 
 # Generate specific table
-./target/release/tpcgen-cli tpcds dat --tables store_sales --scale-factor 10
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat --tables store_sales --scale-factor 10
 
 # Generate to a specific directory
-./target/release/tpcgen-cli tpcds dat --scale-factor 10 --output-dir /path/to/output
+cargo run --locked --release -p tpcgen-cli --bin tpcgen-cli -- tpcds dat --scale-factor 10 --output-dir /path/to/output
 ```
 
 ## Generating Fixtures
@@ -38,7 +36,7 @@ tpcgen-cli/tests/fixtures/tpcds/
 
 `tpcdsgen` ships with two conformance suites, both implemented as shell
 scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
-[scripts/README.md](../tpcgen-cli/scripts/tpcds/README.md) for full details.
+[scripts/README.md](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/scripts/tpcds/README.md) for full details.
 
 **vs. Java / Trino reference (default, `--compat trino`):**
 
@@ -96,7 +94,7 @@ The TPC-DS reference implementation contains several bugs that must be replicate
 These bugs originated in the C implementation and were faithfully reproduced in the Java port. Our Rust implementation
 also replicates these bugs to ensure byte-for-byte compatibility with the reference implementation.
 
-See [BUGS.md](BUGS.md) for a detailed list of documented bugs, more will be added.
+See [BUGS.md](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcdsgen/BUGS.md) for a detailed list of documented bugs, more will be added.
 
 
 ## TPC-DS Reference MD5 Hashes
@@ -110,17 +108,17 @@ re-generating the full reference data.
 
 Generated locally from `java -jar tpcds-*.jar --scale N`:
 
-- Scale 1:  [`tpcgen-cli/tests/fixtures/tpcds/scale-1-trino/MD5SUMS`](tpcgen-cli/tests/fixtures/tpcds/scale-1-trino/MD5SUMS)
-- Scale 10: [`tpcgen-cli/tests/fixtures/tpcds/scale-10-trino/MD5SUMS`](tpcgen-cli/tests/fixtures/tpcds/scale-10-trino/MD5SUMS)
+- Scale 1:  [`tpcgen-cli/tests/fixtures/tpcds/scale-1-trino/MD5SUMS`](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/tests/fixtures/tpcds/scale-1-trino/MD5SUMS)
+- Scale 10: [`tpcgen-cli/tests/fixtures/tpcds/scale-10-trino/MD5SUMS`](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/tests/fixtures/tpcds/scale-10-trino/MD5SUMS)
 
 ### C `dsdgen` reference (`--compat c`)
 
 Sourced from [alamb/tpcds-data](https://github.com/alamb/tpcds-data#md5-checksums):
 
-- Scale 1:  [`tpcgen-cli/tests/fixtures/tpcds/scale-1-c/MD5SUMS`](tpcgen-cli/tests/fixtures/tpcds/scale-1-c/MD5SUMS)
-- Scale 2:  [`tpcgen-cli/tests/fixtures/tpcds/scale-2-c/MD5SUMS`](tpcgen-cli/tests/fixtures/tpcds/scale-2-c/MD5SUMS)
-- Scale 5:  [`tpcgen-cli/tests/fixtures/tpcds/scale-5-c/MD5SUMS`](tpcgen-cli/tests/fixtures/tpcds/scale-5-c/MD5SUMS)
-- Scale 10: [`tpcgen-cli/tests/fixtures/tpcds/scale-10-c/MD5SUMS`](tpcgen-cli/tests/fixtures/tpcds/scale-10-c/MD5SUMS)
+- Scale 1:  [`tpcgen-cli/tests/fixtures/tpcds/scale-1-c/MD5SUMS`](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/tests/fixtures/tpcds/scale-1-c/MD5SUMS)
+- Scale 2:  [`tpcgen-cli/tests/fixtures/tpcds/scale-2-c/MD5SUMS`](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/tests/fixtures/tpcds/scale-2-c/MD5SUMS)
+- Scale 5:  [`tpcgen-cli/tests/fixtures/tpcds/scale-5-c/MD5SUMS`](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/tests/fixtures/tpcds/scale-5-c/MD5SUMS)
+- Scale 10: [`tpcgen-cli/tests/fixtures/tpcds/scale-10-c/MD5SUMS`](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/tests/fixtures/tpcds/scale-10-c/MD5SUMS)
 
 `dbgen_version.dat` contains a generation timestamp and will differ
 between runs; the conformance suite excludes it from comparison.

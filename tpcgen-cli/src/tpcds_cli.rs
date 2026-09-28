@@ -199,6 +199,9 @@ pub struct CommonArgs {
     compat: CompatMode,
 
     /// Number of part(itions) to generate. If not specified creates a single file per table
+    ///
+    /// Small tables (under 1M rows) are not split (matching dsdgen):
+    /// all rows go to part 1, so fewer files than requested may be written.
     #[arg(short, long)]
     parts: Option<i32>,
 
@@ -226,7 +229,9 @@ pub struct CommonArgs {
     #[arg(short, long, default_value_t = false, conflicts_with = "verbose")]
     quiet: bool,
 
-    /// Write the output to stdout instead of a file.
+    /// Write output to stdout instead of a file.
+    ///
+    /// Multiple tables or parts may interleave in any order.
     #[arg(long, default_value_t = false)]
     stdout: bool,
 

@@ -12,7 +12,7 @@
 //! 2. [`ProgressTracker::start`] once after all known progress items have
 //!    been registered and before work starts. This hook is optional for
 //!    paths that register items lazily.
-//! 3. [`ProgressHandle::increment`] after output units are written.
+//! 3. [`ProgressHandle::increment`] after output units or bytes are written.
 //!    Cloned handles may be advanced concurrently by generation tasks.
 //! 4. [`ProgressHandle::complete`] after an item's output is committed.
 //!    This is optional for paths without a distinct item-completion boundary.
@@ -50,7 +50,7 @@
 //! impl ProgressTracker for LoggingTracker {
 //!     fn register(self: Arc<Self>, item: &str, total: u64) -> ProgressHandle {
 //!         eprintln!("plan: {item} -> {total} output units");
-//!         ProgressHandle::new(move |units| {
+//!         ProgressHandle::new(move |units, _bytes| {
 //!             self.written.fetch_add(units, Ordering::Relaxed);
 //!         })
 //!     }
@@ -102,7 +102,7 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 /// responsibility of the tracker owner.
 #[derive(Clone)]
 pub struct ProgressHandle {
-    increment: Arc<dyn Fn(u64) + Send + Sync>,
+    increment: Arc<dyn Fn(u64, u64) + Send + Sync>,
     complete: Arc<dyn Fn() + Send + Sync>,
 }
 
@@ -110,7 +110,7 @@ impl ProgressHandle {
     /// Create a handle for reporting item progress with no completion callback.
     pub fn new<F>(increment: F) -> Self
     where
-        F: Fn(u64) + Send + Sync + 'static,
+        F: Fn(u64, u64) + Send + Sync + 'static,
     {
         Self::new_with_complete(increment, || {})
     }
@@ -118,7 +118,7 @@ impl ProgressHandle {
     /// Create a handle for reporting item progress and completion.
     pub fn new_with_complete<F, C>(increment: F, complete: C) -> Self
     where
-        F: Fn(u64) + Send + Sync + 'static,
+        F: Fn(u64, u64) + Send + Sync + 'static,
         C: Fn() + Send + Sync + 'static,
     {
         Self {
@@ -127,9 +127,9 @@ impl ProgressHandle {
         }
     }
 
-    /// Advance this item's counter by `units` output units.
-    pub fn increment(&self, units: u64) {
-        (self.increment)(units);
+    /// Advance this item's counter by `units` output units and `bytes` bytes written.
+    pub fn increment(&self, units: u64, bytes: u64) {
+        (self.increment)(units, bytes);
     }
 
     /// Optionally notify the tracker that this item completed successfully.
@@ -141,7 +141,7 @@ impl ProgressHandle {
     }
 
     fn no_op() -> Self {
-        Self::new(|_| {})
+        Self::new(|_, _| {})
     }
 }
 
@@ -177,14 +177,22 @@ mod indicatif_impl {
     #[cfg(test)]
     use indicatif::ProgressDrawTarget;
     use indicatif::{
-        HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState, ProgressStyle,
+        HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState,
+        ProgressStyle,
     };
     use std::io::{self, Write};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
     use std::time::{Duration, Instant};
 
+    // Fixed-width columns so rows line up. The widest running row is 78 chars:
+    //   household_demographics [=====>------] ( 52%) 1023.99 MiB 1023.99 MiB/s ETA 89s
+    // Keep it within 80 columns, the default width of many terminals; longer rows wrap and
+    // break the layout.
     const LABEL_WIDTH: usize = 22;
-    const BAR_WIDTH: usize = 18;
+    const BAR_WIDTH: usize = 12;
+    const BYTES_WIDTH: usize = 11;
+    const RATE_WIDTH: usize = 13;
     const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
 
@@ -199,6 +207,10 @@ mod indicatif_impl {
     pub struct IndicatifProgress {
         multi: MultiProgress,
         bars: Mutex<Vec<ProgressBar>>,
+        /// Bytes reported across all items, for the `total` row.
+        total_bytes_written: AtomicU64,
+        /// Time the run started, set by `start`. Times the `total` row.
+        started: OnceLock<Instant>,
     }
 
     impl IndicatifProgress {
@@ -208,6 +220,8 @@ mod indicatif_impl {
             Self {
                 multi: MultiProgress::new(),
                 bars: Mutex::new(Vec::new()),
+                total_bytes_written: AtomicU64::new(0),
+                started: OnceLock::new(),
             }
         }
 
@@ -230,6 +244,8 @@ mod indicatif_impl {
             Self {
                 multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
                 bars: Mutex::new(Vec::new()),
+                total_bytes_written: AtomicU64::new(0),
+                started: OnceLock::new(),
             }
         }
     }
@@ -244,17 +260,29 @@ mod indicatif_impl {
         fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
             // Indicatif treats zero-length items as complete.
             let total = total_units.max(1);
+            let bytes_written = Arc::new(Mutex::new(BytesWritten::default()));
             let bar = self.multi.add(
                 ProgressBar::new(total)
-                    .with_style(bar_style())
+                    .with_style(bar_style(bytes_written.clone()))
                     .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
             self.lock_bars().push(bar.clone());
-            throttled_progress_handle(bar, total)
+            let throttled = Arc::new(ThrottledProgress::new(bar, total, Instant::now));
+            let complete = throttled.clone();
+            ProgressHandle::new_with_complete(
+                move |units, bytes| {
+                    // Record bytes first so a bar that finishes on these units draws them.
+                    lock_bytes_written(&bytes_written).add(bytes, Instant::now());
+                    self.total_bytes_written.fetch_add(bytes, Ordering::Relaxed);
+                    throttled.increment(units);
+                },
+                move || complete.complete(),
+            )
         }
 
         fn start(&self) {
+            self.started.get_or_init(Instant::now);
             let bars = self.lock_bars().clone();
 
             // Populate every bar's initial draw state, then force one render so
@@ -273,16 +301,24 @@ mod indicatif_impl {
             for bar in bars {
                 bar.finish_using_style();
             }
+
+            let total_bytes_written = self.total_bytes_written.load(Ordering::Relaxed);
+            if total_bytes_written > 0 {
+                let summary = total_summary(
+                    total_bytes_written,
+                    self.started.get().map(Instant::elapsed),
+                );
+                // A finished bar keeps the summary below the table rows.
+                let style =
+                    ProgressStyle::with_template("{msg}").expect("summary template is valid");
+                self.multi
+                    .add(ProgressBar::new(1).with_style(style).with_message(summary))
+                    .finish();
+            }
         }
     }
 
-    // ProgressBar::inc enters indicatif's render path. When many threads report
-    // row-level progress, calling it for every row can repeatedly redraw the
-    // cursor, so batch deltas before forwarding them to indicatif.
-    fn throttled_progress_handle(bar: ProgressBar, total: u64) -> ProgressHandle {
-        throttled_progress_handle_with_clock(bar, total, Instant::now)
-    }
-
+    #[cfg(test)]
     fn throttled_progress_handle_with_clock<N>(
         bar: ProgressBar,
         total: u64,
@@ -296,11 +332,14 @@ mod indicatif_impl {
         let complete = progress;
 
         ProgressHandle::new_with_complete(
-            move |units| increment.increment(units),
+            move |units, _bytes| increment.increment(units),
             move || complete.complete(),
         )
     }
 
+    // ProgressBar::inc enters indicatif's render path. When many threads report
+    // row-level progress, calling it for every row can repeatedly redraw the
+    // cursor, so batch deltas before forwarding them to indicatif.
     struct ThrottledProgress {
         bar: ProgressBar,
         total: u64,
@@ -389,7 +428,53 @@ mod indicatif_impl {
         }
     }
 
-    fn bar_style() -> ProgressStyle {
+    /// Bytes written for one progress item and the time span they were reported over, used to
+    /// show its size and average throughput.
+    #[derive(Debug, Default)]
+    struct BytesWritten {
+        /// Total bytes reported so far.
+        bytes: u64,
+        /// Time of the first report. Starts the throughput timer.
+        started: Option<Instant>,
+        /// Time of the last report. Stops the throughput timer, so the rate
+        /// doesn't decay once writing stops.
+        last_report: Option<Instant>,
+    }
+
+    impl BytesWritten {
+        /// Record `bytes` reported at `now`.
+        fn add(&mut self, bytes: u64, now: Instant) {
+            self.started.get_or_insert(now);
+            self.bytes = self.bytes.saturating_add(bytes);
+            self.last_report = Some(now);
+        }
+
+        /// Time between the first and last report.
+        fn elapsed(&self) -> Option<Duration> {
+            let (started, last) = (self.started?, self.last_report?);
+            Some(last.saturating_duration_since(started))
+        }
+    }
+
+    /// Average throughput of `bytes` over `elapsed`, or blank if nothing was written or no time
+    /// has elapsed.
+    fn throughput(bytes: u64, elapsed: Option<Duration>) -> String {
+        match elapsed {
+            Some(elapsed) if bytes > 0 && !elapsed.is_zero() => {
+                let per_second = (bytes as f64 / elapsed.as_secs_f64()) as u64;
+                format!("{}/s", HumanBytes(per_second))
+            }
+            _ => String::new(),
+        }
+    }
+
+    fn lock_bytes_written(bytes_written: &Mutex<BytesWritten>) -> MutexGuard<'_, BytesWritten> {
+        bytes_written
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn bar_style(bytes_written: Arc<Mutex<BytesWritten>>) -> ProgressStyle {
         static STYLE: OnceLock<ProgressStyle> = OnceLock::new();
         STYLE
             .get_or_init(|| {
@@ -400,12 +485,49 @@ mod indicatif_impl {
                     .with_key("status", write_progress_status)
             })
             .clone()
+            .with_key(
+                "bytes_written",
+                move |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
+                    write_bytes_and_throughput(&lock_bytes_written(&bytes_written), writer)
+                },
+            )
     }
 
     fn bar_template() -> String {
         format!(
-            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%){{status}}"
+            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%){{bytes_written}}{{status}}"
         )
+    }
+
+    /// Write the bytes written and their average throughput. Finished rows keep their final
+    /// rate, so rows don't change all at once when items finish together.
+    fn write_bytes_and_throughput(bytes_written: &BytesWritten, writer: &mut dyn std::fmt::Write) {
+        // Blank until bytes are written, so skipped items show no size.
+        let bytes = match bytes_written.bytes {
+            0 => String::new(),
+            bytes => HumanBytes(bytes).to_string(),
+        };
+        let rate = throughput(bytes_written.bytes, bytes_written.elapsed());
+        // Pad both columns even when blank so the status column lines up across rows.
+        let _ = write!(writer, " {bytes:>BYTES_WIDTH$} {rate:>RATE_WIDTH$}");
+    }
+
+    /// The `total` row: bytes written across all items and, when timed, the elapsed time and
+    /// throughput.
+    fn total_summary(bytes: u64, elapsed: Option<Duration>) -> String {
+        // Skip the `[bar] (100%)` columns so the size and rate line up with the rows above.
+        let mut summary = format!(
+            "{:LABEL_WIDTH$} {:skip$} {:>BYTES_WIDTH$} {:>RATE_WIDTH$}",
+            "total",
+            "",
+            HumanBytes(bytes).to_string(),
+            throughput(bytes, elapsed),
+            skip = BAR_WIDTH + "[] (100%)".len(),
+        );
+        if let Some(elapsed) = elapsed {
+            summary.push_str(&format!(" in {elapsed:.2?}"));
+        }
+        summary
     }
 
     fn write_progress_status(state: &ProgressState, writer: &mut dyn std::fmt::Write) {
@@ -450,8 +572,8 @@ mod indicatif_impl {
                 t.clone().register("lineitem", 60),
                 t.clone().register("orders", 15),
             ];
-            progress[0].increment(1);
-            progress[1].increment(5);
+            progress[0].increment(1, 0);
+            progress[1].increment(5, 0);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 1);
@@ -473,7 +595,7 @@ mod indicatif_impl {
         fn reaching_total_finishes_item() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("orders", 5);
-            progress.increment(5);
+            progress.increment(5, 0);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 5);
@@ -490,17 +612,17 @@ mod indicatif_impl {
                 *clock.lock().unwrap()
             });
 
-            progress.increment(1);
+            progress.increment(1, 0);
             assert_eq!(bar.position(), 1);
 
             for _ in 1..50 {
-                progress.increment(1);
+                progress.increment(1, 0);
             }
 
             assert_eq!(bar.position(), 1);
 
             *now.lock().unwrap() = start + PROGRESS_FLUSH_INTERVAL;
-            progress.increment(1);
+            progress.increment(1, 0);
 
             assert_eq!(bar.position(), 51);
         }
@@ -510,8 +632,8 @@ mod indicatif_impl {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("store_returns", 1);
 
-            progress.increment(1);
-            progress.increment(10);
+            progress.increment(1, 0);
+            progress.increment(10, 0);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 1);
@@ -527,11 +649,11 @@ mod indicatif_impl {
                 *clock.lock().unwrap()
             });
 
-            progress.increment(2);
+            progress.increment(2, 0);
             assert_eq!(bar.position(), 2);
 
-            progress.increment(1);
-            progress.increment(1);
+            progress.increment(1, 0);
+            progress.increment(1, 0);
             assert_eq!(bar.position(), 2);
 
             progress.complete();
@@ -541,11 +663,32 @@ mod indicatif_impl {
         }
 
         #[test]
+        fn bytes_written_shows_size_and_throughput() {
+            let start = Instant::now();
+            let mut bytes_written = BytesWritten::default();
+            let render = |bytes_written: &BytesWritten| {
+                let mut out = String::new();
+                write_bytes_and_throughput(bytes_written, &mut out);
+                out
+            };
+
+            let blank = " ".repeat(BYTES_WIDTH + RATE_WIDTH + 2);
+            assert_eq!(render(&bytes_written), blank);
+
+            // Reports without bytes show no size.
+            bytes_written.add(0, start);
+            assert_eq!(render(&bytes_written), blank);
+
+            bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
+            assert_eq!(render(&bytes_written), "    4.00 MiB    2.00 MiB/s");
+        }
+
+        #[test]
         fn reaching_one_total_does_not_finish_other_items() {
             let t = Arc::new(IndicatifProgress::hidden());
             let orders = t.clone().register("orders", 5);
             let _lineitem = t.clone().register("lineitem", 10);
-            orders.increment(5);
+            orders.increment(5, 0);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 5);
@@ -557,7 +700,7 @@ mod indicatif_impl {
         fn explicit_completion_finishes_item_below_total() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("catalog_returns", 10);
-            progress.increment(9);
+            progress.increment(9, 0);
 
             progress.complete();
 
@@ -570,7 +713,7 @@ mod indicatif_impl {
         fn finish_marks_registered_items_finished() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("orders", 2);
-            progress.increment(1);
+            progress.increment(1, 0);
             assert!(!t.bars.lock().unwrap()[0].is_finished());
 
             t.finish();
@@ -626,7 +769,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push((item.clone(), total_units));
-            ProgressHandle::new(move |units| {
+            ProgressHandle::new(move |units, _bytes| {
                 self.increments.lock().unwrap().push((item.clone(), units));
             })
         }
@@ -643,8 +786,8 @@ mod tests {
             dynamic.clone().register("store_sales", 10),
             dynamic.clone().register("catalog_returns", 4),
         ];
-        progress[0].increment(3);
-        progress[1].increment(1);
+        progress[0].increment(3, 0);
+        progress[1].increment(1, 0);
         dynamic.finish();
 
         assert_eq!(
@@ -670,7 +813,7 @@ mod tests {
         let completed_for_callback = completed.clone();
 
         let progress = ProgressHandle::new_with_complete(
-            |_| {},
+            |_, _| {},
             move || {
                 completed_for_callback.fetch_add(1, Ordering::Relaxed);
             },
@@ -687,7 +830,7 @@ mod tests {
         struct Minimal(AtomicU64);
         impl ProgressTracker for Minimal {
             fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
-                ProgressHandle::new(move |units| {
+                ProgressHandle::new(move |units, _bytes| {
                     self.0.fetch_add(units, Ordering::Relaxed);
                 })
             }
@@ -695,7 +838,7 @@ mod tests {
         let m = Arc::new(Minimal(AtomicU64::new(0)));
         let progress = m.clone().register("region", 99);
         m.start(); // no-op default
-        progress.increment(7);
+        progress.increment(7, 0);
         progress.complete(); // no-op completion callback
         m.finish(); // no-op default
         assert_eq!(m.0.load(Ordering::Relaxed), 7);

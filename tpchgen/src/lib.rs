@@ -52,6 +52,12 @@
 //! tools, see the [`tpcgen-cli`] command line tool.
 //!
 //! [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli
+//!
+//! # TPCH Answers
+//!
+//! The [`q_and_a`] module provides answers for queries 1 to 22 and for a scale
+//! factor of 1. The answers exposed were derived from the [TPC-H
+//! Tools](https://www.tpc.org/) official distribution.
 pub mod csv;
 pub mod dates;
 pub mod decimal;

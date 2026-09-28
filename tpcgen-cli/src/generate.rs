@@ -111,12 +111,13 @@ where
     // runtime. It reads from the channel and writes to the sink (doing File IO)
     let captured_recycler = recycler.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
-        // The header is not an output unit; only generated chunks from the channel advance progress.
         sink.sink(&header)?;
+        // Report the header (even if empty) before any data; this starts the throughput timer.
+        progress.increment(0, header.len() as u64);
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
+            progress.increment(1, buffer.len() as u64);
             captured_recycler.return_buffer(buffer);
-            progress.increment(1);
         }
         // No more input, flush the sink and return
         sink.flush()
@@ -217,7 +218,7 @@ mod tests {
 
     impl ProgressTracker for CountingProgress {
         fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
-            ProgressHandle::new(move |units| {
+            ProgressHandle::new(move |units, _bytes| {
                 self.increments.fetch_add(units, Ordering::Relaxed);
             })
         }

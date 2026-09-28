@@ -1,7 +1,7 @@
 # TPC-H Data Generator CLI
 
 `tpchgen-cli` is a high-performance, parallel TPC-H data generator command line
-tool
+tool.
 
 > **Note:** See [`tpcgen-cli`] to create both TPC-H and TPC-DS data
 
@@ -12,22 +12,18 @@ of (`duckdb`). On a 2023 Mac M3 Max laptop, it easily generates data faster than
 can be written to SSD. See [BENCHMARKS.md] for more details on performance and
 benchmarking.
 
-[BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/benchmarks/BENCHMARKS.md
+[BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpchgen-cli/benchmarks/BENCHMARKS.md
 
-* See the tpcgen-rs [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
-project details
-* Watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
-[@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
-* Read the companion blog post in the
-[Datafusion
-blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
-* Try it yourself by following the instructions below
+See the tpcgen-rs [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
+project details.
 
 ## Try with `uvx`
 
 ```shell
 uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
+
+![Running tpchgen-cli](https://raw.githubusercontent.com/datafusion-contrib/tpcgen-rs/main/tpchgen-cli/tpchgen-cli-run.gif)
 
 ## Install with `pip`
 
@@ -44,6 +40,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 RUSTFLAGS='-C target-cpu=native' cargo install --locked tpchgen-cli
 ```
 
+Then generate TPC-H data:
+
+```shell
+tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
+```
+
 ## Examples
 
 ```shell
@@ -56,7 +58,7 @@ tpchgen-cli parquet -s 10
 # Note: `tpchgen-cli tbl` also works explicitly
 tpchgen-cli -s 10 --output-dir sf10
 
-# Scale Factor 1000, lineitem table, in Apache Parquet format in sf1000 directory, 
+# Scale Factor 1000, lineitem table, in Apache Parquet format in sf1000 directory,
 # 20 part(itions), 100MB row groups
 # (220GB, 20 files, 6B lineitem rows, 3.5 minutes on a modern laptop)
 tpchgen-cli parquet -s 1000 --tables lineitem --parts 20 --row-group-bytes=100MB --output-dir sf1000
@@ -73,7 +75,7 @@ tpchgen-cli parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LEN
 # └── orders
 #    ├── orders.2.tbl
 #    └── orders.3.tbl
-#     
+#
 for PART in `seq 2 3`; do
   tpchgen-cli --tables lineitem,orders --scale-factor=10 --output-dir partitioned --parts 10 --part $PART
 done
@@ -86,6 +88,8 @@ is not a terminal, e.g. in CI logs).
 
 ## Performance
 
+Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+
 | Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
 | ------------ | ------------- | ---------- | -------------------- |
 | 1            | `0:02.24`     | `0:12.29`  | `0:10.68`            |
@@ -95,7 +99,20 @@ is not a terminal, e.g. in CI logs).
 
 - DuckDB (proprietary) is the time required to create TPCH data using the
   proprietary DuckDB format
-- Creating Scale Factor 1000 data in DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
+- Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/lts/core_extensions/tpch#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
 
-Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+![Parquet Generation Performance](https://raw.githubusercontent.com/datafusion-contrib/tpcgen-rs/main/tpchgen-cli/benchmarks/parquet-performance.png)
+
+## More information
+
+* Watch this [demo](https://www.youtube.com/watch?v=UYIC57hlL14) by
+  [@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
+* Read the companion blog post in the
+  [DataFusion
+  blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
+
+## References
+
+- The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
+- The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)
