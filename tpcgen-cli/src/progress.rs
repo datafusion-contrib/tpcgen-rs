@@ -12,9 +12,8 @@
 //! 2. [`ProgressTracker::start`] once after all known progress items have
 //!    been registered and before work starts. This hook is optional for
 //!    paths that register items lazily.
-//! 3. [`ProgressHandle::increment`] after each write, including headers and
-//!    footers, with the output units finished and the bytes written. Cloned
-//!    handles may be advanced concurrently by generation tasks.
+//! 3. [`ProgressHandle::increment`] after output units or bytes are written.
+//!    Cloned handles may be advanced concurrently by generation tasks.
 //! 4. [`ProgressHandle::complete`] after an item's output is committed.
 //!    This is optional for paths without a distinct item-completion boundary.
 //! 5. [`ProgressTracker::finish`] after the generation run completes
@@ -128,8 +127,7 @@ impl ProgressHandle {
         }
     }
 
-    /// Advance this item by `units` output units and `bytes` written since the
-    /// last call.
+    /// Advance this item's counter by `units` output units and `bytes` bytes written.
     pub fn increment(&self, units: u64, bytes: u64) {
         (self.increment)(units, bytes);
     }
@@ -198,8 +196,7 @@ mod indicatif_impl {
     /// Default [`ProgressTracker`] implementation backed by
     /// [`indicatif::MultiProgress`].
     ///
-    /// Renders one compact progress bar per progress item on stderr, with bytes
-    /// written and throughput, followed by a `total` row after a successful run.
+    /// Renders one compact progress bar per progress item on stderr.
     ///
     /// Items are added in [`ProgressTracker::register`], which returns a handle
     /// that advances and completes its progress bar directly.
