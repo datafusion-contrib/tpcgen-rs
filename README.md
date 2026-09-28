@@ -83,7 +83,7 @@ Time to generate TPC-H Scale Factor 100 data in Parquet format. See the
 
 ## Testing
 
-We go through great lengths to ensure our data generators produce the same exact
+We go to great lengths to ensure our data generators produce the same exact
 bytes as the reference implementations, both for single and multi-part output.
 Our multi-level strategy for ensuring correctness is detailed in
 [TESTING.md](TESTING.md) and includes comparing the output of our generators to

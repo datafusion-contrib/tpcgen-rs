@@ -39,7 +39,7 @@ tpcgen-cli/tests/fixtures/tpcds/
 
 `tpcdsgen` ships with two conformance suites, both implemented as shell
 scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
-[scripts/README.md](../tpcgen-cli/scripts/tpcds/README.md) for full details.
+[scripts/README.md](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/scripts/tpcds/README.md) for full details.
 
 **vs. Java / Trino reference (default, `--compat trino`):**
 
@@ -97,7 +97,7 @@ The TPC-DS reference implementation contains several bugs that must be replicate
 These bugs originated in the C implementation and were faithfully reproduced in the Java port. Our Rust implementation
 also replicates these bugs to ensure byte-for-byte compatibility with the reference implementation.
 
-See [BUGS.md](BUGS.md) for a detailed list of documented bugs, more will be added.
+See [BUGS.md](https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcdsgen/BUGS.md) for a detailed list of documented bugs, more will be added.
 
 
 ## TPC-DS Reference MD5 Hashes
