@@ -43,15 +43,17 @@ For example to benchmark the performance of generating TPC-H data using
 
 ```shell
 hyperfine --warmup 1 --runs 5 \
+--setup "cargo build --release -p tpcgen-cli" \
 --prepare "rm -rf /tmp/tpch" \
-"cargo run --release -p tpcgen-cli --bin tpcgen-cli -- tpch parquet --scale-factor=100 --tables=lineitem --parts=10 --output-dir /tmp/tpch"
+"target/release/tpcgen-cli tpch parquet --scale-factor=100 --tables=lineitem --parts=10 --output-dir /tmp/tpch"
 ```
 
 To benchmark the performance of generating TPC-DS data using `tpcgen` we use a command such as
 ```shell
 hyperfine --warmup 1 --runs 5 \
+--setup "cargo build --release -p tpcgen-cli" \
 --prepare "rm -rf /tmp/tpcds" \
-"cargo run --release -p tpcgen-cli --bin tpcgen-cli -- tpcds parquet --scale-factor=100 --tables=store_sales --output-dir /tmp/tpcds"
+"target/release/tpcgen-cli tpcds parquet --scale-factor=100 --tables=store_sales --output-dir /tmp/tpcds"
 ```
 
 ## License
