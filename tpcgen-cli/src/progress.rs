@@ -174,9 +174,11 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::{ProgressHandle, ProgressTracker};
+    #[cfg(test)]
+    use indicatif::ProgressDrawTarget;
     use indicatif::{
-        HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressDrawTarget, ProgressFinish,
-        ProgressState, ProgressStyle,
+        HumanBytes, HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState,
+        ProgressStyle,
     };
     use std::io::{self, Write};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -298,15 +300,17 @@ mod indicatif_impl {
             }
 
             let total_bytes_written = self.total_bytes_written.load(Ordering::Relaxed);
-            if total_bytes_written > 0 && !self.multi.is_hidden() {
+            if total_bytes_written > 0 {
                 let summary = total_summary(
                     total_bytes_written,
                     self.started.get().map(Instant::elapsed),
                 );
-                // Stop redrawing the finished bars and print the summary below them. As a bar
-                // row, indicatif would drop it when the bars don't fit the terminal height.
-                self.multi.set_draw_target(ProgressDrawTarget::hidden());
-                let _ = writeln!(io::stderr(), "\n{summary}");
+                // A finished bar keeps the summary below the table rows.
+                let style =
+                    ProgressStyle::with_template("{msg}").expect("summary template is valid");
+                self.multi
+                    .add(ProgressBar::new(1).with_style(style).with_message(summary))
+                    .finish();
             }
         }
     }
@@ -421,12 +425,13 @@ mod indicatif_impl {
         }
     }
 
-    /// Bytes written to one progress item, rendered by [`write_bytes_and_throughput`].
+    /// Bytes written for one progress item and the time span they were reported over, used to
+    /// show its size and average throughput.
     #[derive(Debug, Default)]
     struct BytesWritten {
+        /// Total bytes reported so far.
         bytes: u64,
-        /// Time of the first report, usually the header, before any data is
-        /// generated. Starts the throughput timer.
+        /// Time of the first report. Starts the throughput timer.
         started: Option<Instant>,
         /// Time of the last report. Stops the throughput timer, so the rate
         /// doesn't decay once writing stops.
@@ -434,6 +439,7 @@ mod indicatif_impl {
     }
 
     impl BytesWritten {
+        /// Record `bytes` reported at `now`.
         fn add(&mut self, bytes: u64, now: Instant) {
             self.started.get_or_insert(now);
             self.bytes = self.bytes.saturating_add(bytes);
