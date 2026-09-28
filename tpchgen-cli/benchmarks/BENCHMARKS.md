@@ -47,7 +47,7 @@ including Apache Spark, DataFusion, Snowflake, DataBricks, and DuckDB.
 
 ## `parquet_tpchgen.sh`
 
-This script uses the `tpchgen-cli` command in this repo to produce a 
+This script uses the `tpchgen-cli` command in this repo to produce a
 single parquet file per table, with snappy page compression.
 
 Example command to create Scale Factor 10
@@ -70,7 +70,7 @@ significant amounts of memory. For example, to create Scale Factor 1000 requires
 a machine with at least 647GB of RAM. Our benchmark machine did not have enough
 ram to create the TPCH data for Scale Factor 1000 using DuckDB.
 
-[TPCH data generator included in DuckDB]: https://duckdb.org/docs/stable/extensions/tpch.html
+[TPCH data generator included in DuckDB]: https://duckdb.org/docs/lts/core_extensions/tpch
 
 Example command to create Scale Factor 10
 
@@ -177,10 +177,10 @@ make
 
 The `makefile` that comes with the classic dbgen program uses the default
 C compiler optimization level (`-O`). A more realistic comparison is using maximum
-optimization (`-O3`), which is what this script does. 
+optimization (`-O3`), which is what this script does.
 
 This diff is applied to the `makefile` in the `tpch-dbgen` directory to change
-the optimization level from `-O` to `-O3`. 
+the optimization level from `-O` to `-O3`.
 
 ```diff
 diff --git a/makefile b/makefile
@@ -249,7 +249,7 @@ sudo chmod -R a+rwx /data
 The `/data` filesystem tops out around 815 MB/sec when writing:
 
 ```shell
-#  Test the IO throughput using `dd` 
+#  Test the IO throughput using `dd`
 dd if=/dev/zero of=/data/test1.img bs=1G count=10 oflag=dsync
 # 10737418240 bytes (11 GB, 10 GiB) copied, 13.179 s, 815 MB/s
 ```
@@ -261,4 +261,3 @@ git clone git@github.com:datafusion-contrib/tpcgen-rs.git
 cd tpcgen-rs
 cargo install --locked --path tpchgen-cli
 ```
-

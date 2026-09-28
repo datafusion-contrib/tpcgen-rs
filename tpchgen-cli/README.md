@@ -1,7 +1,7 @@
 # TPC-H Data Generator CLI
 
 `tpchgen-cli` is a high-performance, parallel TPC-H data generator command line
-tool
+tool.
 
 This tool is more than 10x faster than the next fastest TPCH generator we know
 of (`duckdb`). On a 2023 Mac M3 Max laptop, it easily generates data faster than
@@ -10,8 +10,8 @@ benchmarking.
 
 [BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpchgen-cli/benchmarks/BENCHMARKS.md
 
-* See the tpchgen [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
-project details
+See the tpcgen-rs [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
+project details.
 
 ## Try with `uvx`
 
@@ -54,7 +54,7 @@ tpchgen-cli parquet -s 10
 # Note: `tpchgen-cli tbl` also works explicitly
 tpchgen-cli -s 10 --output-dir sf10
 
-# Scale Factor 1000, lineitem table, in Apache Parquet format in sf1000 directory, 
+# Scale Factor 1000, lineitem table, in Apache Parquet format in sf1000 directory,
 # 20 part(itions), 100MB row groups
 # (220GB, 20 files, 6B lineitem rows, 3.5 minutes on a modern laptop)
 tpchgen-cli parquet -s 1000 --tables lineitem --parts 20 --row-group-bytes=100MB --output-dir sf1000
@@ -71,7 +71,7 @@ tpchgen-cli parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LEN
 # └── orders
 #    ├── orders.2.tbl
 #    └── orders.3.tbl
-#     
+#
 for PART in `seq 2 3`; do
   tpchgen-cli --tables lineitem,orders --scale-factor=10 --output-dir partitioned --parts 10 --part $PART
 done
@@ -95,17 +95,17 @@ Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` f
 
 - DuckDB (proprietary) is the time required to create TPCH data using the
   proprietary DuckDB format
-- Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
+- Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/lts/core_extensions/tpch#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
 
 ![Parquet Generation Performance](https://raw.githubusercontent.com/datafusion-contrib/tpcgen-rs/main/tpchgen-cli/benchmarks/parquet-performance.png)
 
 ## More information
 
-* Watch this [demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
+* Watch this [demo](https://www.youtube.com/watch?v=UYIC57hlL14) by
   [@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
 * Read the companion blog post in the
-  [Datafusion
+  [DataFusion
   blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
 
 ## References

@@ -83,7 +83,7 @@ C data generator to verify they are the same. To do so:
 Step 1: create `tbl` files.
 
 One way to do this is using a docker container that has the classic
-data generator prebuilt, though you could also build it from 
+data generator prebuilt, though you could also build it from
 [source](https://github.com/electrum/tpch-dbgen):
 
 ```shell

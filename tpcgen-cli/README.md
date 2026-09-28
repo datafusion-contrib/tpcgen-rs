@@ -3,10 +3,16 @@
 `tpcgen-cli` provides the command line interface for generating TPC-H
 and TPC-DS benchmark data.
 
-## Install
+## Try with `uvx`
 
 ```shell
-pip install tpcgen-cli
+uvx tpcgen-cli tpch parquet -s 1 --output-dir /tmp/tpch
+```
+
+## Install with `pip`
+
+```shell
+python -m pip install tpcgen-cli
 ```
 
 ## Examples

@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["clflushopt", "alamb"]
 description = "TPC-DS data generator into Apache Arrow format"
 repository = { workspace = true }
+homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcdsgen-arrow"
 readme = "README.md"
 license = "Apache-2.0"
 

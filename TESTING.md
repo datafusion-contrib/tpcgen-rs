@@ -29,7 +29,7 @@ using [`compare-all-tables.sh`](tpcgen-cli/scripts/tpch/compare-all-tables.sh)
 [`compare-all-tables.sh`](tpcgen-cli/scripts/tpcds/compare-all-tables.sh)
 (TPC-DS).  
 To improve efficiency, precomputed MD5 sums (see [tpcds-data](https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md))
-and stored `tpcgen-cli/tests/fixtures/` https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md 
+and stored `tpcgen-cli/tests/fixtures/` https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md
 to check correctness without needing the (slow) reference implementation.
 
 Please see the comparison scripts for more details:
@@ -118,7 +118,7 @@ The suites do not cover everything:
 - Parquet is compared against Arrow for `store_sales` and `store_returns` only.
   Other tables rely on the writer path being shared.
 - CI verifies TPC-DS at scale factor 1 in both compat modes, scale factor 4
-  against C, and, in the full pass, scale factor 2 for C. 
+  against C, and, in the full pass, scale factor 2 for C.
 - The reparse tests run in Trino compat mode only, since that is
   `Session::default()`. The `--compat c` corrections are covered at the `.dat`
   level but not through the Arrow, CSV and Parquet paths.

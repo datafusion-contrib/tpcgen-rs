@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
-> 
+>
 > Originally located at [`clflushopt/tpchgen-rs`], the project is now maintained at
 > [`datafusion-contrib/tpcgen-rs`]
 
@@ -34,24 +34,43 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 [Apache Parquet]: https://parquet.apache.org/
 [Apache Arrow]: https://arrow.apache.org/
 
-
 ## Features
 
-1. Blazing Speed 🚀 
+1. Blazing Speed 🚀
 2. Easy to Use: CLI or embeddable libraries
 3. Obsessively Tested 📋
 4. Resource Efficient: multi-core and constant memory use 🧠
 
+## Quick Start
+
+[`tpcgen-cli`] is distributed as a Python package. Run it with `uvx`:
+
+```shell
+uvx tpcgen-cli tpch parquet -s 1 --output-dir /tmp/tpch
+uvx tpcgen-cli tpcds parquet -s 1 --output-dir /tmp/tpcds
+```
+
+Or install it with `pip`:
+
+```shell
+python -m pip install tpcgen-cli
+tpcgen-cli tpch parquet -s 1 --output-dir /tmp/tpch
+```
+
+See the [`tpcgen-cli`] README for more examples.
+
+[`tpcgen-cli`]: tpcgen-cli/README.md
+
 ## Sub projects
 
-| Project                            | Description                                                               |
-| ---------------------------------- | ------------------------------------------------------------------------- |
-| [`tpcgen-cli`](tpcgen-cli)         | Command line tool to generate TPC-H and TPC-DS data in multiple formats   |
-| [`tpchgen-cli`](tpchgen-cli)       | Command line tool to generate TPC-H data in multiple formats              |
-| [`tpchgen`](tpchgen)               | Rust library to generate TPC-H data (zero dependencies)                     |
-| [`tpchgen-arrow`](tpchgen-arrow)   | Rust library to generate TPC-H data in [Apache Arrow] format              |
-| [`tpcdsgen`](tpcdsgen)             | Rust library to generate TPC-DS data (zero dependencies)                    |
-| [`tpcdsgen-arrow`](tpcdsgen-arrow) | Rust library to generate TPC-DS data in [Apache Arrow] format             |
+| Project                            | Description                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [`tpcgen-cli`](tpcgen-cli)         | Command line tool to generate TPC-H and TPC-DS data in multiple formats                              |
+| [`tpchgen-cli`](tpchgen-cli)       | Command line tool to generate only TPC-H data in multiple formats (kept for backwards compatibility) |
+| [`tpchgen`](tpchgen)               | Rust library to generate TPC-H data (zero dependencies)                                              |
+| [`tpchgen-arrow`](tpchgen-arrow)   | Rust library to generate TPC-H data in [Apache Arrow] format                                         |
+| [`tpcdsgen`](tpcdsgen)             | Rust library to generate TPC-DS data (zero dependencies)                                             |
+| [`tpcdsgen-arrow`](tpcdsgen-arrow) | Rust library to generate TPC-DS data in [Apache Arrow] format                                        |
 
 ## Representative Performance (10x Faster)
 
