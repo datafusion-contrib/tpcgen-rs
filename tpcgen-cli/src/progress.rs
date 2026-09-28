@@ -192,6 +192,7 @@ mod indicatif_impl {
     const LABEL_WIDTH: usize = 22;
     const BAR_WIDTH: usize = 12;
     const BYTES_WIDTH: usize = 11;
+    const RATE_WIDTH: usize = 13;
     const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
 
@@ -455,9 +456,16 @@ mod indicatif_impl {
         }
     }
 
-    /// `bytes` per second over `elapsed`, or `None` if no time has elapsed.
-    fn per_second(bytes: u64, elapsed: Duration) -> Option<u64> {
-        (!elapsed.is_zero()).then(|| (bytes as f64 / elapsed.as_secs_f64()) as u64)
+    /// Average throughput of `bytes` over `elapsed`, or blank if nothing was written or no time
+    /// has elapsed.
+    fn throughput(bytes: u64, elapsed: Option<Duration>) -> String {
+        match elapsed {
+            Some(elapsed) if bytes > 0 && !elapsed.is_zero() => {
+                let per_second = (bytes as f64 / elapsed.as_secs_f64()) as u64;
+                format!("{}/s", HumanBytes(per_second))
+            }
+            _ => String::new(),
+        }
     }
 
     fn lock_bytes_written(bytes_written: &Mutex<BytesWritten>) -> MutexGuard<'_, BytesWritten> {
@@ -492,42 +500,40 @@ mod indicatif_impl {
     }
 
     /// Write the bytes written and, while the item runs, its average throughput. Finished rows
-    /// show only the size, so short items never show a noisy rate.
+    /// leave the rate blank, so short items never show a noisy rate.
     fn write_bytes_and_throughput(
         state: &ProgressState,
         bytes_written: &BytesWritten,
         writer: &mut dyn std::fmt::Write,
     ) {
         // Blank until bytes are written, so skipped items show no size.
-        if bytes_written.bytes == 0 {
-            let _ = write!(writer, " {:BYTES_WIDTH$}", "");
-            return;
-        }
-        let _ = write!(
-            writer,
-            " {:>BYTES_WIDTH$}",
-            HumanBytes(bytes_written.bytes).to_string()
-        );
-        if state.is_finished() {
-            return;
-        }
-        if let Some(rate) = bytes_written
-            .elapsed()
-            .and_then(|elapsed| per_second(bytes_written.bytes, elapsed))
-        {
-            let _ = write!(writer, " {}/s", HumanBytes(rate));
-        }
+        let bytes = match bytes_written.bytes {
+            0 => String::new(),
+            bytes => HumanBytes(bytes).to_string(),
+        };
+        let rate = if state.is_finished() {
+            String::new()
+        } else {
+            throughput(bytes_written.bytes, bytes_written.elapsed())
+        };
+        // Pad both columns even when blank so the status column lines up across rows.
+        let _ = write!(writer, " {bytes:>BYTES_WIDTH$} {rate:>RATE_WIDTH$}");
     }
 
     /// The `total` row: bytes written across all items and, when timed, the elapsed time and
     /// throughput.
     fn total_summary(bytes: u64, elapsed: Option<Duration>) -> String {
-        let mut summary = format!("{:LABEL_WIDTH$} {}", "total", HumanBytes(bytes));
+        // Skip the `[bar] (100%)` columns so the size and rate line up with the rows above.
+        let mut summary = format!(
+            "{:LABEL_WIDTH$} {:skip$} {:>BYTES_WIDTH$} {:>RATE_WIDTH$}",
+            "total",
+            "",
+            HumanBytes(bytes).to_string(),
+            throughput(bytes, elapsed),
+            skip = BAR_WIDTH + "[] (100%)".len(),
+        );
         if let Some(elapsed) = elapsed {
             summary.push_str(&format!(" in {elapsed:.2?}"));
-            if let Some(rate) = per_second(bytes, elapsed) {
-                summary.push_str(&format!(" ({}/s)", HumanBytes(rate)));
-            }
         }
         summary
     }
@@ -675,7 +681,7 @@ mod indicatif_impl {
                 out
             };
 
-            let blank = " ".repeat(BYTES_WIDTH + 1);
+            let blank = " ".repeat(BYTES_WIDTH + RATE_WIDTH + 2);
             assert_eq!(render(&bytes_written), blank);
 
             // Reports without bytes show no size.
@@ -683,10 +689,13 @@ mod indicatif_impl {
             assert_eq!(render(&bytes_written), blank);
 
             bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
-            assert_eq!(render(&bytes_written), "    4.00 MiB 2.00 MiB/s");
+            assert_eq!(render(&bytes_written), "    4.00 MiB    2.00 MiB/s");
 
             bar.finish();
-            assert_eq!(render(&bytes_written), "    4.00 MiB");
+            assert_eq!(
+                render(&bytes_written),
+                format!("    4.00 MiB {:RATE_WIDTH$}", "")
+            );
         }
 
         #[test]
