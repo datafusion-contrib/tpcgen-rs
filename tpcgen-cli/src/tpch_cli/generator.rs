@@ -186,7 +186,7 @@ impl Default for GeneratorConfig {
             output_dir: std::path::PathBuf::from("."),
             tables: None,
             format: OutputFormat::Tbl,
-            num_threads: num_cpus::get(),
+            num_threads: crate::args::default_num_threads(),
             parquet_compression: Compression::SNAPPY,
             parquet_column_encodings: None,
             parquet_row_group_bytes: DEFAULT_PARQUET_ROW_GROUP_BYTES,

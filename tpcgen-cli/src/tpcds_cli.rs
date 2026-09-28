@@ -1,5 +1,5 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
-use crate::args::{parse_delimiter, parse_row_group_bytes};
+use crate::args::{default_num_threads, parse_delimiter, parse_row_group_bytes};
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
 use crate::parquet::parse_column_encoding_pair;
@@ -210,7 +210,7 @@ pub struct CommonArgs {
     #[arg(
         short,
         long,
-        default_value_t = num_cpus::get(),
+        default_value_t = default_num_threads(),
         value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
     )]
     num_threads: usize,
