@@ -299,16 +299,10 @@ mod indicatif_impl {
 
             let total_bytes_written = self.total_bytes_written.load(Ordering::Relaxed);
             if total_bytes_written > 0 && !self.multi.is_hidden() {
-                let mut summary = format!(
-                    "{:LABEL_WIDTH$} {}",
-                    "total",
-                    HumanBytes(total_bytes_written)
+                let summary = total_summary(
+                    total_bytes_written,
+                    self.started.get().map(Instant::elapsed),
                 );
-                if let Some(started) = self.started.get() {
-                    let elapsed = started.elapsed();
-                    let per_second = (total_bytes_written as f64 / elapsed.as_secs_f64()) as u64;
-                    summary.push_str(&format!(" in {elapsed:.2?} ({}/s)", HumanBytes(per_second)));
-                }
                 // Stop redrawing the finished bars and print the summary below them. As a bar
                 // row, indicatif would drop it when the bars don't fit the terminal height.
                 self.multi.set_draw_target(ProgressDrawTarget::hidden());
@@ -446,12 +440,16 @@ mod indicatif_impl {
             self.last_report = Some(now);
         }
 
-        /// Average throughput between the first and last report.
-        fn per_second(&self) -> Option<u64> {
+        /// Time between the first and last report.
+        fn elapsed(&self) -> Option<Duration> {
             let (started, last) = (self.started?, self.last_report?);
-            let elapsed = last.saturating_duration_since(started);
-            (!elapsed.is_zero()).then(|| (self.bytes as f64 / elapsed.as_secs_f64()) as u64)
+            Some(last.saturating_duration_since(started))
         }
+    }
+
+    /// `bytes` per second over `elapsed`, or `None` if no time has elapsed.
+    fn per_second(bytes: u64, elapsed: Duration) -> Option<u64> {
+        (!elapsed.is_zero()).then(|| (bytes as f64 / elapsed.as_secs_f64()) as u64)
     }
 
     fn lock_bytes_written(bytes_written: &Mutex<BytesWritten>) -> MutexGuard<'_, BytesWritten> {
@@ -505,9 +503,25 @@ mod indicatif_impl {
         if state.is_finished() {
             return;
         }
-        if let Some(per_second) = bytes_written.per_second() {
-            let _ = write!(writer, " {}/s", HumanBytes(per_second));
+        if let Some(rate) = bytes_written
+            .elapsed()
+            .and_then(|elapsed| per_second(bytes_written.bytes, elapsed))
+        {
+            let _ = write!(writer, " {}/s", HumanBytes(rate));
         }
+    }
+
+    /// The `total` row: bytes written across all items and, when timed, the elapsed time and
+    /// throughput.
+    fn total_summary(bytes: u64, elapsed: Option<Duration>) -> String {
+        let mut summary = format!("{:LABEL_WIDTH$} {}", "total", HumanBytes(bytes));
+        if let Some(elapsed) = elapsed {
+            summary.push_str(&format!(" in {elapsed:.2?}"));
+            if let Some(rate) = per_second(bytes, elapsed) {
+                summary.push_str(&format!(" ({}/s)", HumanBytes(rate)));
+            }
+        }
+        summary
     }
 
     fn write_progress_status(state: &ProgressState, writer: &mut dyn std::fmt::Write) {
@@ -665,6 +679,19 @@ mod indicatif_impl {
 
             bar.finish();
             assert_eq!(render(&bytes_written), "    4.00 MiB");
+        }
+
+        #[test]
+        fn total_summary_shows_bytes_elapsed_and_throughput() {
+            let bytes = 4 * 1024 * 1024;
+            assert_eq!(
+                total_summary(bytes, Some(Duration::from_secs(2))),
+                "total                  4.00 MiB in 2.00s (2.00 MiB/s)"
+            );
+            assert_eq!(
+                total_summary(bytes, None),
+                "total                  4.00 MiB"
+            );
         }
 
         #[test]
