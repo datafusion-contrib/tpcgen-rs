@@ -13,12 +13,6 @@
 //! - re-parse the output with the Arrow CSV reader using the same schema
 //! - assert that the reparsed and direct Arrow RecordBatches are equal
 
-// Use the arrow-csv version matching the `arrow` re-exported by `tpcdsgen_arrow`.
-#[cfg(feature = "arrow_59")]
-extern crate arrow_csv_59 as arrow_csv;
-#[cfg(not(feature = "arrow_59"))]
-extern crate arrow_csv_60 as arrow_csv;
-
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
@@ -115,7 +109,7 @@ impl Format {
     ) -> impl Iterator<Item = RecordBatch> + 'a {
         let null_re = regex::Regex::new("^$").unwrap();
         let builder =
-            arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
+            arrow::csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_null_regex(null_re);
         let builder = match self {
             Format::Dat => builder
                 .with_delimiter(DAT_SEPARATOR as u8)
