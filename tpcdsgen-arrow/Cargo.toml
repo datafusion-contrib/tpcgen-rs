@@ -22,6 +22,7 @@ arrow_60 = ["dep:arrow_60"]
 arrow_59 = ["dep:arrow_59"]
 
 [dev-dependencies]
-arrow_csv_59 = { workspace = true }
-arrow_csv_60 = { workspace = true }
+# Enable the arrow features used by tests.
+arrow_59 = { workspace = true, features = ["csv"] }
+arrow_60 = { workspace = true, features = ["csv"] }
 regex = "1"

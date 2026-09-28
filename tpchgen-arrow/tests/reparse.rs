@@ -1,12 +1,6 @@
 //! Verifies the correctness of the Arrow TPCH generator by parsing the canonical TBL format
 //! and comparing with the generated Arrow RecordBatches
 
-// Use the arrow-csv version matching the `arrow` re-exported by `tpchgen_arrow`.
-#[cfg(feature = "arrow_59")]
-extern crate arrow_csv_59 as arrow_csv;
-#[cfg(not(feature = "arrow_59"))]
-extern crate arrow_csv_60 as arrow_csv;
-
 use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
@@ -173,7 +167,7 @@ impl Test {
     /// Parse the provided data into an Arrow RecordBatch
     fn parse(&self, data: &[u8], schema: &SchemaRef, batch_size: usize) -> RecordBatch {
         let builder =
-            arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_batch_size(batch_size);
+            arrow::csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_batch_size(batch_size);
 
         let builder = match self {
             Test::TBL => builder.with_header(false).with_delimiter(b'|'),
