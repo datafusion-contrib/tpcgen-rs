@@ -117,7 +117,7 @@ struct CommonArgs {
 
     /// Write output to stdout instead of a file.
     ///
-    /// Interleaves output when generating multiple tables.
+    /// Multiple tables or parts may interleave in any order.
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
