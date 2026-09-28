@@ -206,7 +206,9 @@ mod indicatif_impl {
     pub struct IndicatifProgress {
         multi: MultiProgress,
         bars: Mutex<Vec<ProgressBar>>,
+        /// Bytes reported across all items, for the `total` row.
         total_bytes_written: AtomicU64,
+        /// Time the run started, set by `start`. Times the `total` row.
         started: OnceLock<Instant>,
     }
 
