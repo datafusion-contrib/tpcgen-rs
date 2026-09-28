@@ -293,11 +293,11 @@ impl SessionBuilder {
     }
 
     fn validate(&self) -> Result<()> {
-        if !(0.0..=100000.0).contains(&self.scale) {
+        if !self.scale.is_finite() || self.scale < 0.0 {
             return Err(InvalidOptionError::with_message(
                 "scale",
                 &self.scale.to_string(),
-                "Scale must be between 0 and 100000, inclusive",
+                "Scale must be a non-negative number",
             )
             .into());
         }
@@ -384,15 +384,18 @@ mod tests {
             .build()
             .is_ok());
 
-        assert!(SessionBuilder::new()
-            .with_scale_factor(-1.0)
-            .build()
-            .is_err());
+        for scale in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(SessionBuilder::new()
+                .with_scale_factor(scale)
+                .build()
+                .is_err());
+        }
 
+        // Scale factors above 100000 are accepted
         assert!(SessionBuilder::new()
-            .with_scale_factor(f64::NAN)
+            .with_scale_factor(100001.0)
             .build()
-            .is_err());
+            .is_ok());
 
         assert!(SessionBuilder::new().with_chunk_number(0).build().is_err());
     }

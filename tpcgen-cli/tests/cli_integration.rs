@@ -12,43 +12,32 @@ mod tpch;
 #[path = "cli_integration/tpcds.rs"]
 mod tpcds;
 
-/// Scales above SF100000 warn once on stderr; SF100000 does not.
+/// Scales above SF100000 generate and warn once on stderr in both benchmarks;
+/// SF100000 does not warn.
 #[test]
 fn test_above_benchmark_scale_warning() {
-    for (scale, warnings) in [("100000", 0), ("100001", 1)] {
-        let output = cargo_bin_cmd!("tpcgen-cli")
-            .env_remove("RUST_LOG")
-            .args(["tpch", "-s", scale, "-T", "region", "--stdout"])
-            .assert()
-            .success()
-            .get_output()
-            .clone();
-        assert_eq!(String::from_utf8_lossy(&output.stdout).lines().count(), 5);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert_eq!(
-            stderr.matches("generated data may not be valid").count(),
-            warnings,
-            "{stderr}"
-        );
+    for (command, table, rows) in [("tpch", "region", 5), ("tpcds", "ship_mode", 20)] {
+        for (scale, warnings) in [("100000", 0), ("100001", 1)] {
+            let output = cargo_bin_cmd!("tpcgen-cli")
+                .env_remove("RUST_LOG")
+                .args([command, "-s", scale, "-T", table, "--stdout"])
+                .assert()
+                .success()
+                .get_output()
+                .clone();
+            assert_eq!(
+                String::from_utf8_lossy(&output.stdout).lines().count(),
+                rows,
+                "{command} -s {scale}"
+            );
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(
+                stderr.matches("generated data may not be valid").count(),
+                warnings,
+                "{command} -s {scale}: {stderr}"
+            );
+        }
     }
-}
-
-/// TPC-DS still rejects SF > 100000 in its library, before creating output.
-#[test]
-fn test_tpcds_above_benchmark_scale_rejected_before_output() {
-    let temp = tempfile::tempdir().unwrap();
-    let output = temp.path().join("output");
-    cargo_bin_cmd!("tpcgen-cli")
-        .args(["tpcds", "-s", "100001", "-T", "ship_mode"])
-        .arg("--output-dir")
-        .arg(&output)
-        .assert()
-        .failure()
-        .stdout("")
-        .stderr(predicates::str::contains(
-            "Scale must be between 0 and 100000",
-        ));
-    assert!(!output.exists());
 }
 
 /// Test that invoking the CLI without a command reports the top-level usage.
