@@ -1,6 +1,15 @@
 use log::{info, LevelFilter};
 use std::io;
 
+pub(crate) fn warn_above_benchmark_scale(scale: f64) {
+    if scale > 100_000.0 {
+        log::warn!(
+            "Scale factor {scale} exceeds the TPC-H and TPC-DS maximum of 100000; \
+             generated data may not be valid"
+        );
+    }
+}
+
 pub(crate) fn configure_logging(
     verbose: bool,
     quiet: bool,

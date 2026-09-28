@@ -78,9 +78,9 @@ impl GenerationPlan {
         cli_part_count: Option<i32>,
         parquet_row_group_bytes: i64,
     ) -> Result<Self, String> {
-        if !(0.0..=100_000.0).contains(&scale_factor) {
+        if !scale_factor.is_finite() || scale_factor < 0.0 {
             return Err(format!(
-                "Invalid scale factor. Expected a number between 0 and 100000, inclusive, got {scale_factor}"
+                "Invalid scale factor. Expected a finite, non-negative number, got {scale_factor}"
             ));
         }
 
@@ -667,9 +667,11 @@ mod tests {
 
         #[test]
         fn unsupported_scale_factor() {
-            Test::new().with_scale_factor(100_001.0).assert_err(
-                "Invalid scale factor. Expected a number between 0 and 100000, inclusive, got 100001",
-            );
+            for scale in [-1.0, f64::NAN, f64::INFINITY] {
+                Test::new().with_scale_factor(scale).assert_err(&format!(
+                    "Invalid scale factor. Expected a finite, non-negative number, got {scale}"
+                ));
+            }
         }
     }
 

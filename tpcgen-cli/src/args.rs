@@ -22,12 +22,15 @@ pub(crate) fn parse_delimiter(value: &str) -> Result<char, String> {
     }
 }
 
+/// Parse a scale factor, rejecting NaN, infinite, and negative values.
+///
+/// Any finite scale factor is accepted, including above the benchmark maximum.
 pub(crate) fn parse_scale_factor(value: &str) -> Result<f64, String> {
-    let scale = value.parse::<f64>().map_err(|e| e.to_string())?;
-    if !(0.0..=100_000.0).contains(&scale) {
-        return Err("scale factor must be between 0 and 100000, inclusive".to_string());
-    }
-    Ok(scale)
+    value
+        .parse::<f64>()
+        .ok()
+        .filter(|scale| scale.is_finite() && *scale >= 0.0)
+        .ok_or_else(|| format!("expected a non-negative number, got {value:?}"))
 }
 
 /// Validate CLI partition options before starting generation.
@@ -174,10 +177,15 @@ mod tests {
 
     #[test]
     fn scale_factor_boundaries_and_fractions() {
-        for (value, expected) in [("0", 0.0), ("0.001", 0.001), ("100000", 100_000.0)] {
+        for (value, expected) in [
+            ("0", 0.0),
+            ("0.001", 0.001),
+            ("100000", 100_000.0),
+            ("100001", 100_001.0),
+        ] {
             assert_eq!(parse_scale_factor(value), Ok(expected));
         }
-        for value in ["-1", "100001", "NaN", "inf", "-inf"] {
+        for value in ["-1", "NaN", "inf", "-inf"] {
             assert!(parse_scale_factor(value).is_err());
         }
     }

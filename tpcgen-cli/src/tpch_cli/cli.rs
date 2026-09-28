@@ -3,7 +3,7 @@ use crate::args::{
     default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
     validate_partition_options,
 };
-use crate::logging::configure_logging;
+use crate::logging::{configure_logging, warn_above_benchmark_scale};
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
@@ -86,7 +86,7 @@ enum Commands {
 
 #[derive(clap::Args)]
 struct CommonArgs {
-    /// Scale factor to create (supported range: 0 through 100000, inclusive)
+    /// Scale factor to create
     #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
     scale_factor: f64,
 
@@ -183,6 +183,8 @@ impl CommonArgs {
         );
         #[cfg(not(feature = "indicatif-progress"))]
         configure_logging(self.verbose, self.quiet, None);
+
+        warn_above_benchmark_scale(self.scale_factor);
 
         #[cfg(feature = "indicatif-progress")]
         if let Some(progress) = progress {

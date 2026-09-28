@@ -3,7 +3,7 @@ use crate::args::{
     default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
     validate_partition_options,
 };
-use crate::logging::configure_logging;
+use crate::logging::{configure_logging, warn_above_benchmark_scale};
 use crate::output_location::OutputLocation;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
@@ -185,7 +185,7 @@ struct ParquetArgs {
 
 #[derive(Args)]
 pub struct CommonArgs {
-    /// Scale factor to create (supported range: 0 through 100000, inclusive)
+    /// Scale factor to create
     #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
     scale_factor: f64,
 
@@ -329,14 +329,12 @@ impl CommonArgs {
         let num_threads = self.num_threads;
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
+        warn_above_benchmark_scale(self.scale_factor);
 
         let tables = self.tables()?;
         let parts = self.part_list()?;
 
-        // Create the output directory if it doesn't exist (writing to stdout
-        // creates no directories)
         let base_location = self.base_location()?;
-        base_location.create_dir_all()?;
 
         let partition = match (self.parts, self.part) {
             (Some(parts), Some(part)) => format!(", part={part}/{parts}"),
@@ -368,6 +366,10 @@ impl CommonArgs {
                 table_sessions.push((*table, session));
             }
         }
+
+        // Create the output directory if it doesn't exist (writing to stdout
+        // creates no directories)
+        base_location.create_dir_all()?;
 
         match output_format {
             OutputFormat::Dat(output) => {
