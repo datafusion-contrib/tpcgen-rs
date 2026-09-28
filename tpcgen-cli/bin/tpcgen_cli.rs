@@ -68,7 +68,36 @@ async fn main() -> ExitCode {
 mod tests {
     use super::*;
     use clap::CommandFactory;
+    use std::ffi::OsString;
     use tpcgen_cli::tpch_cli::Table;
+
+    #[tokio::test]
+    async fn invalid_inputs_before_output() {
+        let cases: &[(&[&str], &str)] = &[
+            (&["tpch", "-T", "orders", "--parts=0"], "--parts"),
+            (&["tpch", "-T", "region", "--parts=-1"], "--parts"),
+            (&["tpch", "csv", "--parts=2", "--part=3"], "--part"),
+            (&["tpch", "parquet", "--scale-factor=NaN"], "scale"),
+            (&["tpcds", "--scale-factor=NaN"], "scale"),
+            (&["tpcds", "csv", "--scale-factor=inf", "--stdout"], "scale"),
+        ];
+        for (args, diagnostic) in cases {
+            let temp = tempfile::tempdir().unwrap();
+            let output = temp.path().join("output");
+            let args = std::iter::once(OsString::from("tpcgen-cli"))
+                .chain(args.iter().map(OsString::from))
+                .chain([
+                    OsString::from("--output-dir"),
+                    output.clone().into_os_string(),
+                ]);
+            let error = match Cli::try_parse_from(args) {
+                Ok(cli) => cli.run().await.unwrap_err().to_string(),
+                Err(error) => error.to_string(),
+            };
+            assert!(error.contains(diagnostic), "{error}");
+            assert!(!output.exists());
+        }
+    }
 
     #[test]
     fn full_table_names_are_case_insensitive() {

@@ -1,5 +1,8 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
-use crate::args::{default_num_threads, parse_delimiter, parse_row_group_bytes};
+use crate::args::{
+    default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
+    validate_partition_options,
+};
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
 use crate::parquet::parse_column_encoding_pair;
@@ -183,7 +186,7 @@ struct ParquetArgs {
 #[derive(Args)]
 pub struct CommonArgs {
     /// Scale factor to create (supported range: 0 through 100000, inclusive)
-    #[arg(short, long, default_value_t = 1.)]
+    #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
     scale_factor: f64,
 
     /// Output directory for generated files (default: current directory)
@@ -435,40 +438,14 @@ impl CommonArgs {
     /// Return the list of 1-based part numbers to generate, or `[None]` when
     /// no `--part`/`--parts` were given
     fn part_list(&self) -> Result<Vec<Option<i32>>> {
+        validate_partition_options(self.part, self.parts).map_err(|e| TpcdsError::new(&e))?;
         let Some(parts) = self.parts else {
-            if self.part.is_some() {
-                return Err(TpcdsError::new(
-                    "The --part option requires the --parts option to be set",
-                )
-                .into());
-            } else {
-                return Ok(vec![None]);
-            }
+            return Ok(vec![None]);
         };
-
-        if parts < 1 {
-            return Err(TpcdsError::new(&format!(
-                "Invalid --parts value '{parts}'. Expected a number greater than zero"
-            ))
-            .into());
-        }
 
         let Some(part) = self.part else {
             return Ok((1..=parts).map(Some).collect());
         };
-
-        if part < 1 {
-            return Err(TpcdsError::new(&format!(
-                "Invalid --part value '{part}'. Expected a number greater than zero"
-            ))
-            .into());
-        }
-        if part > parts {
-            return Err(TpcdsError::new(&format!(
-                "Invalid --part value '{part}'. Expected at most the value of --parts ({parts})"
-            ))
-            .into());
-        }
 
         Ok(vec![Some(part)])
     }

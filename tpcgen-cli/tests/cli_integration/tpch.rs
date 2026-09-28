@@ -962,7 +962,7 @@ fn test_tpcgen_cli_tpch_too_many_parts() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Invalid --part. Expected at most the value of --parts (10), got 42",
+            "Invalid --part value '42'. Expected at most the value of --parts (10)",
         ));
 }
 
@@ -981,7 +981,7 @@ fn test_tpcgen_cli_tpch_zero_part() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Invalid --part. Expected a number greater than zero, got 0",
+            "Invalid --part value '0'. Expected a number greater than zero",
         ));
 }
 #[test]
@@ -999,7 +999,7 @@ fn test_tpcgen_cli_tpch_zero_part_zero_parts() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Invalid --part. Expected a number greater than zero, got 0",
+            "Invalid --parts value '0'. Expected a number greater than zero",
         ));
 }
 

@@ -19,6 +19,20 @@ fn test_tpchgen_cli_help_uses_binary_name() {
     assert!(!help.contains("tpcgen-cli"), "{help}");
 }
 
+#[test]
+fn test_tpchgen_cli_invalid_inputs_before_output() {
+    let temp = tempdir().unwrap();
+    let output = temp.path().join("output");
+    cargo_bin_cmd!("tpchgen-cli")
+        .args(["--tables=region", "--parts=0"])
+        .arg("--output-dir")
+        .arg(&output)
+        .assert()
+        .failure()
+        .stdout("");
+    assert!(!output.exists());
+}
+
 /// Smoke test for `tpchgen-cli` binary.
 #[test]
 fn test_tpchgen_cli_command_forms() {

@@ -1,5 +1,8 @@
 use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
-use crate::args::{default_num_threads, parse_delimiter, parse_row_group_bytes};
+use crate::args::{
+    default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
+    validate_partition_options,
+};
 use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
@@ -84,7 +87,7 @@ enum Commands {
 #[derive(clap::Args)]
 struct CommonArgs {
     /// Scale factor to create (supported range: 0 through 100000, inclusive)
-    #[arg(short, long, default_value_t = 1.)]
+    #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
     scale_factor: f64,
 
     /// Output directory for generated files (default: current directory)
@@ -144,7 +147,9 @@ struct CommonArgs {
 impl CommonArgs {
     /// Initialize CLI logging/progress output and create a
     /// [`TpchGeneratorBuilder`] pre-configured with the common options.
-    fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
+    fn builder(self, format: OutputFormat) -> io::Result<TpchGeneratorBuilder> {
+        validate_partition_options(self.part, self.parts)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         let tables = self.tables();
 
         #[cfg(feature = "indicatif-progress")]
@@ -184,7 +189,7 @@ impl CommonArgs {
             builder = builder.with_progress_tracker(progress);
         }
 
-        builder
+        Ok(builder)
     }
 
     /// Return the selected tables without repeated values, preserving the
@@ -359,7 +364,7 @@ impl Cli {
     /// Generate TBL output when no output-format subcommand is specified.
     async fn run_default(self) -> io::Result<()> {
         self.args
-            .builder(OutputFormat::Tbl)
+            .builder(OutputFormat::Tbl)?
             .build()
             .generate()
             .await
@@ -369,7 +374,7 @@ impl Cli {
 impl TblArgs {
     async fn run(self) -> io::Result<()> {
         self.common
-            .builder(OutputFormat::Tbl)
+            .builder(OutputFormat::Tbl)?
             .build()
             .generate()
             .await
@@ -379,7 +384,7 @@ impl TblArgs {
 impl CsvArgs {
     async fn run(self) -> io::Result<()> {
         self.common
-            .builder(OutputFormat::Csv)
+            .builder(OutputFormat::Csv)?
             .with_csv_delimiter(self.delimiter)
             .build()
             .generate()
@@ -390,7 +395,7 @@ impl CsvArgs {
 impl ParquetArgs {
     async fn run(self) -> io::Result<()> {
         self.common
-            .builder(OutputFormat::Parquet)
+            .builder(OutputFormat::Parquet)?
             .with_parquet_compression(self.compression)
             .with_parquet_row_group_bytes(self.row_group_bytes)
             .with_parquet_column_encodings(self.column_encoding)

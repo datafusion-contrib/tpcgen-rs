@@ -22,6 +22,46 @@ pub(crate) fn parse_delimiter(value: &str) -> Result<char, String> {
     }
 }
 
+pub(crate) fn parse_scale_factor(value: &str) -> Result<f64, String> {
+    let scale = value.parse::<f64>().map_err(|e| e.to_string())?;
+    if !(0.0..=100_000.0).contains(&scale) {
+        return Err("scale factor must be between 0 and 100000, inclusive".to_string());
+    }
+    Ok(scale)
+}
+
+/// Validate CLI partition options before starting generation.
+pub(crate) fn validate_partition_options(
+    part: Option<i32>,
+    parts: Option<i32>,
+) -> Result<(), String> {
+    let Some(parts) = parts else {
+        return if part.is_some() {
+            Err("The --part option requires the --parts option to be set".to_string())
+        } else {
+            Ok(())
+        };
+    };
+    if parts < 1 {
+        return Err(format!(
+            "Invalid --parts value '{parts}'. Expected a number greater than zero"
+        ));
+    }
+    if let Some(part) = part {
+        if part < 1 {
+            return Err(format!(
+                "Invalid --part value '{part}'. Expected a number greater than zero"
+            ));
+        }
+        if part > parts {
+            return Err(format!(
+                "Invalid --part value '{part}'. Expected at most the value of --parts ({parts})"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Parses a positive byte count using case-insensitive GNU size suffixes.
 ///
 /// * `KB`, `MB`, `GB`, `TB`: powers of 1000
@@ -131,6 +171,16 @@ pub(crate) fn assert_format_options_have_logging_policy(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scale_factor_boundaries_and_fractions() {
+        for (value, expected) in [("0", 0.0), ("0.001", 0.001), ("100000", 100_000.0)] {
+            assert_eq!(parse_scale_factor(value), Ok(expected));
+        }
+        for value in ["-1", "100001", "NaN", "inf", "-inf"] {
+            assert!(parse_scale_factor(value).is_err());
+        }
+    }
 
     #[test]
     fn csv_delimiter_parses_and_validates_values() {
