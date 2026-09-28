@@ -6,7 +6,7 @@
 use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::sink::WriterSink;
-use futures::StreamExt;
+use futures_util::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
 use std::io::{self, Write};
@@ -80,7 +80,7 @@ where
     let (tx, mut rx) = tokio::sync::mpsc::channel(num_threads);
 
     // convert to an async stream to run on tokio
-    let mut stream = futures::stream::iter(sources_and_recyclers)
+    let mut stream = futures_util::stream::iter(sources_and_recyclers)
         // each generator writes to a buffer
         .map(async |(source, recycler)| {
             let buffer = recycler.new_buffer(1024 * 1024 * 8);

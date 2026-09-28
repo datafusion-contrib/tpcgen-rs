@@ -1,5 +1,11 @@
 //! Shared command-line argument parsing.
 
+/// Default number of generation threads: the available parallelism, or 1 if
+/// it cannot be determined.
+pub(crate) fn default_num_threads() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get())
+}
+
 /// Parse a delimiter string, handling the `\t` escape sequence.
 ///
 /// Restrict delimiters to comma, pipe, tab, and semicolon so unquoted fields

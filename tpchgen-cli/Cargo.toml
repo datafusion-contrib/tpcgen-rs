@@ -16,7 +16,7 @@ path = "bin/tpchgen_cli.rs"
 [dependencies]
 clap = { version = "4.5.32", features = ["derive"] }
 tpcgen-cli = { path = "../tpcgen-cli", version = "0.1.0", default-features = false }
-tokio = { version = "1.44.1", features = ["full"] }
+tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = ["indicatif-progress"]

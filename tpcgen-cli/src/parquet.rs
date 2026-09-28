@@ -2,7 +2,7 @@
 
 use arrow::datatypes::{Schema, SchemaRef};
 use arrow::record_batch::RecordBatchReader;
-use futures::StreamExt;
+use futures_util::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk, ArrowRowGroupWriterFactory};
 use parquet::arrow::{
@@ -169,7 +169,7 @@ where
     ));
 
     // create a stream that computes the data for each row group
-    let mut row_group_stream = futures::stream::iter(iter_iter.enumerate())
+    let mut row_group_stream = futures_util::stream::iter(iter_iter.enumerate())
         .map(async |(row_group_index, iter)| {
             let row_group_factory = Arc::clone(&row_group_factory);
             let schema = Arc::clone(&schema);
