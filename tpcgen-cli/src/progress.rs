@@ -487,8 +487,8 @@ mod indicatif_impl {
             .clone()
             .with_key(
                 "bytes_written",
-                move |state: &ProgressState, writer: &mut dyn std::fmt::Write| {
-                    write_bytes_and_throughput(state, &lock_bytes_written(&bytes_written), writer)
+                move |_: &ProgressState, writer: &mut dyn std::fmt::Write| {
+                    write_bytes_and_throughput(&lock_bytes_written(&bytes_written), writer)
                 },
             )
     }
@@ -499,23 +499,15 @@ mod indicatif_impl {
         )
     }
 
-    /// Write the bytes written and, while the item runs, its average throughput. Finished rows
-    /// leave the rate blank, so short items never show a noisy rate.
-    fn write_bytes_and_throughput(
-        state: &ProgressState,
-        bytes_written: &BytesWritten,
-        writer: &mut dyn std::fmt::Write,
-    ) {
+    /// Write the bytes written and their average throughput. Finished rows keep their final
+    /// rate, so rows don't change all at once when items finish together.
+    fn write_bytes_and_throughput(bytes_written: &BytesWritten, writer: &mut dyn std::fmt::Write) {
         // Blank until bytes are written, so skipped items show no size.
         let bytes = match bytes_written.bytes {
             0 => String::new(),
             bytes => HumanBytes(bytes).to_string(),
         };
-        let rate = if state.is_finished() {
-            String::new()
-        } else {
-            throughput(bytes_written.bytes, bytes_written.elapsed())
-        };
+        let rate = throughput(bytes_written.bytes, bytes_written.elapsed());
         // Pad both columns even when blank so the status column lines up across rows.
         let _ = write!(writer, " {bytes:>BYTES_WIDTH$} {rate:>RATE_WIDTH$}");
     }
@@ -673,11 +665,10 @@ mod indicatif_impl {
         #[test]
         fn bytes_written_shows_size_and_throughput() {
             let start = Instant::now();
-            let bar = ProgressBar::with_draw_target(Some(2), ProgressDrawTarget::hidden());
             let mut bytes_written = BytesWritten::default();
             let render = |bytes_written: &BytesWritten| {
                 let mut out = String::new();
-                bar.update(|state| write_bytes_and_throughput(state, bytes_written, &mut out));
+                write_bytes_and_throughput(bytes_written, &mut out);
                 out
             };
 
@@ -690,12 +681,6 @@ mod indicatif_impl {
 
             bytes_written.add(4 * 1024 * 1024, start + Duration::from_secs(2));
             assert_eq!(render(&bytes_written), "    4.00 MiB    2.00 MiB/s");
-
-            bar.finish();
-            assert_eq!(
-                render(&bytes_written),
-                format!("    4.00 MiB {:RATE_WIDTH$}", "")
-            );
         }
 
         #[test]
