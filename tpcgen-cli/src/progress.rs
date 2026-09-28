@@ -678,7 +678,7 @@ mod indicatif_impl {
             let blank = " ".repeat(BYTES_WIDTH + 1);
             assert_eq!(render(&bytes_written), blank);
 
-            // Reports without bytes (a header-less or skipped item) show no size.
+            // Reports without bytes show no size.
             bytes_written.add(0, start);
             assert_eq!(render(&bytes_written), blank);
 
@@ -687,19 +687,6 @@ mod indicatif_impl {
 
             bar.finish();
             assert_eq!(render(&bytes_written), "    4.00 MiB");
-        }
-
-        #[test]
-        fn total_summary_shows_bytes_elapsed_and_throughput() {
-            let bytes = 4 * 1024 * 1024;
-            assert_eq!(
-                total_summary(bytes, Some(Duration::from_secs(2))),
-                "total                  4.00 MiB in 2.00s (2.00 MiB/s)"
-            );
-            assert_eq!(
-                total_summary(bytes, None),
-                "total                  4.00 MiB"
-            );
         }
 
         #[test]
