@@ -1,4 +1,5 @@
 use assert_cmd::cargo::cargo_bin_cmd;
+use predicates::prelude::PredicateBooleanExt;
 
 #[path = "cli_integration/test_helpers.rs"]
 mod test_helpers;
@@ -21,6 +22,23 @@ fn test_tpcgen_cli_requires_command() {
         .stderr(predicates::str::contains("Commands:"))
         .stderr(predicates::str::contains("tpch"))
         .stderr(predicates::str::contains("tpcds"));
+}
+
+/// Help text refers to `tpcgen-cli`, never to the `tpchgen-cli` binary.
+#[test]
+fn test_tpcgen_cli_help_uses_binary_name() {
+    for args in [
+        ["--help"].as_slice(),
+        &["tpch", "--help"],
+        &["tpcds", "--help"],
+    ] {
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(args)
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("tpcgen-cli"))
+            .stdout(predicates::str::contains("tpchgen-cli").not());
+    }
 }
 
 #[test]

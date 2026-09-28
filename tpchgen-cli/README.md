@@ -3,6 +3,10 @@
 `tpchgen-cli` is a high-performance, parallel TPC-H data generator command line
 tool.
 
+> **Note:** See [`tpcgen-cli`] to create both TPC-H and TPC-DS data
+
+[`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
+
 This tool is more than 10x faster than the next fastest TPCH generator we know
 of (`duckdb`). On a 2023 Mac M3 Max laptop, it easily generates data faster than
 can be written to SSD. See [BENCHMARKS.md] for more details on performance and

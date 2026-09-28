@@ -22,37 +22,7 @@ use std::sync::Arc;
     // -h output
     about = "TPC-H Data Generator",
     // --help output
-    long_about = r#"
-TPCH Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
-
-By default each table is written to a single file named <output_dir>/<table>.<format>
-
-If `--part` option is specified, each table is written to a subdirectory in
-multiple files named <output_dir>/<table>/<table>.<part>.<format>
-
-Examples
-
-# Generate all tables at scale factor 1 (1GB) in TBL format (default) to /tmp/tpch directory:
-
-tpchgen-cli -s 1 --output-dir=/tmp/tpch
-
-# Generate all tables in CSV format:
-
-tpchgen-cli csv -s 1 --output-dir=/tmp/tpch
-
-# Generate scale factor one in CSV format with tab delimiter:
-
-tpchgen-cli csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
-
-# Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
-# /tmp/tpch/lineitem:
-
-tpchgen-cli parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
-
-# Generate scale factor one in current directory, seeing debug output
-
-RUST_LOG=debug tpchgen-cli -s 1 --output-dir=/tmp/tpch
-"#,
+    long_about = long_about("tpchgen-cli"),
     args_conflicts_with_subcommands = true
 )]
 pub struct Cli {
@@ -61,6 +31,44 @@ pub struct Cli {
 
     #[command(flatten)]
     args: CommonArgs,
+}
+
+/// `--help` text with examples that invoke `bin` (`tpchgen-cli` or
+/// `tpcgen-cli tpch`)
+pub fn long_about(bin: &str) -> String {
+    format!(
+        r#"
+TPC-H Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
+
+By default each table is written to a single file named <output_dir>/<table>.<format>
+
+If `--parts` option is specified, each table is written to a subdirectory in
+multiple files named <output_dir>/<table>/<table>.<part>.<format>
+
+Examples
+
+# Generate all tables at scale factor 1 (1GB) in TBL format (default) to /tmp/tpch directory:
+
+{bin} -s 1 --output-dir=/tmp/tpch
+
+# Generate all tables in CSV format:
+
+{bin} csv -s 1 --output-dir=/tmp/tpch
+
+# Generate scale factor one in CSV format with tab delimiter:
+
+{bin} csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
+
+# Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
+# /tmp/tpch/lineitem:
+
+{bin} parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
+
+# Generate scale factor one in current directory, seeing debug output
+
+RUST_LOG=debug {bin} -s 1 --output-dir=/tmp/tpch
+"#
+    )
 }
 
 #[derive(clap::Subcommand)]

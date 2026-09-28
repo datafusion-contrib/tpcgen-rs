@@ -1,6 +1,24 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 use tempfile::tempdir;
 
+/// Help text refers to `tpchgen-cli`, not `tpcgen-cli`.
+#[test]
+fn test_tpchgen_cli_help_uses_binary_name() {
+    let output = cargo_bin_cmd!("tpchgen-cli")
+        .arg("--help")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let help = String::from_utf8(output).unwrap();
+    assert!(
+        help.contains("tpchgen-cli -s 1 --output-dir=/tmp/tpch"),
+        "{help}"
+    );
+    assert!(!help.contains("tpcgen-cli"), "{help}");
+}
+
 /// Smoke test for `tpchgen-cli` binary.
 #[test]
 fn test_tpchgen_cli_command_forms() {

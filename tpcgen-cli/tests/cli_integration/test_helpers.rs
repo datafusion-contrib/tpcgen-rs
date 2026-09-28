@@ -1,7 +1,9 @@
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
+use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, PARQUET_FIELD_ID_META_KEY};
 use parquet::basic::Encoding;
 use parquet::file::metadata::ParquetMetaDataReader;
+use parquet::file::reader::{FileReader, SerializedFileReader};
 use std::fs;
 use std::fs::File;
 use std::path::Path;
@@ -122,6 +124,55 @@ pub(crate) fn expect_column_encoding(path: &Path, column: &str, expected: Encodi
         "column {column} not found in {}",
         path.display()
     );
+}
+
+pub(crate) fn expect_sequential_field_ids(path: &Path) {
+    let reader = SerializedFileReader::new(
+        File::open(path).unwrap_or_else(|e| panic!("Failed to open {}: {e}", path.display())),
+    )
+    .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()));
+    let fields = reader
+        .metadata()
+        .file_metadata()
+        .schema_descr()
+        .root_schema()
+        .get_fields();
+
+    assert!(!fields.is_empty(), "{} must have fields", path.display());
+    for (index, field) in fields.iter().enumerate() {
+        let expected_id = (index + 1) as i32;
+        let basic_info = field.get_basic_info();
+        assert!(
+            basic_info.has_id(),
+            "{} field {} must have an ID",
+            path.display(),
+            field.name()
+        );
+        assert_eq!(
+            basic_info.id(),
+            expected_id,
+            "unexpected field ID for {} in {}",
+            field.name(),
+            path.display()
+        );
+    }
+
+    let arrow_schema = ParquetRecordBatchReaderBuilder::try_new(
+        File::open(path).unwrap_or_else(|e| panic!("Failed to open {}: {e}", path.display())),
+    )
+    .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()))
+    .schema()
+    .clone();
+    for (index, field) in arrow_schema.fields().iter().enumerate() {
+        let expected_id = (index + 1).to_string();
+        assert_eq!(
+            field.metadata().get(PARQUET_FIELD_ID_META_KEY),
+            Some(&expected_id),
+            "unexpected Arrow field ID for {} in {}",
+            field.name(),
+            path.display()
+        );
+    }
 }
 
 /// Generate `table` from `benchmark` (`tpch` or `tpcds`) with `subcommand`
