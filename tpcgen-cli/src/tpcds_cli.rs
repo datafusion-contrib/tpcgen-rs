@@ -329,7 +329,7 @@ impl CommonArgs {
         let num_threads = self.num_threads;
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
-        warn_above_benchmark_scale(self.scale_factor);
+        warn_above_benchmark_scale("TPC-DS", self.scale_factor);
 
         let tables = self.tables()?;
         let parts = self.part_list()?;

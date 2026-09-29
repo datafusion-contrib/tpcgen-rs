@@ -184,7 +184,7 @@ impl CommonArgs {
         #[cfg(not(feature = "indicatif-progress"))]
         configure_logging(self.verbose, self.quiet, None);
 
-        warn_above_benchmark_scale(self.scale_factor);
+        warn_above_benchmark_scale("TPC-H", self.scale_factor);
 
         #[cfg(feature = "indicatif-progress")]
         if let Some(progress) = progress {
