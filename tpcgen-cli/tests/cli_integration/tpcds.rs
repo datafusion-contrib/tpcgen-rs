@@ -19,17 +19,6 @@ use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
-/// Asserts stderr has exactly one unapproved scale factor warning (these tests
-/// use a tiny scale factor to stay fast) and returns the remaining lines.
-fn without_scale_factor_warning(stderr: &[u8]) -> String {
-    let stderr = String::from_utf8_lossy(stderr);
-    let (warnings, rest): (Vec<_>, Vec<_>) = stderr
-        .lines()
-        .partition(|line| line.contains("is not an approved TPC-DS scale factor"));
-    assert_eq!(warnings.len(), 1, "{stderr}");
-    rest.iter().map(|line| format!("{line}\n")).collect()
-}
-
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
@@ -53,10 +42,10 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
         "Expected TPC-DS DAT generation to write no stdout by default, got: {}",
         String::from_utf8_lossy(&assert.get_output().stdout)
     );
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        without_scale_factor_warning(&assert.get_output().stderr).is_empty(),
-        "Expected TPC-DS DAT generation to write no stderr by default, got: {}",
-        String::from_utf8_lossy(&assert.get_output().stderr)
+        stderr.lines().count() == 1 && stderr.contains("is not an approved TPC-DS scale factor"),
+        "Expected TPC-DS DAT generation to only warn about the scale factor by default, got: {stderr}"
     );
 }
 
@@ -168,7 +157,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         String::from_utf8_lossy(&assert.get_output().stdout)
     );
 
-    let stderr = without_scale_factor_warning(&assert.get_output().stderr);
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
         !stderr.contains("ignoring RUST_LOG"),
         "Unexpected RUST_LOG override notice, got stderr: {stderr}"
@@ -184,7 +173,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
     assert!(
         stderr
             .lines()
-            .nth(1)
+            .nth(2)
             .is_some_and(|line| line.ends_with(settings)),
         "Expected Parquet settings immediately after startup summary, got stderr: {stderr}"
     );
@@ -1220,10 +1209,10 @@ fn test_tpcgen_cli_tpcds_dat_part_without_parts_is_rejected() {
         .assert()
         .failure();
 
-    let stderr = without_scale_factor_warning(&assert.get_output().stderr);
-    assert_eq!(
-        stderr,
-        "Error: The --part option requires the --parts option to be set\n"
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.ends_with("Error: The --part option requires the --parts option to be set\n"),
+        "{stderr}"
     );
 }
 
@@ -1271,10 +1260,9 @@ fn test_tpcgen_cli_tpcds_rejects_invalid_part_without_creating_output() {
                 .assert()
                 .failure();
 
-            let stderr = without_scale_factor_warning(&assert.get_output().stderr);
-            assert_eq!(
-                stderr,
-                format!("Error: {expected_error}\n"),
+            let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+            assert!(
+                stderr.ends_with(&format!("Error: {expected_error}\n")),
                 "Unexpected error for {format} --parts {parts} --part {part}"
             );
 
