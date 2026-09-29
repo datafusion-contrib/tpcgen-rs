@@ -81,7 +81,10 @@ impl ScalingInfo {
 
     /// Get row count for a given scale (getRowCountForScale)
     pub fn get_row_count_for_scale(&self, scale: f64) -> Result<i64> {
-        check_argument!(scale <= 100000.0, "scale must be less than 100000");
+        check_argument!(
+            scale.is_finite() && scale >= 0.0,
+            "scale must be a non-negative number"
+        );
 
         let scale_key = (scale * 1000.0) as i32;
         if let Some(&row_count) = self.scales_to_row_counts_map.get(&scale_key) {
@@ -103,7 +106,7 @@ impl ScalingInfo {
 
     /// Compute count using logarithmic scale model (computeCountUsingLogScale)
     fn compute_count_using_log_scale(&self, scale: f64) -> Result<i64> {
-        let scale_slot = Self::get_scale_slot(scale)?;
+        let scale_slot = Self::get_scale_slot(scale);
         let delta = self.get_row_count_for_scale(Self::DEFINED_SCALES[scale_slot])?
             - self.get_row_count_for_scale(Self::DEFINED_SCALES[scale_slot - 1])?;
 
@@ -121,15 +124,13 @@ impl ScalingInfo {
     }
 
     /// Get scale slot for a given scale (getScaleSlot)
-    fn get_scale_slot(scale: f64) -> Result<usize> {
-        for (i, &defined_scale) in Self::DEFINED_SCALES.iter().enumerate() {
-            if scale <= defined_scale {
-                return Ok(i);
-            }
-        }
-
-        // Shouldn't be able to get here because we checked the scale argument
-        Err(TpcdsError::new("scale was greater than max scale"))
+    ///
+    /// Scales above 100_000 are undefined, so fall back to the slot of 100_000.
+    fn get_scale_slot(scale: f64) -> usize {
+        Self::DEFINED_SCALES
+            .iter()
+            .position(|&defined_scale| scale <= defined_scale)
+            .unwrap_or(Self::DEFINED_SCALES.len() - 1)
     }
 
     /// Compute count using linear scale model (computeCountUsingLinearScale)
@@ -261,24 +262,34 @@ mod tests {
     #[test]
     fn test_scale_validation() {
         let row_counts = [0, 100, 500, 2000, 5000, 12000, 30000, 65000, 80000, 100000];
-        let scaling_info = ScalingInfo::new(0, ScalingModel::Static, &row_counts, 0).unwrap();
+        for model in [
+            ScalingModel::Static,
+            ScalingModel::Linear,
+            ScalingModel::Logarithmic,
+        ] {
+            let scaling_info = ScalingInfo::new(0, model, &row_counts, 0).unwrap();
 
-        // Test scale too large
-        assert!(scaling_info.get_row_count_for_scale(100001.0).is_err());
+            for scale in [-1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                assert!(scaling_info.get_row_count_for_scale(scale).is_err());
+            }
+            // Above 100000 is accepted
+            assert!(scaling_info.get_row_count_for_scale(100001.0).is_ok());
+        }
     }
 
     #[test]
     fn test_get_scale_slot() {
-        assert_eq!(ScalingInfo::get_scale_slot(0.0).unwrap(), 0);
-        assert_eq!(ScalingInfo::get_scale_slot(0.5).unwrap(), 1);
-        assert_eq!(ScalingInfo::get_scale_slot(1.0).unwrap(), 1);
-        assert_eq!(ScalingInfo::get_scale_slot(5.0).unwrap(), 2);
-        assert_eq!(ScalingInfo::get_scale_slot(10.0).unwrap(), 2);
-        assert_eq!(ScalingInfo::get_scale_slot(50.0).unwrap(), 3);
-        assert_eq!(ScalingInfo::get_scale_slot(100000.0).unwrap(), 9);
+        assert_eq!(ScalingInfo::get_scale_slot(0.0), 0);
+        assert_eq!(ScalingInfo::get_scale_slot(0.5), 1);
+        assert_eq!(ScalingInfo::get_scale_slot(1.0), 1);
+        assert_eq!(ScalingInfo::get_scale_slot(5.0), 2);
+        assert_eq!(ScalingInfo::get_scale_slot(10.0), 2);
+        assert_eq!(ScalingInfo::get_scale_slot(50.0), 3);
+        assert_eq!(ScalingInfo::get_scale_slot(100000.0), 9);
 
-        // Test scale too large
-        assert!(ScalingInfo::get_scale_slot(100001.0).is_err());
+        // Undefined above 100_000, falls back to the slot of 100_000
+        assert_eq!(ScalingInfo::get_scale_slot(100_001.0), 9);
+        assert_eq!(ScalingInfo::get_scale_slot(500_000.0), 9);
     }
 
     #[test]
