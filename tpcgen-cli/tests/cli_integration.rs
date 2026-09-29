@@ -33,15 +33,15 @@ fn test_above_benchmark_scale_warning() {
     }
 }
 
-/// An unapproved in-range scale factor warns once on stderr; an approved one
-/// does not.
+/// `-v` logs an INFO message once for an unapproved in-range scale factor, and
+/// nothing for an approved one.
 #[test]
-fn test_unapproved_scale_factor_warning() {
+fn test_unapproved_scale_factor_info() {
     for (benchmark, table, unapproved) in [("tpch", "region", "2"), ("tpcds", "ship_mode", "10")] {
         for (scale, messages) in [("1", 0), (unapproved, 1)] {
             let output = cargo_bin_cmd!("tpcgen-cli")
                 .env_remove("RUST_LOG")
-                .args([benchmark, "-s", scale, "-T", table, "--stdout"])
+                .args([benchmark, "-s", scale, "-T", table, "--stdout", "-v"])
                 .assert()
                 .success()
                 .get_output()

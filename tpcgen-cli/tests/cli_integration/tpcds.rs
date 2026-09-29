@@ -27,6 +27,8 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
     let assert = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("dat")
+        .arg("--scale-factor")
+        .arg("0.001")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -1208,9 +1210,9 @@ fn test_tpcgen_cli_tpcds_dat_part_without_parts_is_rejected() {
         .failure();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(
-        stderr.ends_with("Error: The --part option requires the --parts option to be set\n"),
-        "{stderr}"
+    assert_eq!(
+        stderr,
+        "Error: The --part option requires the --parts option to be set\n"
     );
 }
 
@@ -1259,8 +1261,9 @@ fn test_tpcgen_cli_tpcds_rejects_invalid_part_without_creating_output() {
                 .failure();
 
             let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-            assert!(
-                stderr.ends_with(&format!("Error: {expected_error}\n")),
+            assert_eq!(
+                stderr,
+                format!("Error: {expected_error}\n"),
                 "Unexpected error for {format} --parts {parts} --part {part}"
             );
 
