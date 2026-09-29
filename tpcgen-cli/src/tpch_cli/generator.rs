@@ -339,9 +339,6 @@ impl TpchGenerator {
         }
         let output_plans = output_plan_generator.build();
 
-        // Create output directory if it doesn't exist and we are not writing to stdout
-        base_location.create_dir_all()?;
-
         // Force the creation of the distributions and text pool so it doesn't
         // get charged to the first table.
         let start = Instant::now();
@@ -349,6 +346,9 @@ impl TpchGenerator {
         TextPool::get_or_init_default();
         let elapsed = start.elapsed();
         info!("Created static distributions and text pools in {elapsed:.2?}");
+
+        // Create output directory if it doesn't exist and we are not writing to stdout
+        base_location.create_dir_all()?;
 
         let runner = PlanRunner::new(output_plans, config.num_threads)
             .with_progress_tracker(progress_tracker);
