@@ -20,7 +20,6 @@ use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
-/// The tiny scale factor is not approved, so its warning is the only output.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -28,8 +27,6 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
     let assert = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("dat")
-        .arg("--scale-factor")
-        .arg("0.001")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -43,10 +40,10 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
         "Expected TPC-DS DAT generation to write no stdout by default, got: {}",
         String::from_utf8_lossy(&assert.get_output().stdout)
     );
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.lines().count() == 1 && stderr.contains("is not an approved TPC-DS scale factor"),
-        "Expected TPC-DS DAT generation to only warn about the scale factor by default, got: {stderr}"
+        assert.get_output().stderr.is_empty(),
+        "Expected TPC-DS DAT generation to write no stderr by default, got: {}",
+        String::from_utf8_lossy(&assert.get_output().stderr)
     );
 }
 
