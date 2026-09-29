@@ -28,7 +28,7 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
         .arg("tpcds")
         .arg("dat")
         .arg("--scale-factor")
-        .arg("0.001")
+        .arg("1")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -138,7 +138,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         .arg("tpcds")
         .arg("parquet")
         .arg("--scale-factor")
-        .arg("0.001")
+        .arg("1")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -163,7 +163,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         "Unexpected RUST_LOG override notice, got stderr: {stderr}"
     );
     assert!(
-        stderr.contains("Generating TPC-DS (SF=0.001, format=parquet, compat=c, tables=1,")
+        stderr.contains("Generating TPC-DS (SF=1, format=parquet, compat=c, tables=1,")
             && stderr.contains(", parts=1 (all)) to"),
         "Expected TPC-DS startup log with compatibility mode and partition selection, got stderr: {stderr}"
     );
@@ -179,7 +179,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
     );
     assert!(
         stderr.contains(
-            "Writing table reason (SF=0.001, 1 chunk) (part 1/1) to reason.1.parquet using 1 thread\n"
+            "Writing table reason (SF=1, 1 chunk) (part 1/1) to reason.1.parquet using 1 thread\n"
         ),
         "Expected explicit partition start log, got stderr: {stderr}"
     );
@@ -1199,7 +1199,7 @@ fn test_tpcgen_cli_tpcds_dat_part_without_parts_is_rejected() {
         .arg("tpcds")
         .arg("dat")
         .arg("--scale-factor")
-        .arg("0.001")
+        .arg("1")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -1248,7 +1248,7 @@ fn test_tpcgen_cli_tpcds_rejects_invalid_part_without_creating_output() {
                 .arg("tpcds")
                 .arg(format)
                 .arg("--scale-factor")
-                .arg("0.001")
+                .arg("1")
                 .arg("--tables")
                 .arg("reason")
                 .arg("--output-dir")
