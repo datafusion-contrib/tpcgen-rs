@@ -19,6 +19,16 @@ use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
+/// Drops the unapproved scale factor warning, since these tests use a tiny
+/// scale factor to stay fast.
+fn without_scale_factor_warning(stderr: &[u8]) -> String {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .filter(|line| !line.contains("is not an approved"))
+        .map(|line| format!("{line}\n"))
+        .collect()
+}
+
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
@@ -28,7 +38,7 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
         .arg("tpcds")
         .arg("dat")
         .arg("--scale-factor")
-        .arg("1")
+        .arg("0.001")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -43,7 +53,7 @@ fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
         String::from_utf8_lossy(&assert.get_output().stdout)
     );
     assert!(
-        assert.get_output().stderr.is_empty(),
+        without_scale_factor_warning(&assert.get_output().stderr).is_empty(),
         "Expected TPC-DS DAT generation to write no stderr by default, got: {}",
         String::from_utf8_lossy(&assert.get_output().stderr)
     );
@@ -138,7 +148,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         .arg("tpcds")
         .arg("parquet")
         .arg("--scale-factor")
-        .arg("1")
+        .arg("0.001")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -157,13 +167,13 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
         String::from_utf8_lossy(&assert.get_output().stdout)
     );
 
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let stderr = without_scale_factor_warning(&assert.get_output().stderr);
     assert!(
         !stderr.contains("ignoring RUST_LOG"),
         "Unexpected RUST_LOG override notice, got stderr: {stderr}"
     );
     assert!(
-        stderr.contains("Generating TPC-DS (SF=1, format=parquet, compat=c, tables=1,")
+        stderr.contains("Generating TPC-DS (SF=0.001, format=parquet, compat=c, tables=1,")
             && stderr.contains(", parts=1 (all)) to"),
         "Expected TPC-DS startup log with compatibility mode and partition selection, got stderr: {stderr}"
     );
@@ -179,7 +189,7 @@ fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
     );
     assert!(
         stderr.contains(
-            "Writing table reason (SF=1, 1 chunk) (part 1/1) to reason.1.parquet using 1 thread\n"
+            "Writing table reason (SF=0.001, 1 chunk) (part 1/1) to reason.1.parquet using 1 thread\n"
         ),
         "Expected explicit partition start log, got stderr: {stderr}"
     );
@@ -1199,7 +1209,7 @@ fn test_tpcgen_cli_tpcds_dat_part_without_parts_is_rejected() {
         .arg("tpcds")
         .arg("dat")
         .arg("--scale-factor")
-        .arg("1")
+        .arg("0.001")
         .arg("--tables")
         .arg("reason")
         .arg("--output-dir")
@@ -1209,7 +1219,7 @@ fn test_tpcgen_cli_tpcds_dat_part_without_parts_is_rejected() {
         .assert()
         .failure();
 
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let stderr = without_scale_factor_warning(&assert.get_output().stderr);
     assert_eq!(
         stderr,
         "Error: The --part option requires the --parts option to be set\n"
@@ -1248,7 +1258,7 @@ fn test_tpcgen_cli_tpcds_rejects_invalid_part_without_creating_output() {
                 .arg("tpcds")
                 .arg(format)
                 .arg("--scale-factor")
-                .arg("1")
+                .arg("0.001")
                 .arg("--tables")
                 .arg("reason")
                 .arg("--output-dir")
@@ -1260,7 +1270,7 @@ fn test_tpcgen_cli_tpcds_rejects_invalid_part_without_creating_output() {
                 .assert()
                 .failure();
 
-            let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+            let stderr = without_scale_factor_warning(&assert.get_output().stderr);
             assert_eq!(
                 stderr,
                 format!("Error: {expected_error}\n"),
