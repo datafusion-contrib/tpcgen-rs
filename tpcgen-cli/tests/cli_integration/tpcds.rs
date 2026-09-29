@@ -20,6 +20,7 @@ use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
+/// The tiny scale factor is not approved, so its warning is the only output.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
