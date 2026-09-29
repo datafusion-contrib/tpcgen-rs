@@ -1,14 +1,15 @@
 use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
 use crate::args::{
     default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
-    validate_partition_options,
+    validate_partition_options, MAX_BENCHMARK_SCALE_FACTOR,
 };
-use crate::logging::{configure_logging, warn_above_benchmark_scale};
+use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
+use log::warn;
 use std::collections::HashSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
@@ -184,7 +185,12 @@ impl CommonArgs {
         #[cfg(not(feature = "indicatif-progress"))]
         configure_logging(self.verbose, self.quiet, None);
 
-        warn_above_benchmark_scale("TPC-H", self.scale_factor);
+        if self.scale_factor > MAX_BENCHMARK_SCALE_FACTOR {
+            warn!(
+                "Scale factor {} exceeds the TPC-H maximum of {}; generated data may not be valid",
+                self.scale_factor, MAX_BENCHMARK_SCALE_FACTOR
+            );
+        }
 
         #[cfg(feature = "indicatif-progress")]
         if let Some(progress) = progress {

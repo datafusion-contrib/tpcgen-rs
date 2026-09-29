@@ -1,5 +1,8 @@
 //! Shared command-line argument parsing.
 
+/// Largest scale factor defined by the TPC-H and TPC-DS specifications.
+pub(crate) const MAX_BENCHMARK_SCALE_FACTOR: f64 = 100_000.0;
+
 /// Default number of generation threads: the available parallelism, or 1 if
 /// it cannot be determined.
 pub(crate) fn default_num_threads() -> usize {
