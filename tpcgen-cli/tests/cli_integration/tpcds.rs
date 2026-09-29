@@ -19,14 +19,15 @@ use tempfile::tempdir;
 use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen_arrow::{ItemArrow, StoreReturnsArrow, StoreSalesArrow};
 
-/// Drops the unapproved scale factor warning, since these tests use a tiny
-/// scale factor to stay fast.
+/// Asserts stderr has exactly one unapproved scale factor warning (these tests
+/// use a tiny scale factor to stay fast) and returns the remaining lines.
 fn without_scale_factor_warning(stderr: &[u8]) -> String {
-    String::from_utf8_lossy(stderr)
+    let stderr = String::from_utf8_lossy(stderr);
+    let (warnings, rest): (Vec<_>, Vec<_>) = stderr
         .lines()
-        .filter(|line| !line.contains("is not an approved"))
-        .map(|line| format!("{line}\n"))
-        .collect()
+        .partition(|line| line.contains("is not an approved TPC-DS scale factor"));
+    assert_eq!(warnings.len(), 1, "{stderr}");
+    rest.iter().map(|line| format!("{line}\n")).collect()
 }
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
