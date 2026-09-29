@@ -33,6 +33,29 @@ fn test_above_benchmark_scale_warning() {
     }
 }
 
+/// `-v` logs an INFO message once for an unapproved in-range scale factor, and
+/// nothing for an approved one.
+#[test]
+fn test_unapproved_scale_factor_info() {
+    for (benchmark, table, unapproved) in [("tpch", "region", "2"), ("tpcds", "ship_mode", "10")] {
+        for (scale, messages) in [("1", 0), (unapproved, 1)] {
+            let output = cargo_bin_cmd!("tpcgen-cli")
+                .env_remove("RUST_LOG")
+                .args([benchmark, "-s", scale, "-T", table, "--stdout", "-v"])
+                .assert()
+                .success()
+                .get_output()
+                .clone();
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(
+                stderr.matches("is not an approved").count(),
+                messages,
+                "{stderr}"
+            );
+        }
+    }
+}
+
 /// TPC-DS still rejects SF > 100000 in its library, before creating output.
 #[test]
 fn test_tpcds_above_benchmark_scale_rejected_before_output() {

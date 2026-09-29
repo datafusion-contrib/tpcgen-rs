@@ -1,7 +1,36 @@
 //! Shared command-line argument parsing.
 
+/// Scale factors approved for TPC-H results.
+///
+/// See https://github.com/datafusion-contrib/tpcgen-rs/issues/526
+pub(crate) const TPCH_SCALE_FACTORS: &[f64] = &[
+    1.0, 10.0, 30.0, 100.0, 300.0, 1_000.0, 3_000.0, 10_000.0, 30_000.0, 100_000.0,
+];
+
+/// Scale factors approved for TPC-DS results.
+///
+/// SF 1 (the qualification database) is also included.
+///
+/// See https://github.com/datafusion-contrib/tpcgen-rs/issues/526
+pub(crate) const TPCDS_SCALE_FACTORS: &[f64] =
+    &[1.0, 1_000.0, 3_000.0, 10_000.0, 30_000.0, 100_000.0];
+
 /// Largest scale factor defined by the TPC-H and TPC-DS specifications.
-pub(crate) const MAX_BENCHMARK_SCALE_FACTOR: f64 = 100_000.0;
+pub(crate) const MAX_BENCHMARK_SCALE_FACTOR: f64 = TPCH_SCALE_FACTORS[TPCH_SCALE_FACTORS.len() - 1];
+
+/// Logs at INFO level if `scale_factor` is not one of the `approved` sizes.
+pub(crate) fn log_if_unapproved_scale_factor(benchmark: &str, scale_factor: f64, approved: &[f64]) {
+    if !approved.contains(&scale_factor) {
+        let approved = approved
+            .iter()
+            .map(|sf| sf.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        log::info!(
+            "Scale factor {scale_factor} is not an approved {benchmark} scale factor ({approved})"
+        );
+    }
+}
 
 /// Default number of generation threads: the available parallelism, or 1 if
 /// it cannot be determined.

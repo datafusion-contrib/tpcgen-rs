@@ -1,7 +1,8 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
 use crate::args::{
-    default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
-    validate_partition_options, MAX_BENCHMARK_SCALE_FACTOR,
+    default_num_threads, log_if_unapproved_scale_factor, parse_delimiter, parse_row_group_bytes,
+    parse_scale_factor, validate_partition_options, MAX_BENCHMARK_SCALE_FACTOR,
+    TPCDS_SCALE_FACTORS,
 };
 use crate::logging::configure_logging;
 use crate::output_location::OutputLocation;
@@ -334,6 +335,8 @@ impl CommonArgs {
                 "Scale factor {} exceeds the TPC-DS maximum of {}; generated data may not be valid",
                 self.scale_factor, MAX_BENCHMARK_SCALE_FACTOR
             );
+        } else {
+            log_if_unapproved_scale_factor("TPC-DS", self.scale_factor, TPCDS_SCALE_FACTORS);
         }
 
         let tables = self.tables()?;

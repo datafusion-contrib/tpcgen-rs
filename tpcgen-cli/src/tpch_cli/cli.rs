@@ -1,7 +1,7 @@
 use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
 use crate::args::{
-    default_num_threads, parse_delimiter, parse_row_group_bytes, parse_scale_factor,
-    validate_partition_options, MAX_BENCHMARK_SCALE_FACTOR,
+    default_num_threads, log_if_unapproved_scale_factor, parse_delimiter, parse_row_group_bytes,
+    parse_scale_factor, validate_partition_options, MAX_BENCHMARK_SCALE_FACTOR, TPCH_SCALE_FACTORS,
 };
 use crate::logging::configure_logging;
 use crate::parquet::parse_column_encoding_pair;
@@ -190,6 +190,8 @@ impl CommonArgs {
                 "Scale factor {} exceeds the TPC-H maximum of {}; generated data may not be valid",
                 self.scale_factor, MAX_BENCHMARK_SCALE_FACTOR
             );
+        } else {
+            log_if_unapproved_scale_factor("TPC-H", self.scale_factor, TPCH_SCALE_FACTORS);
         }
 
         #[cfg(feature = "indicatif-progress")]
