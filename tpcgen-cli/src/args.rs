@@ -18,7 +18,7 @@ pub(crate) const TPCDS_SCALE_FACTORS: &[f64] =
 /// Largest scale factor defined by the TPC-H and TPC-DS specifications.
 pub(crate) const MAX_BENCHMARK_SCALE_FACTOR: f64 = TPCH_SCALE_FACTORS[TPCH_SCALE_FACTORS.len() - 1];
 
-/// Logs at INFO level if `scale_factor` is not one of the `approved` sizes.
+/// Logs a warning if `scale_factor` is not one of the `approved` sizes.
 pub(crate) fn log_if_unapproved_scale_factor(benchmark: &str, scale_factor: f64, approved: &[f64]) {
     if !approved.contains(&scale_factor) {
         let approved = approved
@@ -26,7 +26,7 @@ pub(crate) fn log_if_unapproved_scale_factor(benchmark: &str, scale_factor: f64,
             .map(|sf| sf.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        log::info!(
+        log::warn!(
             "Scale factor {scale_factor} is not an approved {benchmark} scale factor ({approved})"
         );
     }
