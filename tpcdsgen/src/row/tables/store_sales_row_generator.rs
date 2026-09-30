@@ -95,12 +95,6 @@ pub struct StoreSalesRowGenerator {
 
 impl StoreSalesRowGenerator {
     /// Create a generator that emits the rows selected by `selection`.
-    ///
-    /// The generator always walks every source row of `store_sales`,
-    /// regardless of `selection`, since the returns table is derived from
-    /// the sales rows; `selection` only changes which rows are emitted
-    /// (and, for [`SalesReturnsSelection::SalesOnly`], skips calculating
-    /// the returns row entirely).
     pub fn new(selection: SalesReturnsSelection) -> Self {
         StoreSalesRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::StoreSales),
