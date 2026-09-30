@@ -1567,11 +1567,11 @@ impl Display for StoreCsv<'_> {
 /// ```
 /// # use tpcdsgen::config::Session;
 /// # use tpcdsgen::csv::StoreReturnsCsv;
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
+/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, SalesReturnsSelection, StoreSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
 /// // store_returns rows are generated as child rows of the store_sales generator
-/// let mut generator = StoreSalesRowGenerator::new();
+/// let mut generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
 /// // Output the returns rows produced by the first 2 store_sales row numbers
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", StoreReturnsCsv::header()).unwrap(); // write header
@@ -1691,10 +1691,10 @@ impl Display for StoreReturnsCsv<'_> {
 /// ```
 /// # use tpcdsgen::config::Session;
 /// # use tpcdsgen::csv::StoreSalesCsv;
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
+/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, SalesReturnsSelection, StoreSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = StoreSalesRowGenerator::new();
+/// let mut generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", StoreSalesCsv::header()).unwrap(); // write header

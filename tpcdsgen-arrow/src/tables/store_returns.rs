@@ -6,7 +6,7 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, StoreSalesRowGenerator};
+use tpcdsgen::row::{GeneratedRow, SalesReturnsSelection, StoreSalesRowGenerator};
 
 pub struct StoreReturnsArrow {
     inner: RowIter<StoreSalesRowGenerator>,
@@ -22,7 +22,11 @@ impl StoreReturnsArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::StoreSales);
         Self {
-            inner: RowIter::new(StoreSalesRowGenerator::new(), session, row_count),
+            inner: RowIter::new(
+                StoreSalesRowGenerator::new(SalesReturnsSelection::ReturnsOnly),
+                session,
+                row_count,
+            ),
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }

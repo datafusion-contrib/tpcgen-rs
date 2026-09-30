@@ -23,7 +23,9 @@ use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
 use crate::row::store_returns_row_generator::StoreReturnsRowGenerator;
 use crate::row::store_sales_row::StoreSalesRow;
-use crate::row::{AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult};
+use crate::row::{
+    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesReturnsSelection,
+};
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::{generate_pricing_for_sales_table, get_store_sales_pricing_limits};
@@ -88,10 +90,18 @@ pub struct StoreSalesRowGenerator {
     order_info: OrderInfo,
     item_index: i32,
     store_returns_generator: StoreReturnsRowGenerator,
+    selection: SalesReturnsSelection,
 }
 
 impl StoreSalesRowGenerator {
-    pub fn new() -> Self {
+    /// Create a generator that emits the rows selected by `selection`.
+    ///
+    /// The generator always walks every source row of `store_sales`,
+    /// regardless of `selection`, since the returns table is derived from
+    /// the sales rows; `selection` only changes which rows are emitted
+    /// (and, for [`SalesReturnsSelection::SalesOnly`], skips calculating
+    /// the returns row entirely).
+    pub fn new(selection: SalesReturnsSelection) -> Self {
         StoreSalesRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::StoreSales),
             item_permutation: None,
@@ -99,6 +109,7 @@ impl StoreSalesRowGenerator {
             order_info: OrderInfo::default(),
             item_index: 0,
             store_returns_generator: StoreReturnsRowGenerator::new(),
+            selection,
         }
     }
 
@@ -205,12 +216,6 @@ impl StoreSalesRowGenerator {
     }
 }
 
-impl Default for StoreSalesRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RowGenerator for StoreSalesRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
@@ -302,18 +307,20 @@ impl RowGenerator for StoreSalesRowGenerator {
             ss_pricing,
         );
 
-        // Check if this sale gets returned (10% return rate)
-        // We check and generate the return BEFORE moving the sales row to avoid cloning
+        // Check if this sale gets returned (10% return rate). This draw is
+        // always made, regardless of `selection`, to keep this generator's
+        // own random streams aligned for subsequent rows.
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
+        let is_returned = random_int < SR_RETURN_PCT;
 
-        // Generate return row if applicable (using reference before we move sales_row)
-        // Note: In Java's --table store_sales mode, returns are NOT generated.
-        // This code generates returns (like Java's --table store_returns mode).
-        // The consume_remaining_seeds_for_row() is called separately in the binary.
-        let return_row = if random_int < SR_RETURN_PCT {
+        // In `SalesOnly` mode we never calculate the return row: its
+        // random streams are instead advanced (without being computed) by
+        // `consume_remaining_seeds_for_row()`, below, which every mode
+        // still calls unconditionally on `store_returns_generator`.
+        let return_row = if is_returned && self.selection != SalesReturnsSelection::SalesOnly {
             Some(
                 self.store_returns_generator
                     .generate_row(session, &store_sales_row)?,
@@ -322,9 +329,12 @@ impl RowGenerator for StoreSalesRowGenerator {
             None
         };
 
-        // Now move (not clone) the sales row into the result
+        // Now move (not clone) the sales row into the result, unless this
+        // generator was constructed to emit only returns.
         let mut generated_rows: Vec<GeneratedRow> = Vec::with_capacity(2);
-        generated_rows.push(store_sales_row.into());
+        if self.selection != SalesReturnsSelection::ReturnsOnly {
+            generated_rows.push(store_sales_row.into());
+        }
 
         if let Some(ret_row) = return_row {
             generated_rows.push(ret_row);
@@ -360,14 +370,14 @@ mod tests {
 
     #[test]
     fn test_store_sales_row_generator_creation() {
-        let generator = StoreSalesRowGenerator::new();
+        let generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
         assert!(generator.item_permutation.is_none());
         assert_eq!(generator.remaining_line_items, 0);
     }
 
     #[test]
     fn test_store_sales_row_generation() {
-        let mut generator = StoreSalesRowGenerator::new();
+        let mut generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
         let session = Session::default();
 
         let result = generator
@@ -384,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_store_sales_order_grouping() {
-        let mut generator = StoreSalesRowGenerator::new();
+        let mut generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
         let session = Session::default();
 
         // Generate first row (starts new order)
@@ -403,5 +413,75 @@ mod tests {
 
         // Same ticket number means same order
         assert_eq!(ticket1, ticket2);
+    }
+
+    /// Runs `row_count` source rows through `generator`, returning the DAT
+    /// text of the rows matching `variant` for each row number (in the
+    /// source's own emission order), joined with `,`.
+    fn collect_variant(
+        generator: &mut StoreSalesRowGenerator,
+        session: &Session,
+        row_count: u64,
+        matches_variant: impl Fn(&GeneratedRow) -> bool,
+    ) -> Vec<String> {
+        let mut out = Vec::new();
+        for row_number in 1..=row_count {
+            let result = generator
+                .generate_row_and_child_rows(row_number, session, None, None)
+                .unwrap();
+            out.extend(
+                result
+                    .get_rows()
+                    .iter()
+                    .filter(|r| matches_variant(r))
+                    .map(|r| r.to_string()),
+            );
+            if result.should_end_row() {
+                generator.consume_remaining_seeds_for_row();
+            }
+        }
+        out
+    }
+
+    /// `SalesOnly` must emit exactly the same sales rows as `Both`, in the
+    /// same order: skipping the return calculation must not disturb the
+    /// random stream positions later sales rows depend on.
+    #[test]
+    fn sales_only_matches_sales_rows_from_both() {
+        let session = Session::default();
+        let row_count = 200;
+
+        let mut both = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
+        let expected = collect_variant(&mut both, &session, row_count, |r| {
+            matches!(r, GeneratedRow::StoreSales(_))
+        });
+
+        let mut sales_only = StoreSalesRowGenerator::new(SalesReturnsSelection::SalesOnly);
+        let actual = collect_variant(&mut sales_only, &session, row_count, |r| {
+            matches!(r, GeneratedRow::StoreSales(_))
+        });
+
+        assert_eq!(expected, actual);
+    }
+
+    /// `ReturnsOnly` must emit exactly the same return rows as `Both`, in
+    /// the same order.
+    #[test]
+    fn returns_only_matches_returns_rows_from_both() {
+        let session = Session::default();
+        let row_count = 200;
+
+        let mut both = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
+        let expected = collect_variant(&mut both, &session, row_count, |r| {
+            matches!(r, GeneratedRow::StoreReturns(_))
+        });
+        assert!(!expected.is_empty(), "test needs at least one return");
+
+        let mut returns_only = StoreSalesRowGenerator::new(SalesReturnsSelection::ReturnsOnly);
+        let actual = collect_variant(&mut returns_only, &session, row_count, |r| {
+            matches!(r, GeneratedRow::StoreReturns(_))
+        });
+
+        assert_eq!(expected, actual);
     }
 }

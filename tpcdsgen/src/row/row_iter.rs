@@ -87,8 +87,8 @@ mod tests {
     use super::*;
     use crate::config::{SessionBuilder, Table};
     use crate::row::{
-        CallCenterRowGenerator, ItemRowGenerator, ReasonRowGenerator, StoreRowGenerator,
-        StoreSalesRowGenerator, WebPageRowGenerator, WebSiteRowGenerator,
+        CallCenterRowGenerator, ItemRowGenerator, ReasonRowGenerator, SalesReturnsSelection,
+        StoreRowGenerator, StoreSalesRowGenerator, WebPageRowGenerator, WebSiteRowGenerator,
     };
 
     fn session(scale_factor: f64) -> Session {
@@ -147,12 +147,17 @@ mod tests {
 
         for table in [Table::StoreSales, Table::StoreReturns] {
             let whole = rows_for(
-                StoreSalesRowGenerator::new,
+                || StoreSalesRowGenerator::new(SalesReturnsSelection::Both),
                 table,
                 &session,
                 &[(1, source_rows)],
             );
-            let chunked = rows_for(StoreSalesRowGenerator::new, table, &session, &split);
+            let chunked = rows_for(
+                || StoreSalesRowGenerator::new(SalesReturnsSelection::Both),
+                table,
+                &session,
+                &split,
+            );
 
             assert!(!whole.is_empty(), "{table} produced no rows");
             assert_eq!(whole, chunked, "{table} ranged output differs");

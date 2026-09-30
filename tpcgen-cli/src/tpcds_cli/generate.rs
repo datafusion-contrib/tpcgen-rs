@@ -57,14 +57,19 @@ pub(super) trait RowFormat: Clone + Send + 'static {
 
 /// Trait for creating row generators.
 pub(super) trait RowGeneratorFactory: RowGenerator + Sized {
-    fn create() -> Self;
+    /// Create a generator for `table`.
+    ///
+    /// `table` is ignored by generators that always emit exactly one
+    /// table's rows; generators shared between a sales table and its
+    /// returns table use it to select which rows to emit.
+    fn create(table: Table) -> Self;
 }
 
 macro_rules! impl_factory {
     ($($gen:ty),*) => {
         $(
             impl RowGeneratorFactory for $gen {
-                fn create() -> Self { Self::new() }
+                fn create(_table: Table) -> Self { Self::new() }
             }
         )*
     };
@@ -93,12 +98,21 @@ impl_factory!(
     WebSiteRowGenerator
 );
 
-// Implement factory for generators that emit sales and returns rows
-impl_factory!(
-    CatalogSalesRowGenerator,
-    StoreSalesRowGenerator,
-    WebSalesRowGenerator
-);
+// Implement factory for generators that emit sales and returns rows, but
+// haven't yet been converted to `SalesReturnsSelection` (see
+// `StoreSalesRowGenerator` below for the converted pattern).
+impl_factory!(CatalogSalesRowGenerator, WebSalesRowGenerator);
+
+impl RowGeneratorFactory for StoreSalesRowGenerator {
+    fn create(table: Table) -> Self {
+        let selection = match table {
+            Table::StoreSales => SalesReturnsSelection::SalesOnly,
+            Table::StoreReturns => SalesReturnsSelection::ReturnsOnly,
+            other => unreachable!("StoreSalesRowGenerator cannot create table {other}"),
+        };
+        Self::new(selection)
+    }
+}
 
 /// Generate one planned table (one `--parts` chunk of one table) into
 /// `base_location`, using up to `num_threads` threads.
@@ -242,7 +256,7 @@ where
             ..
         } = self;
 
-        let mut rows = RowIter::new(G::create(), session, source_rows);
+        let mut rows = RowIter::new(G::create(table), session, source_rows);
         rows.set_source_row_range(*range.start(), *range.end());
 
         format.write_rows(table, rows.filter(|row| row.table() == table), buffer)
