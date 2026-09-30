@@ -17,8 +17,8 @@
 use crate::config::Session;
 use crate::error::Result;
 use crate::generator::StoreSalesGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
-use crate::nulls::create_null_bit_map;
+use crate::join_key_utils::{generate_join_key, skip_join_key};
+use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
 use crate::row::store_returns_row_generator::StoreReturnsRowGenerator;
@@ -28,7 +28,9 @@ use crate::row::{
 };
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
-use crate::types::{generate_pricing_for_sales_table, get_store_sales_pricing_limits};
+use crate::types::{
+    generate_pricing_for_sales_table, get_store_sales_pricing_limits, skip_pricing_for_sales_table,
+};
 
 /// Percentage of sales that get returned
 const SR_RETURN_PCT: i32 = 10;
@@ -121,29 +123,19 @@ impl StoreSalesRowGenerator {
     ///
     /// Used in [`SalesReturnsSelection::Returns`] mode to skip the pricing and
     /// join-key calculations.
-    ///
-    /// The draw counts below must track the calculations they replace:
-    /// [`create_null_bit_map`] always draws 2 values, the promo sk's
-    /// [`generate_join_key`] (to `Promotion`, which does not keep history)
-    /// always draws 1 value, and [`generate_pricing_for_sales_table`]
-    /// always draws 8 values, regardless of the values drawn.
     fn skip_item_sales_draws(&mut self) {
         use StoreSalesGeneratorColumn::*;
 
         let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
-        for _ in 0..2 {
-            stream.next_random();
-        }
+        skip_null_bit_map(stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SsSoldPromoSk);
-        stream.next_random();
+        skip_join_key(crate::config::Table::Promotion, stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
-        for _ in 0..8 {
-            stream.next_random();
-        }
+        skip_pricing_for_sales_table(stream);
     }
 
     fn generate_order_info(&mut self, row_number: u64, session: &Session) -> Result<OrderInfo> {
