@@ -1,15 +1,15 @@
 use crate::conversions::{integer_sk_opt, opt};
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, InventoryRowGenerator};
+use tpcdsgen::row::{InventoryRowGenerator, SingleRowIter};
 
 pub struct InventoryArrow {
-    inner: RowIter<InventoryRowGenerator>,
+    inner: SingleRowIter<InventoryRowGenerator>,
     batch_size: usize,
 }
 
@@ -22,7 +22,7 @@ impl InventoryArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Inventory);
         Self {
-            inner: RowIter::new(InventoryRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(InventoryRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
@@ -60,15 +60,7 @@ impl Iterator for InventoryArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::Inventory(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        let rows: Vec<_> = self.inner.by_ref().take(self.batch_size).collect();
         if rows.is_empty() {
             return None;
         }

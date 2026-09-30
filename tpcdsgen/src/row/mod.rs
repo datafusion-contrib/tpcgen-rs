@@ -2,6 +2,8 @@ pub mod abstract_row_generator;
 pub mod generated_row;
 pub mod row_generator;
 pub mod row_iter;
+pub mod single_row_generator;
+pub mod single_row_iter;
 pub mod table_row;
 mod tables;
 
@@ -9,6 +11,8 @@ pub use abstract_row_generator::AbstractRowGenerator;
 pub use generated_row::GeneratedRow;
 pub use row_generator::{RowGenerator, RowGeneratorResult};
 pub use row_iter::RowIter;
+pub use single_row_generator::SingleRowGenerator;
+pub use single_row_iter::SingleRowIter;
 
 /// Splits a row's DAT line into its column values.
 ///

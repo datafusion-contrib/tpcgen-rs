@@ -23,8 +23,8 @@ use crate::tpcds_cli::runner::{plan_tables, run_plans};
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
-use tpcdsgen::row::GeneratedRow;
+use tpcdsgen::csv::{csv_header, GeneratedRowCsv, InventoryCsv};
+use tpcdsgen::row::{GeneratedRow, InventoryRow};
 
 /// CSV output generator.
 #[derive(Debug, Clone)]
@@ -83,7 +83,7 @@ impl Csv {
     }
 }
 
-impl RowFormat for Csv {
+impl RowFormat<GeneratedRow> for Csv {
     const EXTENSION: &'static str = "csv";
 
     fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
@@ -103,6 +103,33 @@ impl RowFormat for Csv {
                 buffer,
                 "{}",
                 GeneratedRowCsv::with_delimiter(&row, self.delimiter)
+            )
+            .expect("writing to memory cannot fail");
+        }
+        buffer
+    }
+}
+
+impl RowFormat<InventoryRow> for Csv {
+    const EXTENSION: &'static str = "csv";
+
+    fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
+        // Checked by `generate_tables` before any generation starts.
+        let header = csv_header(table, self.delimiter)
+            .unwrap_or_else(|| panic!("table {} has no CSV output", table.get_name()));
+        writeln!(buffer, "{header}").expect("writing to memory cannot fail");
+        buffer
+    }
+
+    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
+    where
+        I: Iterator<Item = InventoryRow>,
+    {
+        for row in rows {
+            writeln!(
+                buffer,
+                "{}",
+                InventoryCsv::with_delimiter(&row, self.delimiter)
             )
             .expect("writing to memory cannot fail");
         }

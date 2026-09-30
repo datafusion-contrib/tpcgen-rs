@@ -41,7 +41,12 @@ pub(super) fn output_location_for_table(
 }
 
 /// Trait for formatting text output for the TPC-DS row generators (DAT or CSV).
-pub(super) trait RowFormat: Clone + Send + 'static {
+/// Trait for formatting text output for the TPC-DS row generators (DAT or CSV).
+///
+/// Generic over the row type `R` so the typed inventory path (row type
+/// `InventoryRow`) and the legacy enum path (row type `GeneratedRow`) can
+/// share the same formats during migration.
+pub(super) trait RowFormat<R>: Clone + Send + 'static {
     /// The file extension of this format's output files.
     const EXTENSION: &'static str;
 
@@ -52,10 +57,10 @@ pub(super) trait RowFormat: Clone + Send + 'static {
     /// Format `rows` (all belonging to `table`) into `buffer`.
     fn write_rows<I>(&self, table: Table, rows: I, buffer: Vec<u8>) -> Vec<u8>
     where
-        I: Iterator<Item = GeneratedRow>;
+        I: Iterator<Item = R>;
 }
 
-/// Trait for creating row generators.
+/// Trait for creating legacy [`RowGenerator`] row generators.
 pub(super) trait RowGeneratorFactory: RowGenerator + Sized {
     fn create() -> Self;
 }
@@ -81,7 +86,6 @@ impl_factory!(
     DbgenVersionRowGenerator,
     HouseholdDemographicsRowGenerator,
     IncomeBandRowGenerator,
-    InventoryRowGenerator,
     ItemRowGenerator,
     PromotionRowGenerator,
     ReasonRowGenerator,
@@ -100,12 +104,23 @@ impl_factory!(
     WebSalesRowGenerator
 );
 
+/// Trait for creating typed [`SingleRowGenerator`] row generators.
+pub(super) trait SingleRowGeneratorFactory: SingleRowGenerator + Sized {
+    fn create() -> Self;
+}
+
+impl SingleRowGeneratorFactory for InventoryRowGenerator {
+    fn create() -> Self {
+        Self::new()
+    }
+}
+
 /// Generate one planned table (one `--parts` chunk of one table) into
 /// `base_location`, using up to `num_threads` threads.
 ///
 /// A sales generator emits rows for its returns table too; each output keeps
 /// only its own rows, the same way the Arrow generators produce them.
-pub(super) async fn generate_table<F: RowFormat>(
+pub(super) async fn generate_table<F: RowFormat<GeneratedRow> + RowFormat<InventoryRow>>(
     format: F,
     base_location: OutputLocation,
     planned: PlannedTable,
@@ -128,7 +143,18 @@ pub(super) async fn generate_table<F: RowFormat>(
         Table::DbgenVersion => generate!(DbgenVersionRowGenerator),
         Table::HouseholdDemographics => generate!(HouseholdDemographicsRowGenerator),
         Table::IncomeBand => generate!(IncomeBandRowGenerator),
-        Table::Inventory => generate!(InventoryRowGenerator),
+        // Inventory uses the typed `SingleRowGenerator` path directly: no
+        // `GeneratedRow` wrapping/matching and no per-row filter, since its
+        // generator emits only inventory rows.
+        Table::Inventory => {
+            write_single_row_table::<F, InventoryRowGenerator>(
+                format,
+                &base_location,
+                planned,
+                num_threads,
+            )
+            .await
+        }
         Table::Item => generate!(ItemRowGenerator),
         Table::Promotion => generate!(PromotionRowGenerator),
         Table::Reason => generate!(ReasonRowGenerator),
@@ -160,7 +186,7 @@ async fn write_table<F, G>(
     num_threads: usize,
 ) -> io::Result<()>
 where
-    F: RowFormat,
+    F: RowFormat<GeneratedRow>,
     G: RowGeneratorFactory + Send + 'static,
 {
     let PlannedTable {
@@ -225,7 +251,7 @@ struct RowSource<F, G> {
 
 impl<F, G> Source for RowSource<F, G>
 where
-    F: RowFormat,
+    F: RowFormat<GeneratedRow>,
     G: RowGeneratorFactory + Send + 'static,
 {
     fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
@@ -246,5 +272,107 @@ where
         rows.set_source_row_range(*range.start(), *range.end());
 
         format.write_rows(table, rows.filter(|row| row.table() == table), buffer)
+    }
+}
+
+/// Generate the rows in `planned` for a table whose generator is a typed
+/// [`SingleRowGenerator`] (one concrete row per source row, no per-row table
+/// filter needed). This mirrors [`write_table`]; once every table is
+/// migrated, that legacy function and the `GeneratedRow` enum can be
+/// deleted.
+async fn write_single_row_table<F, G>(
+    format: F,
+    base_location: &OutputLocation,
+    planned: PlannedTable,
+    num_threads: usize,
+) -> io::Result<()>
+where
+    F: RowFormat<G::Row>,
+    G: SingleRowGeneratorFactory + Send + 'static,
+{
+    let PlannedTable {
+        table,
+        session,
+        plan,
+        progress,
+    } = planned;
+
+    let location = output_location_for_table(base_location, table, F::EXTENSION, &session)?;
+    let chunk_count = plan.chunk_count() as u64;
+    let scale_factor = session.get_scaling().get_scale();
+    let part = session.get_chunk_number();
+    let parts = session.get_total_chunks();
+    let partition = if session.is_partitioned() {
+        format!(" (part {part}/{parts})")
+    } else {
+        String::new()
+    };
+    let source_rows = session.get_scaling().get_row_count(table.source_table());
+    let sources = plan.into_iter().map(move |range| SingleRowSource::<F, G> {
+        format: format.clone(),
+        table,
+        session: session.clone(),
+        source_rows,
+        range,
+        generator: PhantomData,
+    });
+
+    info!(
+        "Writing table {table} (SF={scale_factor}, {chunk_count} chunk{}){partition} to {location} using {num_threads} thread{}",
+        if chunk_count == 1 { "" } else { "s" },
+        if num_threads == 1 { "" } else { "s" }
+    );
+    let written = location
+        .write(TextOutput {
+            sources,
+            num_threads,
+            progress: progress.clone(),
+        })
+        .await?;
+    if written {
+        info!("Generated table {table}{partition} to {location}");
+    } else {
+        // Skipped, so count all chunks at once
+        progress.increment(chunk_count, 0);
+    }
+    progress.complete();
+    Ok(())
+}
+
+/// Generates the text for one chunk (a range of source rows) of one table,
+/// via a typed [`SingleRowGenerator`].
+struct SingleRowSource<F, G> {
+    format: F,
+    table: Table,
+    session: Session,
+    source_rows: u64,
+    /// The 1-based inclusive source rows of this chunk
+    range: RangeInclusive<u64>,
+    generator: PhantomData<G>,
+}
+
+impl<F, G> Source for SingleRowSource<F, G>
+where
+    F: RowFormat<G::Row>,
+    G: SingleRowGeneratorFactory + Send + 'static,
+{
+    fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
+        self.format.write_header(self.table, buffer)
+    }
+
+    fn create(self, buffer: Vec<u8>) -> Vec<u8> {
+        let Self {
+            format,
+            table,
+            session,
+            source_rows,
+            range,
+            ..
+        } = self;
+
+        let mut rows = SingleRowIter::new(G::create(), session, source_rows);
+        rows.set_source_row_range(*range.start(), *range.end());
+
+        format.write_rows(table, rows, buffer)
     }
 }
