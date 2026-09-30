@@ -94,15 +94,12 @@ pub struct StoreSalesRowGenerator {
 }
 
 impl StoreSalesRowGenerator {
-    /// Create a generator that calculates and emits only `store_sales`
-    /// rows, never calculating the paired return.
+    /// Create a generator for `store_sales` rows
     pub fn sales() -> Self {
         Self::new(SalesReturnsSelection::Sales)
     }
 
-    /// Create a generator that emits only `store_returns` rows. Items that
-    /// are not returned skip calculating their sales inputs (see
-    /// [`SalesReturnsSelection::Returns`]).
+    /// Create a generator for `store_returns` rows
     pub fn returns() -> Self {
         Self::new(SalesReturnsSelection::Returns)
     }
@@ -120,10 +117,10 @@ impl StoreSalesRowGenerator {
     }
 
     /// Advance the random streams an unreturned item's sales inputs would
-    /// have consumed, without calculating them. Used in
-    /// [`SalesReturnsSelection::Returns`] mode to skip the pricing and
-    /// join-key calculations for the ~90% of items that are never returned,
-    /// while keeping later items' random streams aligned.
+    /// have consumed, without calculating them.
+    ///
+    /// Used in [`SalesReturnsSelection::Returns`] mode to skip the pricing and
+    /// join-key calculations.
     ///
     /// The draw counts below must track the calculations they replace:
     /// [`create_null_bit_map`] always draws 2 values, the promo sk's
@@ -290,11 +287,8 @@ impl RowGenerator for StoreSalesRowGenerator {
                 RandomValueGenerator::generate_uniform_random_int(1, item_count as i32, stream);
         }
 
-        // Advance the item position. Items need to be unique within an
-        // order, so we use a sequence within the permutation. This always
-        // happens, even in `Returns` mode when the item ends up not being
-        // returned, since `ss_sold_item_sk` still needs to advance for
-        // later items in this order.
+        // Items need to be unique within an order
+        // Use a sequence within the permutation
         self.item_index += 1;
         if self.item_index > item_count as i32 {
             self.item_index = 1;
@@ -310,9 +304,7 @@ impl RowGenerator for StoreSalesRowGenerator {
             scaling,
         );
 
-        // Check if this sale gets returned (10% return rate). This draw is
-        // always made, regardless of `selection`, to keep this generator's
-        // own random streams aligned for subsequent rows.
+        // Generate pricing
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrIsReturned);
