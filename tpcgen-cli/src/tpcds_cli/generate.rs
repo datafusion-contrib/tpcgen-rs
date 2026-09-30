@@ -105,12 +105,11 @@ impl_factory!(CatalogSalesRowGenerator, WebSalesRowGenerator);
 
 impl RowGeneratorFactory for StoreSalesRowGenerator {
     fn create(table: Table) -> Self {
-        let selection = match table {
-            Table::StoreSales => SalesReturnsSelection::SalesOnly,
-            Table::StoreReturns => SalesReturnsSelection::ReturnsOnly,
+        match table {
+            Table::StoreSales => Self::sales(),
+            Table::StoreReturns => Self::returns(),
             other => unreachable!("StoreSalesRowGenerator cannot create table {other}"),
-        };
-        Self::new(selection)
+        }
     }
 }
 

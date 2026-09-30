@@ -1,22 +1,22 @@
 use crate::config::Session;
 use crate::row::GeneratedRow;
 
-/// Selection for row generators that produce both sales table and its paired
-/// returns table (store, catalog, and web sales).
+/// Construction-time output selection for row generators that produce a
+/// sales table and its paired returns table (store, catalog, and web
+/// sales/returns) from a single shared generator.
 ///
-/// This lets a generator avoid calculating output that will be discarded, which
-/// can improve performance.
+/// This lets a generator avoid calculating output it will never emit (see
+/// [`Self::Returns`]'s early exit for non-returned items).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SalesReturnsSelection {
     /// Calculate and emit only the sales rows; never calculate returns.
-    SalesOnly,
-    /// Emit only the returns rows. The sales row is still fully
-    /// calculated internally, since its values are needed as inputs to
-    /// the returns calculation.
-    ReturnsOnly,
-    /// Calculate and emit both the sales and returns rows, in the same
-    /// order as before this selection was introduced.
-    Both,
+    Sales,
+    /// Emit only the returns rows. Items that are not returned skip
+    /// calculating their sales inputs entirely (their random streams are
+    /// still advanced, to keep alignment for later rows); items that are
+    /// returned still need the full sales row, since its values are
+    /// inputs to the returns calculation.
+    Returns,
 }
 
 /// Result of row generation (RowGeneratorResult)

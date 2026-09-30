@@ -87,8 +87,8 @@ mod tests {
     use super::*;
     use crate::config::{SessionBuilder, Table};
     use crate::row::{
-        CallCenterRowGenerator, ItemRowGenerator, ReasonRowGenerator, SalesReturnsSelection,
-        StoreRowGenerator, StoreSalesRowGenerator, WebPageRowGenerator, WebSiteRowGenerator,
+        CallCenterRowGenerator, ItemRowGenerator, ReasonRowGenerator, StoreRowGenerator,
+        StoreSalesRowGenerator, WebPageRowGenerator, WebSiteRowGenerator,
     };
 
     fn session(scale_factor: f64) -> Session {
@@ -136,28 +136,25 @@ mod tests {
         assert_eq!(whole, chunked);
     }
 
-    /// The sales generators emit rows for two tables, so a caller that wants
-    /// only one of them filters on [`GeneratedRow::table`].
+    /// A sales generator emits rows only for the table it was constructed
+    /// for (via `sales()` or `returns()`); this checks both selections
+    /// still split into source row ranges correctly.
     #[test]
-    fn a_sales_generator_emits_both_of_its_tables_over_a_range() {
+    fn a_sales_generator_splits_into_source_row_ranges() {
         let session = session(0.01);
         let source_rows = session.get_scaling().get_row_count(Table::StoreSales);
         assert!(source_rows > 100, "need enough rows to split");
         let split = [(1, source_rows / 2), (source_rows / 2 + 1, source_rows)];
 
-        for table in [Table::StoreSales, Table::StoreReturns] {
-            let whole = rows_for(
-                || StoreSalesRowGenerator::new(SalesReturnsSelection::Both),
-                table,
-                &session,
-                &[(1, source_rows)],
-            );
-            let chunked = rows_for(
-                || StoreSalesRowGenerator::new(SalesReturnsSelection::Both),
-                table,
-                &session,
-                &split,
-            );
+        for (table, generator) in [
+            (
+                Table::StoreSales,
+                StoreSalesRowGenerator::sales as fn() -> StoreSalesRowGenerator,
+            ),
+            (Table::StoreReturns, StoreSalesRowGenerator::returns),
+        ] {
+            let whole = rows_for(generator, table, &session, &[(1, source_rows)]);
+            let chunked = rows_for(generator, table, &session, &split);
 
             assert!(!whole.is_empty(), "{table} produced no rows");
             assert_eq!(whole, chunked, "{table} ranged output differs");

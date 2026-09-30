@@ -94,8 +94,20 @@ pub struct StoreSalesRowGenerator {
 }
 
 impl StoreSalesRowGenerator {
-    /// Create a generator that emits the rows selected by `selection`.
-    pub fn new(selection: SalesReturnsSelection) -> Self {
+    /// Create a generator that calculates and emits only `store_sales`
+    /// rows, never calculating the paired return.
+    pub fn sales() -> Self {
+        Self::new(SalesReturnsSelection::Sales)
+    }
+
+    /// Create a generator that emits only `store_returns` rows. Items that
+    /// are not returned skip calculating their sales inputs (see
+    /// [`SalesReturnsSelection::Returns`]).
+    pub fn returns() -> Self {
+        Self::new(SalesReturnsSelection::Returns)
+    }
+
+    fn new(selection: SalesReturnsSelection) -> Self {
         StoreSalesRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::StoreSales),
             item_permutation: None,
@@ -104,6 +116,36 @@ impl StoreSalesRowGenerator {
             item_index: 0,
             store_returns_generator: StoreReturnsRowGenerator::new(),
             selection,
+        }
+    }
+
+    /// Advance the random streams an unreturned item's sales inputs would
+    /// have consumed, without calculating them. Used in
+    /// [`SalesReturnsSelection::Returns`] mode to skip the pricing and
+    /// join-key calculations for the ~90% of items that are never returned,
+    /// while keeping later items' random streams aligned.
+    ///
+    /// The draw counts below must track the calculations they replace:
+    /// [`create_null_bit_map`] always draws 2 values, the promo sk's
+    /// [`generate_join_key`] (to `Promotion`, which does not keep history)
+    /// always draws 1 value, and [`generate_pricing_for_sales_table`]
+    /// always draws 8 values, regardless of the values drawn.
+    fn skip_item_sales_draws(&mut self) {
+        use StoreSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
+        for _ in 0..2 {
+            stream.next_random();
+        }
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&SsSoldPromoSk);
+        stream.next_random();
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
+        for _ in 0..8 {
+            stream.next_random();
         }
     }
 
@@ -248,12 +290,11 @@ impl RowGenerator for StoreSalesRowGenerator {
                 RandomValueGenerator::generate_uniform_random_int(1, item_count as i32, stream);
         }
 
-        // Generate null bit map
-        let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
-        let null_bit_map = create_null_bit_map(Table::StoreSales, stream);
-
-        // Items need to be unique within an order
-        // Use a sequence within the permutation
+        // Advance the item position. Items need to be unique within an
+        // order, so we use a sequence within the permutation. This always
+        // happens, even in `Returns` mode when the item ends up not being
+        // returned, since `ss_sold_item_sk` still needs to advance for
+        // later items in this order.
         self.item_index += 1;
         if self.item_index > item_count as i32 {
             self.item_index = 1;
@@ -269,38 +310,6 @@ impl RowGenerator for StoreSalesRowGenerator {
             scaling,
         );
 
-        // Generate promo sk
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&SsSoldPromoSk);
-        let ss_sold_promo_sk = generate_join_key(
-            &SsSoldPromoSk,
-            stream,
-            crate::config::Table::Promotion,
-            1,
-            scaling,
-        )?;
-
-        // Generate pricing
-        let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
-        let ss_pricing =
-            generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), stream);
-
-        let store_sales_row = StoreSalesRow::new(
-            null_bit_map,
-            self.order_info.ss_sold_date_sk,
-            self.order_info.ss_sold_time_sk,
-            ss_sold_item_sk,
-            self.order_info.ss_sold_customer_sk,
-            self.order_info.ss_sold_cdemo_sk,
-            self.order_info.ss_sold_hdemo_sk,
-            self.order_info.ss_sold_addr_sk,
-            self.order_info.ss_sold_store_sk,
-            ss_sold_promo_sk,
-            self.order_info.ss_ticket_number,
-            ss_pricing,
-        );
-
         // Check if this sale gets returned (10% return rate). This draw is
         // always made, regardless of `selection`, to keep this generator's
         // own random streams aligned for subsequent rows.
@@ -310,28 +319,71 @@ impl RowGenerator for StoreSalesRowGenerator {
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
         let is_returned = random_int < SR_RETURN_PCT;
 
-        // In `SalesOnly` mode we never calculate the return row: its
-        // random streams are instead advanced (without being computed) by
-        // `consume_remaining_seeds_for_row()`, below, which every mode
-        // still calls unconditionally on `store_returns_generator`.
-        let return_row = if is_returned && self.selection != SalesReturnsSelection::SalesOnly {
-            Some(
-                self.store_returns_generator
-                    .generate_row(session, &store_sales_row)?,
-            )
-        } else {
-            None
-        };
+        // `Sales` mode always needs the full sales row, since every item
+        // appears in store_sales regardless of its return status. `Returns`
+        // mode only needs it for items that are actually returned; other
+        // items' sales inputs are skipped (see `skip_item_sales_draws`).
+        let needs_sales_row = self.selection == SalesReturnsSelection::Sales || is_returned;
 
-        // Now move (not clone) the sales row into the result, unless this
-        // generator was constructed to emit only returns.
         let mut generated_rows: Vec<GeneratedRow> = Vec::with_capacity(2);
-        if self.selection != SalesReturnsSelection::ReturnsOnly {
-            generated_rows.push(store_sales_row.into());
-        }
 
-        if let Some(ret_row) = return_row {
-            generated_rows.push(ret_row);
+        if !needs_sales_row {
+            self.skip_item_sales_draws();
+        } else {
+            // Generate null bit map
+            let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
+            let null_bit_map = create_null_bit_map(Table::StoreSales, stream);
+
+            // Generate promo sk
+            let stream = self
+                .abstract_generator
+                .get_random_number_stream(&SsSoldPromoSk);
+            let ss_sold_promo_sk = generate_join_key(
+                &SsSoldPromoSk,
+                stream,
+                crate::config::Table::Promotion,
+                1,
+                scaling,
+            )?;
+
+            // Generate pricing
+            let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
+            let ss_pricing =
+                generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), stream);
+
+            let store_sales_row = StoreSalesRow::new(
+                null_bit_map,
+                self.order_info.ss_sold_date_sk,
+                self.order_info.ss_sold_time_sk,
+                ss_sold_item_sk,
+                self.order_info.ss_sold_customer_sk,
+                self.order_info.ss_sold_cdemo_sk,
+                self.order_info.ss_sold_hdemo_sk,
+                self.order_info.ss_sold_addr_sk,
+                self.order_info.ss_sold_store_sk,
+                ss_sold_promo_sk,
+                self.order_info.ss_ticket_number,
+                ss_pricing,
+            );
+
+            // In `Returns` mode, `needs_sales_row` being true means this
+            // item is returned (see above), so generate the return row
+            // (using a reference before we move `store_sales_row`).
+            let return_row = if self.selection == SalesReturnsSelection::Returns {
+                Some(
+                    self.store_returns_generator
+                        .generate_row(session, &store_sales_row)?,
+                )
+            } else {
+                None
+            };
+
+            if self.selection == SalesReturnsSelection::Sales {
+                generated_rows.push(store_sales_row.into());
+            }
+            if let Some(ret_row) = return_row {
+                generated_rows.push(ret_row);
+            }
         }
 
         self.remaining_line_items -= 1;
@@ -364,14 +416,14 @@ mod tests {
 
     #[test]
     fn test_store_sales_row_generator_creation() {
-        let generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
+        let generator = StoreSalesRowGenerator::sales();
         assert!(generator.item_permutation.is_none());
         assert_eq!(generator.remaining_line_items, 0);
     }
 
     #[test]
     fn test_store_sales_row_generation() {
-        let mut generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
+        let mut generator = StoreSalesRowGenerator::sales();
         let session = Session::default();
 
         let result = generator
@@ -388,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_store_sales_order_grouping() {
-        let mut generator = StoreSalesRowGenerator::new(SalesReturnsSelection::Both);
+        let mut generator = StoreSalesRowGenerator::sales();
         let session = Session::default();
 
         // Generate first row (starts new order)
