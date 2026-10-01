@@ -22,7 +22,7 @@ impl WebSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebSales);
         Self {
-            inner: RowIter::new(WebSalesRowGenerator::new(), session, row_count),
+            inner: RowIter::new(WebSalesRowGenerator::sales(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }

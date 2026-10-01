@@ -237,7 +237,7 @@ impl Display for CatalogPageCsv<'_> {
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CatalogSalesRowGenerator::new();
+/// let mut generator = CatalogSalesRowGenerator::returns();
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CatalogReturnsCsv::header()).unwrap(); // write header
@@ -345,7 +345,7 @@ impl Display for CatalogReturnsCsv<'_> {
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CatalogSalesRowGenerator::new();
+/// let mut generator = CatalogSalesRowGenerator::sales();
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CatalogSalesCsv::header()).unwrap(); // write header
@@ -2086,7 +2086,7 @@ impl Display for WebPageCsv<'_> {
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WebSalesRowGenerator::new();
+/// let mut generator = WebSalesRowGenerator::returns();
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WebReturnsCsv::header()).unwrap(); // write header
@@ -2191,7 +2191,7 @@ impl Display for WebReturnsCsv<'_> {
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WebSalesRowGenerator::new();
+/// let mut generator = WebSalesRowGenerator::sales();
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WebSalesCsv::header()).unwrap(); // write header

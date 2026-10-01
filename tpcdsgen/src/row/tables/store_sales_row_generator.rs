@@ -132,7 +132,7 @@ impl StoreSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SsSoldPromoSk);
-        skip_join_key(crate::config::Table::Promotion, stream);
+        skip_join_key(crate::config::Table::Promotion, 1, stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
         skip_pricing_for_sales_table(stream);

@@ -98,20 +98,32 @@ impl_factory!(
     WebSiteRowGenerator
 );
 
-// Implement factory for generators that emit sales and returns rows, but
-// haven't yet been converted to `SalesReturnsSelection` (see
-// `StoreSalesRowGenerator` below for the converted pattern).
-impl_factory!(CatalogSalesRowGenerator, WebSalesRowGenerator);
-
-impl RowGeneratorFactory for StoreSalesRowGenerator {
-    fn create(table: Table) -> Self {
-        match table {
-            Table::StoreSales => Self::sales(),
-            Table::StoreReturns => Self::returns(),
-            other => unreachable!("StoreSalesRowGenerator cannot create table {other}"),
-        }
-    }
+macro_rules! impl_sales_returns_factory {
+    ($($gen:ty => ($sales:ident, $returns:ident)),* $(,)?) => {
+        $(
+            impl RowGeneratorFactory for $gen {
+                fn create(table: Table) -> Self {
+                    match table {
+                        Table::$sales => Self::sales(),
+                        Table::$returns => Self::returns(),
+                        other => unreachable!(
+                            "{} cannot create table {other}",
+                            stringify!($gen)
+                        ),
+                    }
+                }
+            }
+        )*
+    };
 }
+
+// Implement factory for generators shared between a sales table and its
+// returns table
+impl_sales_returns_factory!(
+    CatalogSalesRowGenerator => (CatalogSales, CatalogReturns),
+    StoreSalesRowGenerator => (StoreSales, StoreReturns),
+    WebSalesRowGenerator => (WebSales, WebReturns),
+);
 
 /// Generate one planned table (one `--parts` chunk of one table) into
 /// `base_location`, using up to `num_threads` threads.

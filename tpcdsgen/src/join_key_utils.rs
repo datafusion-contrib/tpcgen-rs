@@ -92,16 +92,29 @@ pub fn generate_join_key(
 /// would draw for a key to `to_table`, without computing the key.
 ///
 /// Must be kept in sync with [`generate_join_key`].
-pub fn skip_join_key(to_table: Table, random_number_stream: &mut dyn RandomNumberStream) {
-    debug_assert!(
-        !to_table.keeps_history()
-            && !matches!(
-                to_table,
-                Table::CatalogPage | Table::DateDim | Table::TimeDim
-            ),
-        "skip_join_key does not support {to_table:?}"
-    );
-    random_number_stream.next_random();
+pub fn skip_join_key(
+    to_table: Table,
+    join_count: i64,
+    random_number_stream: &mut dyn RandomNumberStream,
+) {
+    match to_table {
+        Table::CatalogPage => {
+            // catalog page type, then page within catalog
+            random_number_stream.next_random();
+            random_number_stream.next_random();
+        }
+        Table::DateDim | Table::TimeDim => {
+            unreachable!("skip_join_key does not support {to_table:?}")
+        }
+        _ if to_table.keeps_history() => {
+            if join_count <= Date::JULIAN_DATA_END_DATE {
+                random_number_stream.next_random();
+            }
+        }
+        _ => {
+            random_number_stream.next_random();
+        }
+    }
 }
 
 /// Generates a join key to the catalog_page table.
@@ -474,17 +487,28 @@ mod tests {
     fn test_skip_join_key_matches_generate() {
         use crate::generator::StoreSalesGeneratorColumn;
         let scaling = Scaling::new(1.0);
-        let mut generated = RandomNumberStreamImpl::new(1).unwrap();
-        let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
-        generate_join_key(
-            &StoreSalesGeneratorColumn::SsSoldPromoSk,
-            &mut generated,
-            Table::Promotion,
-            1,
-            &scaling,
-        )
-        .unwrap();
-        skip_join_key(Table::Promotion, &mut skipped);
-        assert_eq!(generated.next_random(), skipped.next_random());
+        for (to_table, join_count) in [
+            (Table::Promotion, 1),
+            (Table::CatalogPage, Date::JULIAN_DATA_START_DATE + 100),
+            (Table::WebPage, Date::JULIAN_DATA_START_DATE + 100),
+            (Table::WebPage, Date::JULIAN_DATA_END_DATE + 1),
+        ] {
+            let mut generated = RandomNumberStreamImpl::new(1).unwrap();
+            let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
+            generate_join_key(
+                &StoreSalesGeneratorColumn::SsSoldPromoSk,
+                &mut generated,
+                to_table,
+                join_count,
+                &scaling,
+            )
+            .unwrap();
+            skip_join_key(to_table, join_count, &mut skipped);
+            assert_eq!(
+                generated.next_random(),
+                skipped.next_random(),
+                "{to_table:?} {join_count}"
+            );
+        }
     }
 }

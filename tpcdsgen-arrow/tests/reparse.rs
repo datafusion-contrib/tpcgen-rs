@@ -428,14 +428,14 @@ table_test!(
 
 table_test!(
     catalog_sales,
-    CatalogSalesRowGenerator::new(),
+    CatalogSalesRowGenerator::sales(),
     CatalogSalesArrow::new,
     Table::CatalogSales,
     CatalogSales
 );
 table_test!(
     catalog_returns,
-    CatalogSalesRowGenerator::new(),
+    CatalogSalesRowGenerator::returns(),
     CatalogReturnsArrow::new,
     Table::CatalogSales,
     CatalogReturns
@@ -456,14 +456,14 @@ table_test!(
 );
 table_test!(
     web_sales,
-    WebSalesRowGenerator::new(),
+    WebSalesRowGenerator::sales(),
     WebSalesArrow::new,
     Table::WebSales,
     WebSales
 );
 table_test!(
     web_returns,
-    WebSalesRowGenerator::new(),
+    WebSalesRowGenerator::returns(),
     WebReturnsArrow::new,
     Table::WebSales,
     WebReturns

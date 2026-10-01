@@ -14,19 +14,24 @@
 
 //! Catalog sales row generator
 
-use crate::config::Session;
+use crate::config::{Scaling, Session};
 use crate::error::Result;
 use crate::generator::CatalogSalesGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
-use crate::nulls::create_null_bit_map;
+use crate::join_key_utils::{generate_join_key, skip_join_key};
+use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
 use crate::row::catalog_returns_row_generator::{CatalogReturnsRowGenerator, RETURN_PERCENT};
 use crate::row::catalog_sales_row::CatalogSalesRow;
-use crate::row::{AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult};
+use crate::row::{
+    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesReturnsSelection,
+};
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
-use crate::types::{generate_pricing_for_sales_table, get_catalog_sales_pricing_limits, Date};
+use crate::types::{
+    generate_pricing_for_sales_table, get_catalog_sales_pricing_limits,
+    skip_pricing_for_sales_table, Date,
+};
 
 /// Minimum days from order to ship
 pub const CS_MIN_SHIP_DELAY: i32 = 2;
@@ -79,10 +84,21 @@ pub struct CatalogSalesRowGenerator {
     order_info: OrderInfo,
     ticket_item_base: i32,
     catalog_returns_generator: CatalogReturnsRowGenerator,
+    selection: SalesReturnsSelection,
 }
 
 impl CatalogSalesRowGenerator {
-    pub fn new() -> Self {
+    /// Create a generator for `catalog_sales` rows
+    pub fn sales() -> Self {
+        Self::new(SalesReturnsSelection::Sales)
+    }
+
+    /// Create a generator for `catalog_returns` rows
+    pub fn returns() -> Self {
+        Self::new(SalesReturnsSelection::Returns)
+    }
+
+    fn new(selection: SalesReturnsSelection) -> Self {
         CatalogSalesRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::CatalogSales),
             item_permutation: None,
@@ -92,7 +108,153 @@ impl CatalogSalesRowGenerator {
             order_info: OrderInfo::default(),
             ticket_item_base: 0,
             catalog_returns_generator: CatalogReturnsRowGenerator::new(),
+            selection,
         }
+    }
+
+    /// Advance the random streams an unreturned item's sales inputs would
+    /// have consumed, without calculating them.
+    ///
+    /// Used in [`SalesReturnsSelection::Returns`] mode to skip the pricing and
+    /// join-key calculations.
+    fn skip_item_sales_draws(&mut self) {
+        use CatalogSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&CsNulls);
+        skip_null_bit_map(stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsShipDateSk);
+        stream.next_random();
+
+        if self.order_info.cs_sold_date_sk != -1 {
+            let stream = self
+                .abstract_generator
+                .get_random_number_stream(&CsCatalogPageSk);
+            skip_join_key(
+                crate::config::Table::CatalogPage,
+                self.order_info.cs_sold_date_sk,
+                stream,
+            );
+        }
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsShipModeSk);
+        skip_join_key(crate::config::Table::ShipMode, 1, stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsWarehouseSk);
+        skip_join_key(crate::config::Table::Warehouse, 1, stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&CsPromoSk);
+        skip_join_key(crate::config::Table::Promotion, 1, stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&CsPricing);
+        skip_pricing_for_sales_table(stream);
+    }
+
+    /// Generate the sales row for the current item.
+    fn generate_sales_row(
+        &mut self,
+        cs_sold_item_sk: i64,
+        scaling: &Scaling,
+    ) -> Result<CatalogSalesRow> {
+        use CatalogSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&CsNulls);
+        let null_bit_map = create_null_bit_map(Table::CatalogSales, stream);
+
+        // Orders are shipped some number of days after they are ordered
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsShipDateSk);
+        let shipping_lag = RandomValueGenerator::generate_uniform_random_int(
+            CS_MIN_SHIP_DELAY,
+            CS_MAX_SHIP_DELAY,
+            stream,
+        );
+        let cs_ship_date_sk = if self.order_info.cs_sold_date_sk == -1 {
+            -1
+        } else {
+            self.order_info.cs_sold_date_sk + shipping_lag as i64
+        };
+
+        // Catalog page needs to be from a catalog active at the time of the sale
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsCatalogPageSk);
+        let cs_catalog_page_sk = if self.order_info.cs_sold_date_sk == -1 {
+            -1
+        } else {
+            generate_join_key(
+                &CsCatalogPageSk,
+                stream,
+                crate::config::Table::CatalogPage,
+                self.order_info.cs_sold_date_sk,
+                scaling,
+            )?
+        };
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsShipModeSk);
+        let cs_ship_mode_sk = generate_join_key(
+            &CsShipModeSk,
+            stream,
+            crate::config::Table::ShipMode,
+            1,
+            scaling,
+        )?;
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&CsWarehouseSk);
+        let cs_warehouse_sk = generate_join_key(
+            &CsWarehouseSk,
+            stream,
+            crate::config::Table::Warehouse,
+            1,
+            scaling,
+        )?;
+
+        let stream = self.abstract_generator.get_random_number_stream(&CsPromoSk);
+        let cs_promo_sk = generate_join_key(
+            &CsPromoSk,
+            stream,
+            crate::config::Table::Promotion,
+            1,
+            scaling,
+        )?;
+
+        let stream = self.abstract_generator.get_random_number_stream(&CsPricing);
+        let cs_pricing =
+            generate_pricing_for_sales_table(&get_catalog_sales_pricing_limits(), stream);
+
+        Ok(CatalogSalesRow::new(
+            null_bit_map,
+            self.order_info.cs_sold_date_sk,
+            self.order_info.cs_sold_time_sk,
+            cs_ship_date_sk,
+            self.order_info.cs_bill_customer_sk,
+            self.order_info.cs_bill_cdemo_sk,
+            self.order_info.cs_bill_hdemo_sk,
+            self.order_info.cs_bill_addr_sk,
+            self.order_info.cs_ship_customer_sk,
+            self.order_info.cs_ship_cdemo_sk,
+            self.order_info.cs_ship_hdemo_sk,
+            self.order_info.cs_ship_addr_sk,
+            self.order_info.cs_call_center_sk,
+            cs_catalog_page_sk,
+            cs_ship_mode_sk,
+            cs_warehouse_sk,
+            cs_sold_item_sk,
+            cs_promo_sk,
+            self.order_info.cs_order_number,
+            cs_pricing,
+        ))
     }
 
     fn generate_order_info(&mut self, row_number: u64, session: &Session) -> Result<OrderInfo> {
@@ -269,12 +431,6 @@ impl CatalogSalesRowGenerator {
     }
 }
 
-impl Default for CatalogSalesRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RowGenerator for CatalogSalesRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
@@ -317,25 +473,6 @@ impl RowGenerator for CatalogSalesRowGenerator {
                 RandomValueGenerator::generate_uniform_random_int(4, 14, stream);
         }
 
-        // Generate null bit map
-        let stream = self.abstract_generator.get_random_number_stream(&CsNulls);
-        let null_bit_map = create_null_bit_map(Table::CatalogSales, stream);
-
-        // Orders are shipped some number of days after they are ordered
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&CsShipDateSk);
-        let shipping_lag = RandomValueGenerator::generate_uniform_random_int(
-            CS_MIN_SHIP_DELAY,
-            CS_MAX_SHIP_DELAY,
-            stream,
-        );
-        let cs_ship_date_sk = if self.order_info.cs_sold_date_sk == -1 {
-            -1
-        } else {
-            self.order_info.cs_sold_date_sk + shipping_lag as i64
-        };
-
         // Items need to be unique within an order
         // Use a sequence within the permutation
         self.ticket_item_base += 1;
@@ -353,107 +490,24 @@ impl RowGenerator for CatalogSalesRowGenerator {
             scaling,
         );
 
-        // Catalog page needs to be from a catalog active at the time of the sale
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&CsCatalogPageSk);
-        let cs_catalog_page_sk = if self.order_info.cs_sold_date_sk == -1 {
-            -1
-        } else {
-            generate_join_key(
-                &CsCatalogPageSk,
-                stream,
-                crate::config::Table::CatalogPage,
-                self.order_info.cs_sold_date_sk,
-                scaling,
-            )?
-        };
-
-        // Generate ship mode
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&CsShipModeSk);
-        let cs_ship_mode_sk = generate_join_key(
-            &CsShipModeSk,
-            stream,
-            crate::config::Table::ShipMode,
-            1,
-            scaling,
-        )?;
-
-        // Generate warehouse
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&CsWarehouseSk);
-        let cs_warehouse_sk = generate_join_key(
-            &CsWarehouseSk,
-            stream,
-            crate::config::Table::Warehouse,
-            1,
-            scaling,
-        )?;
-
-        // Generate promo sk
-        let stream = self.abstract_generator.get_random_number_stream(&CsPromoSk);
-        let cs_promo_sk = generate_join_key(
-            &CsPromoSk,
-            stream,
-            crate::config::Table::Promotion,
-            1,
-            scaling,
-        )?;
-
-        // Generate pricing
-        let stream = self.abstract_generator.get_random_number_stream(&CsPricing);
-        let cs_pricing =
-            generate_pricing_for_sales_table(&get_catalog_sales_pricing_limits(), stream);
-
-        let catalog_sales_row = CatalogSalesRow::new(
-            null_bit_map,
-            self.order_info.cs_sold_date_sk,
-            self.order_info.cs_sold_time_sk,
-            cs_ship_date_sk,
-            self.order_info.cs_bill_customer_sk,
-            self.order_info.cs_bill_cdemo_sk,
-            self.order_info.cs_bill_hdemo_sk,
-            self.order_info.cs_bill_addr_sk,
-            self.order_info.cs_ship_customer_sk,
-            self.order_info.cs_ship_cdemo_sk,
-            self.order_info.cs_ship_hdemo_sk,
-            self.order_info.cs_ship_addr_sk,
-            self.order_info.cs_call_center_sk,
-            cs_catalog_page_sk,
-            cs_ship_mode_sk,
-            cs_warehouse_sk,
-            cs_sold_item_sk,
-            cs_promo_sk,
-            self.order_info.cs_order_number,
-            cs_pricing,
-        );
-
         // Check if this sale gets returned (10% return rate)
-        // We check and generate the return BEFORE moving the sales row to avoid cloning
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
 
-        // Generate return row if applicable (using reference before we move sales_row)
-        let return_row = if random_int < RETURN_PERCENT {
-            Some(
-                self.catalog_returns_generator
-                    .generate_row(session, &catalog_sales_row)?,
-            )
-        } else {
-            None
-        };
-
-        // Now move (not clone) the sales row into the result
-        let mut generated_rows: Vec<GeneratedRow> = Vec::with_capacity(2);
-        generated_rows.push(catalog_sales_row.into());
-
-        if let Some(ret_row) = return_row {
-            generated_rows.push(ret_row);
+        let mut generated_rows: Vec<GeneratedRow> = Vec::new();
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                let row = self.generate_sales_row(cs_sold_item_sk, scaling)?;
+                generated_rows.push(row.into());
+            }
+            // Row is returned if random_int < RETURN_PERCENT
+            SalesReturnsSelection::Returns if random_int < RETURN_PERCENT => {
+                let row = self.generate_sales_row(cs_sold_item_sk, scaling)?;
+                generated_rows.push(self.catalog_returns_generator.generate_row(session, &row)?);
+            }
+            SalesReturnsSelection::Returns => self.skip_item_sales_draws(),
         }
 
         self.remaining_line_items -= 1;
@@ -465,15 +519,30 @@ impl RowGenerator for CatalogSalesRowGenerator {
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.catalog_returns_generator
-            .consume_remaining_seeds_for_row();
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+                self.catalog_returns_generator
+                    .consume_remaining_seeds_for_row();
+            }
+        }
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        self.catalog_returns_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+                self.catalog_returns_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+        }
     }
 }
