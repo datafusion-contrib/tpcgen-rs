@@ -343,15 +343,15 @@ impl RowGenerator for StoreSalesRowGenerator {
             .abstract_generator
             .get_random_number_stream(&SrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
-        let is_returned = random_int < SR_RETURN_PCT;
 
-        let mut generated_rows: Vec<GeneratedRow> = Vec::with_capacity(1);
+        let mut generated_rows: Vec<GeneratedRow> = Vec::new();
         match self.selection {
             SalesReturnsSelection::Sales => {
                 let row = self.generate_sales_row(ss_sold_item_sk, scaling)?;
                 generated_rows.push(row.into());
             }
-            SalesReturnsSelection::Returns if is_returned => {
+            // Row is returned if random_int < SR_RETURN_PCT
+            SalesReturnsSelection::Returns if random_int < SR_RETURN_PCT => {
                 let row = self.generate_sales_row(ss_sold_item_sk, scaling)?;
                 generated_rows.push(self.store_returns_generator.generate_row(session, &row)?);
             }
@@ -367,16 +367,31 @@ impl RowGenerator for StoreSalesRowGenerator {
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.store_returns_generator
-            .consume_remaining_seeds_for_row();
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+                self.store_returns_generator
+                    .consume_remaining_seeds_for_row();
+            }
+        }
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        self.store_returns_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+                self.store_returns_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+        }
     }
 }
 
