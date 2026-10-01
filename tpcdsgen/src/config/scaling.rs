@@ -316,6 +316,35 @@ mod tests {
     }
 
     #[test]
+    fn test_row_counts_do_not_drop_above_defined_range() {
+        // Scale factors above SF100000, in increasing order.
+        const SCALES: [f64; 6] = [
+            100_001.0,
+            200_000.0,
+            250_000.0,
+            500_000.0,
+            750_000.0,
+            1_000_000.0,
+        ];
+
+        let mut previous = Scaling::new(100_000.0);
+        for scale in SCALES {
+            let current = Scaling::new(scale);
+            for table in Table::main_tables() {
+                // Unlike the other tables, catalog_page drops in row count above SF100000.
+                if table == Table::CatalogPage {
+                    continue;
+                }
+                assert!(
+                    current.get_row_count(table) >= previous.get_row_count(table),
+                    "{table:?} at {scale}"
+                );
+            }
+            previous = current;
+        }
+    }
+
+    #[test]
     fn test_cached_row_counts_match_direct_computation() {
         for scale in [0.1, 1.0, 10.0] {
             let scaling = Scaling::new(scale);
