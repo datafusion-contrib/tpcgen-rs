@@ -12,7 +12,10 @@
  * limitations under the License.
  */
 
-//! [`InventoryRowGenerator`] for the `inventory` table.
+//! Inventory row generator
+//!
+//! The inventory table represents weekly snapshots of item inventory levels
+//! at each warehouse. It's a cross-join of items x warehouses x weeks.
 
 use crate::config::Session;
 use crate::error::Result;
@@ -25,10 +28,7 @@ use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::Date;
 
-/// [`InventoryRow`] generator for the `inventory` table.
-///
-/// The inventory table represents weekly snapshots of item inventory levels
-/// at each warehouse. It's a cross-join of items x warehouses x weeks.
+/// Generates [`InventoryRow`] for the `inventory` table.
 ///
 /// # Example:
 /// ```
@@ -61,8 +61,6 @@ impl Default for InventoryRowGenerator {
     }
 }
 
-/// Typed core: produces [`InventoryRow`] directly, with no `GeneratedRow`
-/// wrapping or per-call [`RowGeneratorResult`] allocation.
 impl SingleRowGenerator for InventoryRowGenerator {
     type Row = InventoryRow;
 
@@ -133,12 +131,10 @@ impl SingleRowGenerator for InventoryRowGenerator {
     }
 }
 
-/// Legacy adapter: wraps the typed core above in the `GeneratedRow` enum and
-/// a `RowGeneratorResult` for callers that have not yet migrated to
-/// [`SingleRowGenerator`] (for example, tests shared across all tables).
-/// Inventory's own output paths (Arrow, CLI DAT/CSV) use the typed core
-/// directly and never go through this adapter. It is temporary migration
-/// scaffolding and will be deleted once all callers are converted.
+/// Temporary adapter for creating [`RowGeneratorResult`]
+///
+/// Needed until migration to typed generators is complete
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
 impl RowGenerator for InventoryRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
