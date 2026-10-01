@@ -146,13 +146,11 @@ mod tests {
         assert!(source_rows > 100, "need enough rows to split");
         let split = [(1, source_rows / 2), (source_rows / 2 + 1, source_rows)];
 
-        for (table, generator) in [
-            (
-                Table::StoreSales,
-                StoreSalesRowGenerator::sales as fn() -> StoreSalesRowGenerator,
-            ),
+        let cases: [(Table, fn() -> StoreSalesRowGenerator); 2] = [
+            (Table::StoreSales, StoreSalesRowGenerator::sales),
             (Table::StoreReturns, StoreSalesRowGenerator::returns),
-        ] {
+        ];
+        for (table, generator) in cases {
             let whole = rows_for(generator, table, &session, &[(1, source_rows)]);
             let chunked = rows_for(generator, table, &session, &split);
 
