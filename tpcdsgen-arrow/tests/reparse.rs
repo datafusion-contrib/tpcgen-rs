@@ -442,14 +442,14 @@ table_test!(
 );
 table_test!(
     store_sales,
-    StoreSalesRowGenerator::new(),
+    StoreSalesRowGenerator::sales(),
     StoreSalesArrow::new,
     Table::StoreSales,
     StoreSales
 );
 table_test!(
     store_returns,
-    StoreSalesRowGenerator::new(),
+    StoreSalesRowGenerator::returns(),
     StoreReturnsArrow::new,
     Table::StoreSales,
     StoreReturns

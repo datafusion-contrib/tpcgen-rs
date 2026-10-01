@@ -88,6 +88,22 @@ pub fn generate_join_key(
     }
 }
 
+/// Advances `random_number_stream` past the values [`generate_join_key`]
+/// would draw for a key to `to_table`, without computing the key.
+///
+/// Must be kept in sync with [`generate_join_key`].
+pub fn skip_join_key(to_table: Table, random_number_stream: &mut dyn RandomNumberStream) {
+    debug_assert!(
+        !to_table.keeps_history()
+            && !matches!(
+                to_table,
+                Table::CatalogPage | Table::DateDim | Table::TimeDim
+            ),
+        "skip_join_key does not support {to_table:?}"
+    );
+    random_number_stream.next_random();
+}
+
 /// Generates a join key to the catalog_page table.
 ///
 /// Calculates which catalog page based on the date and catalog type (monthly, bi-annual, quarterly).
@@ -453,4 +469,22 @@ mod tests {
     //     let lag = return_date - sale_date;
     //     assert!(lag >= (CS_MIN_SHIP_DELAY * 2) as i64 && lag <= (CS_MAX_SHIP_DELAY * 2) as i64);
     // }
+
+    #[test]
+    fn test_skip_join_key_matches_generate() {
+        use crate::generator::StoreSalesGeneratorColumn;
+        let scaling = Scaling::new(1.0);
+        let mut generated = RandomNumberStreamImpl::new(1).unwrap();
+        let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
+        generate_join_key(
+            &StoreSalesGeneratorColumn::SsSoldPromoSk,
+            &mut generated,
+            Table::Promotion,
+            1,
+            &scaling,
+        )
+        .unwrap();
+        skip_join_key(Table::Promotion, &mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
+    }
 }

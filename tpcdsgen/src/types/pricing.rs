@@ -451,6 +451,16 @@ pub fn generate_pricing_for_returns_table(
     )
 }
 
+/// Advances `stream` past the values [`generate_pricing_for_sales_table`]
+/// would draw, without computing a [`Pricing`].
+///
+/// Must be kept in sync with [`generate_pricing_for_sales_table`]
+pub fn skip_pricing_for_sales_table(stream: &mut dyn RandomNumberStream) {
+    for _ in 0..8 {
+        stream.next_random();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +511,15 @@ mod tests {
         assert_eq!(Pricing::QUANTITY_MIN, 1);
         assert_eq!(Pricing::markup_min().get_number(), 0);
         assert_eq!(Pricing::discount_min().get_number(), 0);
+    }
+
+    #[test]
+    fn test_skip_pricing_for_sales_table_matches_generate() {
+        use crate::random::RandomNumberStreamImpl;
+        let mut generated = RandomNumberStreamImpl::new(1).unwrap();
+        let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
+        generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), &mut generated);
+        skip_pricing_for_sales_table(&mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
     }
 }

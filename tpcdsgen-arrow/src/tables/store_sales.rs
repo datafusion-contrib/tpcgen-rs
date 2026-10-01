@@ -22,7 +22,7 @@ impl StoreSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::StoreSales);
         Self {
-            inner: RowIter::new(StoreSalesRowGenerator::new(), session, row_count),
+            inner: RowIter::new(StoreSalesRowGenerator::sales(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
