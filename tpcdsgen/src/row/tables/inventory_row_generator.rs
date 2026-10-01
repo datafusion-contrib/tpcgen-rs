@@ -17,31 +17,20 @@
 //! The inventory table represents weekly snapshots of item inventory levels
 //! at each warehouse. It's a cross-join of items x warehouses x weeks.
 //!
-//! Inventory is the pilot for the typed, per-table [`SingleRowGenerator`]
-//! migration described in <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>:
-//! its generator produces [`InventoryRow`] directly, with no
-//! [`GeneratedRow`](crate::row::GeneratedRow) wrapping/matching and no
-//! per-call [`RowGeneratorResult`] allocation. Consume it with
-//! [`SingleRowIter`](crate::row::SingleRowIter) rather than
-//! [`RowIter`](crate::row::RowIter):
-//!
+//! # Example:
 //! ```
-//! use tpcdsgen::config::Session;
+//! use tpcdsgen::config::{Table, Session};
 //! use tpcdsgen::row::{InventoryRowGenerator, SingleRowIter};
 //!
 //! let session = Session::default();
-//! let row_count = session.get_scaling().get_row_count(tpcdsgen::config::Table::Inventory);
+//! let row_count = session.get_scaling().get_row_count(Table::Inventory);
 //! let mut rows = SingleRowIter::new(InventoryRowGenerator::new(), session, row_count);
 //!
 //! // `rows` yields concrete `InventoryRow`s, not a `GeneratedRow` enum.
 //! let row = rows.next().expect("inventory has rows");
-//! println!("{row}"); // DAT line via `Display`
+//! assert_eq!(row.to_string(), "2450815|1|1|211|"); // DAT format
 //! ```
 //!
-//! [`InventoryRowGenerator`] still implements the legacy [`RowGenerator`]
-//! trait as a thin adapter over the typed core below, for callers (such as
-//! shared tests) that have not migrated yet. That adapter is temporary
-//! scaffolding, not part of inventory's normal generation path.
 
 use crate::config::Session;
 use crate::error::Result;
