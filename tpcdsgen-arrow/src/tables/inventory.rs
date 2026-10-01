@@ -6,11 +6,13 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{InventoryRowGenerator, SingleRowIter};
+use tpcdsgen::row::{InventoryRow, InventoryRowGenerator, SingleRowIter};
 
 pub struct InventoryArrow {
     inner: SingleRowIter<InventoryRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<InventoryRow>,
 }
 
 impl InventoryArrow {
@@ -60,7 +62,10 @@ impl Iterator for InventoryArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self.inner.by_ref().take(self.batch_size).collect();
+        let mut rows = &self.scratch;
+        rows.clear();
+
+        rows.extend(self.inner.by_ref().take(self.batch_size));
         if rows.is_empty() {
             return None;
         }
@@ -70,7 +75,7 @@ impl Iterator for InventoryArrow {
         let mut inv_warehouse: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut inv_qty: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             inv_date.push(integer_sk_opt(nbm, 0, r.get_inv_date_sk()));
             inv_item.push(integer_sk_opt(nbm, 1, r.get_inv_item_sk()));
