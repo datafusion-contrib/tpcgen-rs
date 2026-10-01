@@ -23,11 +23,26 @@ use crate::generator::InventoryGeneratorColumn;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::inventory_row::InventoryRow;
-use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult};
+use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult, SingleRowGenerator};
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::Date;
 
+/// Generates [`InventoryRow`] for the `inventory` table.
+///
+/// # Example:
+/// ```
+/// use tpcdsgen::config::{Table, Session};
+/// use tpcdsgen::row::{InventoryRowGenerator, SingleRowIter};
+///
+/// let session = Session::default();
+/// let row_count = session.get_scaling().get_row_count(Table::Inventory);
+/// let mut rows = SingleRowIter::new(InventoryRowGenerator::new(), session, row_count);
+///
+/// // `rows` yields concrete `InventoryRow`s, not a `GeneratedRow` enum.
+/// let row = rows.next().expect("inventory has rows");
+/// assert_eq!(row.to_string(), "2450815|1|1|211|"); // DAT format
+/// ```
 pub struct InventoryRowGenerator {
     abstract_generator: AbstractRowGenerator,
 }
@@ -46,14 +61,10 @@ impl Default for InventoryRowGenerator {
     }
 }
 
-impl RowGenerator for InventoryRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
+impl SingleRowGenerator for InventoryRowGenerator {
+    type Row = InventoryRow;
+
+    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<InventoryRow> {
         use InventoryGeneratorColumn::*;
 
         let scaling = session.get_scaling();
@@ -101,15 +112,13 @@ impl RowGenerator for InventoryRowGenerator {
         let inv_quantity_on_hand =
             RandomValueGenerator::generate_uniform_random_int(0, 1000, stream);
 
-        let row = InventoryRow::new(
+        Ok(InventoryRow::new(
             null_bit_map,
             inv_date_sk,
             inv_item_sk,
             i64::try_from(inv_warehouse_sk).expect("warehouse key fits in i64"),
             inv_quantity_on_hand,
-        );
-
-        Ok(RowGeneratorResult::new(row))
+        ))
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
@@ -119,5 +128,30 @@ impl RowGenerator for InventoryRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+    }
+}
+
+/// Temporary adapter for creating [`RowGeneratorResult`]
+///
+/// Needed until migration to typed generators is complete
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
+impl RowGenerator for InventoryRowGenerator {
+    fn generate_row_and_child_rows(
+        &mut self,
+        row_number: u64,
+        session: &Session,
+        _parent_row_generator: Option<&mut dyn RowGenerator>,
+        _child_row_generator: Option<&mut dyn RowGenerator>,
+    ) -> Result<RowGeneratorResult> {
+        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
+        Ok(RowGeneratorResult::new(row))
+    }
+
+    fn consume_remaining_seeds_for_row(&mut self) {
+        SingleRowGenerator::consume_remaining_seeds_for_row(self);
+    }
+
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
     }
 }

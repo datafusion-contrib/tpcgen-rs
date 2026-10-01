@@ -20,11 +20,12 @@ use crate::progress::ProgressTracker;
 use crate::tpcds_cli::generate::{generate_table, RowFormat};
 use crate::tpcds_cli::plan::ChunkFormat;
 use crate::tpcds_cli::runner::{plan_tables, run_plans};
+use std::fmt::Display;
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
-use tpcdsgen::row::GeneratedRow;
+use tpcdsgen::csv::{csv_header, GeneratedRowCsv, InventoryCsv};
+use tpcdsgen::row::{GeneratedRow, InventoryRow};
 
 /// CSV output generator.
 #[derive(Debug, Clone)]
@@ -83,7 +84,32 @@ impl Csv {
     }
 }
 
-impl RowFormat for Csv {
+/// A row type with a CSV rendering.
+pub(super) trait CsvRow {
+    type Csv<'a>: Display
+    where
+        Self: 'a;
+
+    fn csv(&self, delimiter: char) -> Self::Csv<'_>;
+}
+
+impl CsvRow for GeneratedRow {
+    type Csv<'a> = GeneratedRowCsv<'a>;
+
+    fn csv(&self, delimiter: char) -> GeneratedRowCsv<'_> {
+        GeneratedRowCsv::with_delimiter(self, delimiter)
+    }
+}
+
+impl CsvRow for InventoryRow {
+    type Csv<'a> = InventoryCsv<'a>;
+
+    fn csv(&self, delimiter: char) -> InventoryCsv<'_> {
+        InventoryCsv::with_delimiter(self, delimiter)
+    }
+}
+
+impl<R: CsvRow> RowFormat<R> for Csv {
     const EXTENSION: &'static str = "csv";
 
     fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
@@ -96,15 +122,10 @@ impl RowFormat for Csv {
 
     fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
     where
-        I: Iterator<Item = GeneratedRow>,
+        I: Iterator<Item = R>,
     {
         for row in rows {
-            writeln!(
-                buffer,
-                "{}",
-                GeneratedRowCsv::with_delimiter(&row, self.delimiter)
-            )
-            .expect("writing to memory cannot fail");
+            writeln!(buffer, "{}", row.csv(self.delimiter)).expect("writing to memory cannot fail");
         }
         buffer
     }

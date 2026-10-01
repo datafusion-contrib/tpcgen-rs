@@ -1,16 +1,18 @@
 use crate::conversions::{integer_sk_opt, opt};
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, InventoryRowGenerator};
+use tpcdsgen::row::{InventoryRow, InventoryRowGenerator, SingleRowIter};
 
 pub struct InventoryArrow {
-    inner: RowIter<InventoryRowGenerator>,
+    inner: SingleRowIter<InventoryRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<InventoryRow>,
 }
 
 impl InventoryArrow {
@@ -22,8 +24,9 @@ impl InventoryArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Inventory);
         Self {
-            inner: RowIter::new(InventoryRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(InventoryRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -60,15 +63,10 @@ impl Iterator for InventoryArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::Inventory(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        let rows = &mut self.scratch;
+        rows.clear();
+
+        rows.extend(self.inner.by_ref().take(self.batch_size));
         if rows.is_empty() {
             return None;
         }
@@ -78,7 +76,7 @@ impl Iterator for InventoryArrow {
         let mut inv_warehouse: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut inv_qty: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             inv_date.push(integer_sk_opt(nbm, 0, r.get_inv_date_sk()));
             inv_item.push(integer_sk_opt(nbm, 1, r.get_inv_item_sk()));

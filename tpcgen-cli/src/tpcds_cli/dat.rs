@@ -26,7 +26,6 @@ use std::sync::Arc;
 
 use tpcdsgen::config::{CompatMode, Session, Table};
 use tpcdsgen::output::DatWriter;
-use tpcdsgen::row::GeneratedRow;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -79,7 +78,7 @@ impl Dat {
     }
 }
 
-impl RowFormat for Dat {
+impl<R: std::fmt::Display> RowFormat<R> for Dat {
     const EXTENSION: &'static str = "dat";
 
     /// DAT output has no header.
@@ -89,7 +88,7 @@ impl RowFormat for Dat {
 
     fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
     where
-        I: Iterator<Item = GeneratedRow>,
+        I: Iterator<Item = R>,
     {
         let mut writer = DatWriter::new(&mut buffer, self.compat_mode);
         for row in rows {
