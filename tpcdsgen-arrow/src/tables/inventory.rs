@@ -26,6 +26,7 @@ impl InventoryArrow {
         Self {
             inner: SingleRowIter::new(InventoryRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -62,7 +63,7 @@ impl Iterator for InventoryArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut rows = &self.scratch;
+        let rows = &mut self.scratch;
         rows.clear();
 
         rows.extend(self.inner.by_ref().take(self.batch_size));

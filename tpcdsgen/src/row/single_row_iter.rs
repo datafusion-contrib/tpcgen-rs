@@ -60,7 +60,6 @@ impl<G: SingleRowGenerator> SingleRowIter<G> {
     }
 }
 
-
 impl<G: SingleRowGenerator> Iterator for SingleRowIter<G> {
     type Item = G::Row;
 
