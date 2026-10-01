@@ -118,7 +118,7 @@ pub fn get_brand_syllables_distribution() -> &'static StringValuesDistribution {
 /// Pick random manager ID range
 pub fn pick_random_manager_id_range(
     id_weights: IdWeights,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<(i32, i32)> {
     let dist = get_item_manager_id_distribution();
     let index = dist.pick_random_index(id_weights as usize, stream)?;
@@ -130,7 +130,7 @@ pub fn pick_random_manager_id_range(
 /// Pick random manufact ID range
 pub fn pick_random_manufact_id_range(
     id_weights: IdWeights,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<(i32, i32)> {
     let dist = get_item_manufact_id_distribution();
     let index = dist.pick_random_index(id_weights as usize, stream)?;
@@ -142,7 +142,7 @@ pub fn pick_random_manufact_id_range(
 /// Pick random size
 pub fn pick_random_size(
     size_weights: SizeWeights,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<String> {
     let dist = get_sizes_distribution();
     Ok(dist
@@ -153,7 +153,7 @@ pub fn pick_random_size(
 /// Pick random color
 pub fn pick_random_color(
     colors_weights: ColorsWeights,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<String> {
     let dist = get_colors_distribution();
     Ok(dist
@@ -162,7 +162,7 @@ pub fn pick_random_color(
 }
 
 /// Pick random unit
-pub fn pick_random_unit(stream: &mut dyn RandomNumberStream) -> Result<String> {
+pub fn pick_random_unit(stream: &mut RandomNumberStream) -> Result<String> {
     let dist = get_units_distribution();
     Ok(dist.pick_random_value(0, 0, stream)?.to_string())
 }
@@ -223,7 +223,7 @@ fn get_categories_distribution() -> &'static CategoriesDistributionData {
 }
 
 /// Pick random category index
-pub fn pick_random_category_index(stream: &mut dyn RandomNumberStream) -> Result<usize> {
+pub fn pick_random_category_index(stream: &mut RandomNumberStream) -> Result<usize> {
     let dist = get_categories_distribution();
     crate::distribution::utils::pick_random_index(&dist.weights, stream)
 }
@@ -312,10 +312,7 @@ impl CategoryClassDistribution {
         }
     }
 
-    fn pick_random_category_class(
-        &self,
-        stream: &mut dyn RandomNumberStream,
-    ) -> Result<CategoryClass> {
+    fn pick_random_category_class(&self, stream: &mut RandomNumberStream) -> Result<CategoryClass> {
         let index = crate::distribution::utils::pick_random_index(&self.weights, stream)?;
         Ok(CategoryClass {
             id: (index + 1) as i64,
@@ -347,7 +344,7 @@ fn get_category_class_distributions() -> &'static Vec<CategoryClassDistribution>
 /// Pick random category class for a given category ID
 pub fn pick_random_category_class(
     category_id: usize,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<CategoryClass> {
     let distributions = get_category_class_distributions();
     if category_id >= distributions.len() {
@@ -424,7 +421,7 @@ fn get_item_current_price_distribution() -> &'static ItemCurrentPriceDistributio
 
 /// Pick random current price range (returns min and max)
 pub fn pick_random_current_price_range(
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<(Decimal, Decimal)> {
     let dist = get_item_current_price_distribution();
     let index = crate::distribution::utils::pick_random_index(&dist.weights_lists[0], stream)?;
@@ -434,32 +431,32 @@ pub fn pick_random_current_price_range(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_pick_random_size() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let size = pick_random_size(SizeWeights::Sized, &mut stream).unwrap();
         assert!(!size.is_empty());
     }
 
     #[test]
     fn test_pick_random_color() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let color = pick_random_color(ColorsWeights::Skewed, &mut stream).unwrap();
         assert!(!color.is_empty());
     }
 
     #[test]
     fn test_pick_random_unit() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let unit = pick_random_unit(&mut stream).unwrap();
         assert!(!unit.is_empty());
     }
 
     #[test]
     fn test_pick_random_category_index() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let index = pick_random_category_index(&mut stream).unwrap();
         assert!(index < 10); // Should be less than number of categories
     }
@@ -472,7 +469,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_category_class() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let class = pick_random_category_class(0, &mut stream).unwrap();
         assert!(!class.get_name().is_empty());
         assert!(class.get_brand_count() > 0);
@@ -480,21 +477,21 @@ mod tests {
 
     #[test]
     fn test_pick_random_current_price_range() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let (min, max) = pick_random_current_price_range(&mut stream).unwrap();
         assert!(min.get_number() <= max.get_number());
     }
 
     #[test]
     fn test_pick_random_manager_id_range() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let (min, max) = pick_random_manager_id_range(IdWeights::Unified, &mut stream).unwrap();
         assert!(min <= max);
     }
 
     #[test]
     fn test_pick_random_manufact_id_range() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let (min, max) = pick_random_manufact_id_range(IdWeights::Unified, &mut stream).unwrap();
         assert!(min <= max);
     }

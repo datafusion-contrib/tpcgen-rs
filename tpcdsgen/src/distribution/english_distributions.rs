@@ -14,7 +14,7 @@ static SYLLABLES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::ne
 static TERMINATORS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 static VERBS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 
-pub fn pick_random_adjective(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_adjective(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = ADJECTIVES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("adjectives.dst", 1, 1)
             .expect("Failed to load adjectives distribution")
@@ -23,7 +23,7 @@ pub fn pick_random_adjective(stream: &mut dyn RandomNumberStream) -> Result<&'st
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_adverb(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_adverb(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = ADVERBS_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("adverbs.dst", 1, 1)
             .expect("Failed to load adverbs distribution")
@@ -32,7 +32,7 @@ pub fn pick_random_adverb(stream: &mut dyn RandomNumberStream) -> Result<&'stati
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_article(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_article(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = ARTICLES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("articles.dst", 1, 1)
             .expect("Failed to load articles distribution")
@@ -41,7 +41,7 @@ pub fn pick_random_article(stream: &mut dyn RandomNumberStream) -> Result<&'stat
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_auxiliary(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_auxiliary(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = AUXILIARIES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("auxiliaries.dst", 1, 1)
             .expect("Failed to load auxiliaries distribution")
@@ -50,7 +50,7 @@ pub fn pick_random_auxiliary(stream: &mut dyn RandomNumberStream) -> Result<&'st
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_preposition(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_preposition(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = PREPOSITIONS_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("prepositions.dst", 1, 1)
             .expect("Failed to load prepositions distribution")
@@ -59,7 +59,7 @@ pub fn pick_random_preposition(stream: &mut dyn RandomNumberStream) -> Result<&'
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_noun(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_noun(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = NOUNS_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("nouns.dst", 1, 1)
             .expect("Failed to load nouns distribution")
@@ -68,7 +68,7 @@ pub fn pick_random_noun(stream: &mut dyn RandomNumberStream) -> Result<&'static 
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_sentence(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_sentence(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = SENTENCES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("sentences.dst", 1, 1)
             .expect("Failed to load sentences distribution")
@@ -77,7 +77,7 @@ pub fn pick_random_sentence(stream: &mut dyn RandomNumberStream) -> Result<&'sta
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_terminator(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_terminator(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = TERMINATORS_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("terminators.dst", 1, 1)
             .expect("Failed to load terminators distribution")
@@ -86,7 +86,7 @@ pub fn pick_random_terminator(stream: &mut dyn RandomNumberStream) -> Result<&'s
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_verb(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_verb(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = VERBS_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("verbs.dst", 1, 1)
             .expect("Failed to load verbs distribution")

@@ -26,7 +26,7 @@ pub enum CitiesWeights {
 
 pub fn pick_random_street_name(
     weights: StreetNamesWeights,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<&'static str> {
     let dist = STREET_NAMES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("street_names.dst", 1, 2)
@@ -36,7 +36,7 @@ pub fn pick_random_street_name(
     dist.pick_random_value(0, weights as usize, stream)
 }
 
-pub fn pick_random_street_type(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_street_type(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = STREET_TYPES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("street_types.dst", 1, 1)
             .expect("Failed to load street types distribution")
@@ -47,7 +47,7 @@ pub fn pick_random_street_type(stream: &mut dyn RandomNumberStream) -> Result<&'
 
 pub fn pick_random_city(
     weights: CitiesWeights,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<&'static str> {
     let dist = CITIES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("cities.dst", 1, 6)
@@ -57,7 +57,7 @@ pub fn pick_random_city(
     dist.pick_random_value(0, weights as usize, stream)
 }
 
-pub fn pick_random_country(stream: &mut dyn RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_country(stream: &mut RandomNumberStream) -> Result<&'static str> {
     let dist = COUNTRIES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("countries.dst", 1, 1)
             .expect("Failed to load countries distribution")

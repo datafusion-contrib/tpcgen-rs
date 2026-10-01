@@ -127,7 +127,7 @@ impl Address {
     // Static method to create address for a specific table column (implementation exactly)
     pub fn make_address_for_column(
         table: crate::table::Table,
-        stream: &mut dyn crate::random::stream::RandomNumberStream,
+        stream: &mut crate::random::stream::RandomNumberStream,
         scaling: &crate::config::Scaling,
     ) -> Result<Self> {
         use crate::distribution::{

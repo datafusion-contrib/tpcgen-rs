@@ -106,7 +106,7 @@ impl Distribution<String> for StringValuesDistribution {
         &self,
         value_list: usize,
         weight_list: usize,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<String> {
         if value_list >= self.values_lists.len() {
             return Err(TpcdsError::new(&format!(
@@ -178,7 +178,7 @@ impl Distribution<String> for StringValuesDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_from_embedded_data() {
@@ -217,7 +217,7 @@ mod tests {
         let data = &[("rare", 1), ("common", 99)];
 
         let dist = StringValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Test multiple picks - should all be valid
         for _ in 0..10 {
@@ -236,7 +236,7 @@ mod tests {
         ];
 
         let dist = StringValuesDistribution::from_multi_weight_data(data).unwrap();
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Pick from second weight list (index 1) - should only get "empty"
         let value = dist.pick_random_value(0, 1, &mut stream).unwrap();
@@ -254,8 +254,8 @@ mod tests {
         let dist = StringValuesDistribution::from_embedded_data(data).unwrap();
 
         // Same seed should produce same results
-        let mut stream1 = RandomNumberStreamImpl::new_with_column(42, 1).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new_with_column(42, 1).unwrap();
+        let mut stream1 = RandomNumberStream::new_with_column(42, 1).unwrap();
+        let mut stream2 = RandomNumberStream::new_with_column(42, 1).unwrap();
 
         let value1 = dist.pick_random_value(0, 0, &mut stream1).unwrap();
         let value2 = dist.pick_random_value(0, 0, &mut stream2).unwrap();
@@ -267,7 +267,7 @@ mod tests {
     fn test_error_conditions() {
         let data = &[("test", 100)];
         let dist = StringValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Invalid list indices
         assert!(dist.pick_random_value(1, 0, &mut stream).is_err()); // Invalid value list

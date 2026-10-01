@@ -61,18 +61,14 @@ impl CallCenterDistributions {
     }
 
     /// Pick a random call center class
-    pub fn pick_random_call_center_class(
-        stream: &mut dyn RandomNumberStream,
-    ) -> Result<&'static str> {
+    pub fn pick_random_call_center_class(stream: &mut RandomNumberStream) -> Result<&'static str> {
         Self::ensure_initialized()?;
         let dist = CALL_CENTER_CLASSES_DISTRIBUTION.get().unwrap();
         dist.pick_random_value(0, 0, stream)
     }
 
     /// Pick random call center hours
-    pub fn pick_random_call_center_hours(
-        stream: &mut dyn RandomNumberStream,
-    ) -> Result<&'static str> {
+    pub fn pick_random_call_center_hours(stream: &mut RandomNumberStream) -> Result<&'static str> {
         Self::ensure_initialized()?;
         let dist = CALL_CENTER_HOURS_DISTRIBUTION.get().unwrap();
         dist.pick_random_value(0, 0, stream)
@@ -82,7 +78,7 @@ impl CallCenterDistributions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_call_center_at_index() {
@@ -98,22 +94,22 @@ mod tests {
 
     #[test]
     fn test_pick_random_call_center_class() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let class = CallCenterDistributions::pick_random_call_center_class(&mut stream).unwrap();
         assert!(!class.is_empty());
     }
 
     #[test]
     fn test_pick_random_call_center_hours() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let hours = CallCenterDistributions::pick_random_call_center_hours(&mut stream).unwrap();
         assert!(!hours.is_empty());
     }
 
     #[test]
     fn test_deterministic_selection() {
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let class1 = CallCenterDistributions::pick_random_call_center_class(&mut stream1).unwrap();
         let class2 = CallCenterDistributions::pick_random_call_center_class(&mut stream2).unwrap();

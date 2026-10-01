@@ -103,7 +103,7 @@ impl FipsCountyDistribution {
 
     pub fn pick_random_index(
         weights: FipsWeights,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<usize> {
         let instance = Self::get_instance();
         pick_random_index(&instance.weights_lists[weights as usize], stream)
