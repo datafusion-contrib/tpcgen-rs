@@ -64,8 +64,12 @@ impl Iterator for WebSalesArrow {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.scratch.clear();
-        self.scratch
-            .extend(self.inner.by_ref().map(|r| r.sales).take(self.batch_size));
+        self.scratch.extend(
+            self.inner
+                .by_ref()
+                .filter_map(|r| r.sales)
+                .take(self.batch_size),
+        );
         let rows = &self.scratch;
         if rows.is_empty() {
             return None;

@@ -21,9 +21,14 @@
 use crate::config::Session;
 use crate::error::Result;
 
-/// One line item of an order: the sales row and its return, if any.
+/// The rows generated for one line item of an order.
+///
+/// A generator constructed for one table (see [`SalesReturnsSelection`]) only
+/// fills in that table's row.
+///
+/// [`SalesReturnsSelection`]: crate::row::SalesReturnsSelection
 pub struct SalesRows<S, R> {
-    pub sales: S,
+    pub sales: Option<S>,
     pub returns: Option<R>,
 }
 

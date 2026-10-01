@@ -232,7 +232,7 @@ impl PricingLimits {
 /// This is the Rust equivalent of Java's Pricing.generatePricingForSalesTable
 pub fn generate_pricing_for_sales_table(
     limits: &PricingLimits,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Pricing {
     let quantity = RandomValueGenerator::generate_uniform_random_int(
         Pricing::QUANTITY_MIN,
@@ -359,7 +359,7 @@ pub fn get_catalog_sales_pricing_limits() -> PricingLimits {
 /// Generate pricing for returns table (store_returns, catalog_returns, web_returns)
 /// This is the Rust equivalent of Java's Pricing.generatePricingForReturnsTable
 pub fn generate_pricing_for_returns_table(
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
     quantity: i32,
     base_pricing: &Pricing,
 ) -> Pricing {
@@ -451,6 +451,16 @@ pub fn generate_pricing_for_returns_table(
     )
 }
 
+/// Advances `stream` past the values [`generate_pricing_for_sales_table`]
+/// would draw, without computing a [`Pricing`].
+///
+/// Must be kept in sync with [`generate_pricing_for_sales_table`]
+pub fn skip_pricing_for_sales_table(stream: &mut RandomNumberStream) {
+    for _ in 0..8 {
+        stream.next_random();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,5 +511,15 @@ mod tests {
         assert_eq!(Pricing::QUANTITY_MIN, 1);
         assert_eq!(Pricing::markup_min().get_number(), 0);
         assert_eq!(Pricing::discount_min().get_number(), 0);
+    }
+
+    #[test]
+    fn test_skip_pricing_for_sales_table_matches_generate() {
+        use crate::random::RandomNumberStream;
+        let mut generated = RandomNumberStream::new(1).unwrap();
+        let mut skipped = RandomNumberStream::new(1).unwrap();
+        generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), &mut generated);
+        skip_pricing_for_sales_table(&mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
     }
 }

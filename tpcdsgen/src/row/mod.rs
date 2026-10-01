@@ -11,7 +11,7 @@ mod tables;
 
 pub use abstract_row_generator::AbstractRowGenerator;
 pub use generated_row::GeneratedRow;
-pub use row_generator::{RowGenerator, RowGeneratorResult};
+pub use row_generator::{RowGenerator, RowGeneratorResult, SalesReturnsSelection};
 pub use row_iter::RowIter;
 pub use sales_row_generator::{SalesRowGenerator, SalesRows};
 pub use sales_row_iter::SalesRowIter;

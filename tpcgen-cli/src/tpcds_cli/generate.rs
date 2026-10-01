@@ -123,14 +123,14 @@ pub(super) async fn generate_table<F: AllRowFormats>(
     }
     // Sales generators emit a sales row and maybe a returns row per line item
     macro_rules! sales {
-        ($GENERATOR:ty, $select:expr) => {
+        ($generator:expr, $select:expr) => {
             write_table(
                 format,
                 &base_location,
                 planned,
                 num_threads,
                 |session, source_rows, range| {
-                    let mut rows = SalesRowIter::new(<$GENERATOR>::new(), session, source_rows);
+                    let mut rows = SalesRowIter::new($generator, session, source_rows);
                     rows.set_source_row_range(*range.start(), *range.end());
                     rows.filter_map($select)
                 },
@@ -162,12 +162,12 @@ pub(super) async fn generate_table<F: AllRowFormats>(
         Table::WebSite => single!(WebSiteRowGenerator),
 
         // Sales tables and the returns tables their generator also emits
-        Table::StoreSales => sales!(StoreSalesRowGenerator, |r| Some(r.sales)),
-        Table::StoreReturns => sales!(StoreSalesRowGenerator, |r| r.returns),
-        Table::CatalogSales => sales!(CatalogSalesRowGenerator, |r| Some(r.sales)),
-        Table::CatalogReturns => sales!(CatalogSalesRowGenerator, |r| r.returns),
-        Table::WebSales => sales!(WebSalesRowGenerator, |r| Some(r.sales)),
-        Table::WebReturns => sales!(WebSalesRowGenerator, |r| r.returns),
+        Table::StoreSales => sales!(StoreSalesRowGenerator::sales(), |r| r.sales),
+        Table::StoreReturns => sales!(StoreSalesRowGenerator::returns(), |r| r.returns),
+        Table::CatalogSales => sales!(CatalogSalesRowGenerator::new(), |r| r.sales),
+        Table::CatalogReturns => sales!(CatalogSalesRowGenerator::new(), |r| r.returns),
+        Table::WebSales => sales!(WebSalesRowGenerator::new(), |r| r.sales),
+        Table::WebReturns => sales!(WebSalesRowGenerator::new(), |r| r.returns),
 
         // Source tables - skip
         _ => Ok(()),

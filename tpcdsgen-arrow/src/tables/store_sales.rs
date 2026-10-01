@@ -24,7 +24,7 @@ impl StoreSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::StoreSales);
         Self {
-            inner: SalesRowIter::new(StoreSalesRowGenerator::new(), session, row_count),
+            inner: SalesRowIter::new(StoreSalesRowGenerator::sales(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
@@ -64,8 +64,12 @@ impl Iterator for StoreSalesArrow {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.scratch.clear();
-        self.scratch
-            .extend(self.inner.by_ref().map(|r| r.sales).take(self.batch_size));
+        self.scratch.extend(
+            self.inner
+                .by_ref()
+                .filter_map(|r| r.sales)
+                .take(self.batch_size),
+        );
         let rows = &self.scratch;
         if rows.is_empty() {
             return None;

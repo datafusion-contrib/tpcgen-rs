@@ -16,7 +16,7 @@ impl RandomValueGenerator {
     pub fn generate_uniform_random_int(
         min: i32,
         max: i32,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> i32 {
         // truncating long to int copies behavior of c code.
         let mut result = random_number_stream.next_random() as i32;
@@ -28,7 +28,7 @@ impl RandomValueGenerator {
     pub fn generate_uniform_random_key(
         min: i64,
         max: i64,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> i64 {
         // truncating long to int copies behavior of c code
         let mut result = random_number_stream.next_random() as i32;
@@ -40,7 +40,7 @@ impl RandomValueGenerator {
     pub fn generate_uniform_random_decimal(
         min: Decimal,
         max: Decimal,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> Decimal {
         let precision = if min.get_precision() < max.get_precision() {
             min.get_precision()
@@ -59,7 +59,7 @@ impl RandomValueGenerator {
     pub fn generate_uniform_random_date(
         min: Date,
         max: Date,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> crate::error::Result<Date> {
         let range = max.to_julian_days() - min.to_julian_days();
         let julian_days = min.to_julian_days()
@@ -71,7 +71,7 @@ impl RandomValueGenerator {
     fn generate_random_from_bytes(
         length: usize,
         bytes: &[u8],
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         let mut result = Vec::with_capacity(length);
 
@@ -90,7 +90,7 @@ impl RandomValueGenerator {
     pub fn generate_random_string(
         length: usize,
         character_set: &str,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         let chars: Vec<char> = character_set.chars().collect();
         let mut result = String::with_capacity(length);
@@ -107,7 +107,7 @@ impl RandomValueGenerator {
     // Generate random alphanumeric string (optimized with static byte array)
     pub fn generate_random_alphanumeric(
         length: usize,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         Self::generate_random_from_bytes(length, Self::ALPHA_NUMERIC_BYTES, random_number_stream)
     }
@@ -115,7 +115,7 @@ impl RandomValueGenerator {
     // Generate random numeric string (optimized with static byte array)
     pub fn generate_random_digits(
         length: usize,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         Self::generate_random_from_bytes(length, Self::DIGITS_BYTES, random_number_stream)
     }
@@ -126,7 +126,7 @@ impl RandomValueGenerator {
         character_set: &str,
         min: i32,
         max: i32,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         // Optimize for ALPHA_NUMERIC which is the common case
         if character_set == Self::ALPHA_NUMERIC {
@@ -159,7 +159,7 @@ impl RandomValueGenerator {
         bytes: &[u8],
         min: i32,
         max: i32,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         let length = Self::generate_uniform_random_int(min, max, random_number_stream);
         let mut result = Vec::with_capacity(length as usize);
@@ -180,7 +180,7 @@ impl RandomValueGenerator {
     // Generate random boolean with given probability (0.0 to 1.0)
     pub fn generate_random_boolean(
         probability: f64,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> bool {
         random_number_stream.next_random_double() < probability
     }
@@ -188,7 +188,7 @@ impl RandomValueGenerator {
     // Generate random weighted selection from array (indices)
     pub fn generate_weighted_random_index(
         weights: &[i32],
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> usize {
         let total_weight: i32 = weights.iter().sum();
         let random_value = Self::generate_uniform_random_int(1, total_weight, random_number_stream);
@@ -209,7 +209,7 @@ impl RandomValueGenerator {
     pub fn generate_random_text(
         min_length: i32,
         max_length: i32,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         let mut is_sentence_beginning = true;
         let mut text = String::new();
@@ -250,7 +250,7 @@ impl RandomValueGenerator {
 
     /// Generate a random URL (generateRandomUrl)
     /// This is what the C code does. No joke. It always returns the same value.
-    pub fn generate_random_url(_random_number_stream: &mut dyn RandomNumberStream) -> String {
+    pub fn generate_random_url(_random_number_stream: &mut RandomNumberStream) -> String {
         "http://www.foo.com".to_string()
     }
 
@@ -258,7 +258,7 @@ impl RandomValueGenerator {
     pub fn generate_random_email(
         first: &str,
         last: &str,
-        random_number_stream: &mut dyn RandomNumberStream,
+        random_number_stream: &mut RandomNumberStream,
     ) -> String {
         use crate::distribution::TopDomainsDistribution;
 
@@ -278,7 +278,7 @@ impl RandomValueGenerator {
     }
 
     // Generate random sentence following Java implementation exactly
-    fn generate_random_sentence(random_number_stream: &mut dyn RandomNumberStream) -> String {
+    fn generate_random_sentence(random_number_stream: &mut RandomNumberStream) -> String {
         use crate::distribution::*;
 
         let mut verbiage = String::new();
@@ -345,25 +345,25 @@ impl RandomValueGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::stream::RandomNumberStreamImpl;
+    use crate::random::stream::RandomNumberStream;
 
     #[test]
     fn test_uniform_random_int() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let result = RandomValueGenerator::generate_uniform_random_int(1, 10, &mut stream);
         assert!((1..=10).contains(&result));
     }
 
     #[test]
     fn test_uniform_random_key() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let result = RandomValueGenerator::generate_uniform_random_key(100, 200, &mut stream);
         assert!((100..=200).contains(&result));
     }
 
     #[test]
     fn test_uniform_random_decimal() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let min = Decimal::new(100, 2).unwrap(); // 1.00
         let max = Decimal::new(500, 2).unwrap(); // 5.00
         let result = RandomValueGenerator::generate_uniform_random_decimal(min, max, &mut stream);
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_uniform_random_date() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let min = Date::new(2020, 1, 1);
         let max = Date::new(2020, 12, 31);
         let result =
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_random_alphanumeric() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let result = RandomValueGenerator::generate_random_alphanumeric(10, &mut stream);
 
         assert_eq!(result.len(), 10);
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_random_digits() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let result = RandomValueGenerator::generate_random_digits(5, &mut stream);
 
         assert_eq!(result.len(), 5);
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_random_boolean() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Test with 0% probability - should always be false
         let _result_never = RandomValueGenerator::generate_random_boolean(0.0, &mut stream);
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_weighted_random_index() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let weights = vec![10, 20, 30, 40];
         let result = RandomValueGenerator::generate_weighted_random_index(&weights, &mut stream);
 
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_random_string_custom_charset() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let charset = "ABC123";
         let result = RandomValueGenerator::generate_random_string(8, charset, &mut stream);
 

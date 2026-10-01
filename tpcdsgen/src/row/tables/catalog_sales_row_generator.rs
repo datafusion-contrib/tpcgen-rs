@@ -452,7 +452,7 @@ impl SalesRowGenerator for CatalogSalesRowGenerator {
         self.remaining_line_items -= 1;
 
         Ok(SalesRows {
-            sales: catalog_sales_row,
+            sales: Some(catalog_sales_row),
             returns: return_row,
         })
     }
@@ -490,7 +490,7 @@ impl RowGenerator for CatalogSalesRowGenerator {
         let SalesRows { sales, returns } =
             SalesRowGenerator::generate_row(self, row_number, session)?;
         let mut rows: Vec<GeneratedRow> = Vec::with_capacity(2);
-        rows.push(sales.into());
+        rows.extend(sales.map(GeneratedRow::from));
         rows.extend(returns.map(GeneratedRow::from));
         Ok(RowGeneratorResult::new_with_multiple(
             rows,

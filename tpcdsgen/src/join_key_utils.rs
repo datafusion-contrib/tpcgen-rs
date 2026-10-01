@@ -53,7 +53,7 @@ const CATALOGS_PER_YEAR: i32 = 18;
 /// The generated join key value, or -1 if no valid key can be generated
 pub fn generate_join_key(
     from_column: &dyn GeneratorColumn,
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
     to_table: Table,
     join_count: i64,
     scaling: &Scaling,
@@ -88,6 +88,22 @@ pub fn generate_join_key(
     }
 }
 
+/// Advances `random_number_stream` past the values [`generate_join_key`]
+/// would draw for a key to `to_table`, without computing the key.
+///
+/// Must be kept in sync with [`generate_join_key`].
+pub fn skip_join_key(to_table: Table, random_number_stream: &mut RandomNumberStream) {
+    debug_assert!(
+        !to_table.keeps_history()
+            && !matches!(
+                to_table,
+                Table::CatalogPage | Table::DateDim | Table::TimeDim
+            ),
+        "skip_join_key does not support {to_table:?}"
+    );
+    random_number_stream.next_random();
+}
+
 /// Generates a join key to the catalog_page table.
 ///
 /// Calculates which catalog page based on the date and catalog type (monthly, bi-annual, quarterly).
@@ -95,7 +111,7 @@ pub fn generate_join_key(
 ///
 /// Based on JoinKeyUtils.java:generateCatalogPageJoinKey
 fn generate_catalog_page_join_key(
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
     julian_date: i64,
     scaling: &Scaling,
 ) -> Result<i64> {
@@ -149,7 +165,7 @@ fn generate_catalog_page_join_key(
 ///
 /// Based on JoinKeyUtils.java:generateDateJoinKey (lines 109-142)
 fn generate_date_join_key(
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
     from_column: &dyn GeneratorColumn,
     join_count: i64,
     year: i32,
@@ -198,7 +214,7 @@ fn generate_date_join_key(
 /// Based on JoinKeyUtils.java:generateDateReturnsJoinKey (lines 192-211)
 fn generate_date_returns_join_key(
     from_table: crate::column::Table,
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
     join_count: i64, // This is the sale date (julian days)
 ) -> Result<i64> {
     use crate::column::Table as ColumnTable;
@@ -233,7 +249,7 @@ fn generate_date_returns_join_key(
 /// Based on JoinKeyUtils.java:generateTimeJoinKey (lines 213-235)
 fn generate_time_join_key(
     from_column: &dyn GeneratorColumn,
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
 ) -> Result<i64> {
     use crate::column::Table as ColumnTable;
 
@@ -261,7 +277,7 @@ fn generate_time_join_key(
 /// [`crate::slowly_changing_dimension_utils`].
 fn generate_scd_join_key(
     to_table: Table,
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
     julian_date: i64,
     scaling: &Scaling,
 ) -> Result<i64> {
@@ -297,7 +313,7 @@ fn generate_scd_join_key(
 /// Based on JoinKeyUtils.java:generateWebJoinKey (lines 144-175)
 fn generate_web_join_key(
     from_column: &dyn GeneratorColumn,
-    random_number_stream: &mut dyn RandomNumberStream,
+    random_number_stream: &mut RandomNumberStream,
     join_key: i64,
     scaling: &Scaling,
 ) -> Result<i64> {
@@ -373,7 +389,7 @@ fn is_replacement(join_key: i64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_is_replaced() {
@@ -396,7 +412,7 @@ mod tests {
     #[test]
     fn test_generate_time_join_key() {
         use crate::generator::StoreSalesGeneratorColumn;
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
         let result = generate_time_join_key(&column, &mut stream).unwrap();
 
@@ -410,8 +426,8 @@ mod tests {
     #[test]
     fn test_generate_time_join_key_deterministic() {
         use crate::generator::StoreSalesGeneratorColumn;
-        let mut stream1 = RandomNumberStreamImpl::new(1).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream1 = RandomNumberStream::new(1).unwrap();
+        let mut stream2 = RandomNumberStream::new(1).unwrap();
         let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
 
         let result1 = generate_time_join_key(&column, &mut stream1).unwrap();
@@ -422,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_catalog_page_join_key() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let scaling = Scaling::new(1.0);
 
         // Catalog page join key is now implemented (CatalogPageTypesDistribution ported)
@@ -436,7 +452,7 @@ mod tests {
     // NOTE: Test disabled until column::Table vs config::Table is resolved
     // #[test]
     // fn test_generate_date_returns_join_key() {
-    //     let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+    //     let mut stream = RandomNumberStream::new(1).unwrap();
     //     let sale_date = Date::to_julian_days(&Date::new(2003, 1, 1)) as i64;
     //
     //     let return_date = _generate_date_returns_join_key(
@@ -453,4 +469,22 @@ mod tests {
     //     let lag = return_date - sale_date;
     //     assert!(lag >= (CS_MIN_SHIP_DELAY * 2) as i64 && lag <= (CS_MAX_SHIP_DELAY * 2) as i64);
     // }
+
+    #[test]
+    fn test_skip_join_key_matches_generate() {
+        use crate::generator::StoreSalesGeneratorColumn;
+        let scaling = Scaling::new(1.0);
+        let mut generated = RandomNumberStream::new(1).unwrap();
+        let mut skipped = RandomNumberStream::new(1).unwrap();
+        generate_join_key(
+            &StoreSalesGeneratorColumn::SsSoldPromoSk,
+            &mut generated,
+            Table::Promotion,
+            1,
+            &scaling,
+        )
+        .unwrap();
+        skip_join_key(Table::Promotion, &mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
+    }
 }

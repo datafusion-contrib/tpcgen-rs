@@ -8,7 +8,7 @@ pub trait Distribution<T> {
         &self,
         value_list: usize,
         weight_list: usize,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<T>;
 
     /// Get value at specific index
@@ -59,7 +59,7 @@ impl WeightsBuilder {
 pub fn pick_random_value<'a, T>(
     values: &'a [T],
     weights: &[i32],
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Result<&'a T> {
     use crate::random::RandomValueGenerator;
 
@@ -101,7 +101,7 @@ pub fn get_value_for_index_mod_size<T>(index: i64, values: &[T]) -> &T {
 /// Pick random index from weights (DistributionUtils.pickRandomIndex)
 ///
 /// Weights must be nondecreasing.
-pub fn pick_random_index(weights: &[i32], stream: &mut dyn RandomNumberStream) -> Result<usize> {
+pub fn pick_random_index(weights: &[i32], stream: &mut RandomNumberStream) -> Result<usize> {
     use crate::random::RandomValueGenerator;
 
     if weights.is_empty() {
@@ -157,7 +157,7 @@ impl DistributionUtils {
     /// Weights must be nondecreasing.
     pub fn pick_random_index_from_weights(
         weights: &[i32],
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<usize> {
         if weights.is_empty() {
             return Err(TpcdsError::new("Cannot pick from empty weights"));
@@ -179,7 +179,7 @@ impl DistributionUtils {
     /// Pick random index with uniform distribution (for non-weighted selection)
     pub fn pick_random_index_uniform(
         count: usize,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<usize> {
         if count == 0 {
             return Err(TpcdsError::new("Cannot pick from empty collection"));
@@ -235,7 +235,7 @@ impl DistributionUtils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_weights_builder() {
@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_from_weights() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let weights = vec![10, 30, 60, 100]; // Cumulative weights
 
         // Test multiple selections to ensure they're in valid range
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_uniform() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         for _ in 0..10 {
             let index = DistributionUtils::pick_random_index_uniform(5, &mut stream).unwrap();
@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_empty() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         assert!(DistributionUtils::pick_random_index_from_weights(&[], &mut stream).is_err());
         assert!(DistributionUtils::pick_random_index_uniform(0, &mut stream).is_err());
     }
@@ -345,8 +345,8 @@ mod tests {
         // Test that same seed produces same results
         let weights = vec![25, 50, 75, 100];
 
-        let mut stream1 = RandomNumberStreamImpl::new_with_column(1, 1).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new_with_column(1, 1).unwrap();
+        let mut stream1 = RandomNumberStream::new_with_column(1, 1).unwrap();
+        let mut stream2 = RandomNumberStream::new_with_column(1, 1).unwrap();
 
         let index1 =
             DistributionUtils::pick_random_index_from_weights(&weights, &mut stream1).unwrap();

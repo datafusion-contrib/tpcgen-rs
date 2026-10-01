@@ -1,17 +1,7 @@
 use crate::{check_argument, error::Result, TpcdsError};
 
-pub trait RandomNumberStream: Send + Sync {
-    fn next_random(&mut self) -> i64;
-    fn next_random_double(&mut self) -> f64;
-    fn skip_rows(&mut self, number_of_rows: u64);
-    fn reset_seed(&mut self);
-    fn get_seeds_used(&self) -> i32;
-    fn reset_seeds_used(&mut self);
-    fn get_seeds_per_row(&self) -> i32;
-}
-
 #[derive(Debug, Clone)]
-pub struct RandomNumberStreamImpl {
+pub struct RandomNumberStream {
     // Constants matching Java implementation exactly
     seed: i64,
     initial_seed: i64,
@@ -19,7 +9,7 @@ pub struct RandomNumberStreamImpl {
     seeds_per_row: i32,
 }
 
-impl RandomNumberStreamImpl {
+impl RandomNumberStream {
     const DEFAULT_SEED_BASE: i32 = 19620718;
     const MULTIPLIER: i64 = 16807;
     const QUOTIENT: i64 = 127773; // the quotient MAX_INT / MULTIPLIER
@@ -27,7 +17,7 @@ impl RandomNumberStreamImpl {
 
     pub fn new(seeds_per_row: i32) -> Result<Self> {
         check_argument!(seeds_per_row >= 0, "seedsPerRow must be >=0");
-        Ok(RandomNumberStreamImpl {
+        Ok(RandomNumberStream {
             initial_seed: 3,
             seed: 3,
             seeds_used: 0,
@@ -46,7 +36,7 @@ impl RandomNumberStreamImpl {
     ) -> Result<Self> {
         check_argument!(seeds_per_row >= 0, "seedsPerRow must be >=0");
         let initial_seed = seed_base as i64 + global_column_number as i64 * (i32::MAX as i64 / 799);
-        Ok(RandomNumberStreamImpl {
+        Ok(RandomNumberStream {
             initial_seed,
             seed: initial_seed,
             seeds_used: 0,
@@ -55,9 +45,9 @@ impl RandomNumberStreamImpl {
     }
 }
 
-impl RandomNumberStream for RandomNumberStreamImpl {
+impl RandomNumberStream {
     // https://en.wikipedia.org/wiki/Lehmer_random_number_generator
-    fn next_random(&mut self) -> i64 {
+    pub fn next_random(&mut self) -> i64 {
         let mut next_seed = self.seed;
         let division_result = next_seed / Self::QUOTIENT;
         let mod_result = next_seed % Self::QUOTIENT;
@@ -71,11 +61,11 @@ impl RandomNumberStream for RandomNumberStreamImpl {
         self.seed
     }
 
-    fn next_random_double(&mut self) -> f64 {
+    pub fn next_random_double(&mut self) -> f64 {
         self.next_random() as f64 / i32::MAX as f64
     }
 
-    fn skip_rows(&mut self, number_of_rows: u64) {
+    pub fn skip_rows(&mut self, number_of_rows: u64) {
         let mut number_of_values_to_skip = number_of_rows * self.seeds_per_row as u64;
         let mut next_seed = self.initial_seed;
         let mut multiplier = Self::MULTIPLIER;
@@ -93,20 +83,20 @@ impl RandomNumberStream for RandomNumberStreamImpl {
         self.seeds_used = 0;
     }
 
-    fn reset_seed(&mut self) {
+    pub fn reset_seed(&mut self) {
         self.seed = self.initial_seed;
         self.seeds_used = 0;
     }
 
-    fn get_seeds_used(&self) -> i32 {
+    pub fn get_seeds_used(&self) -> i32 {
         self.seeds_used
     }
 
-    fn reset_seeds_used(&mut self) {
+    pub fn reset_seeds_used(&mut self) {
         self.seeds_used = 0;
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    pub fn get_seeds_per_row(&self) -> i32 {
         self.seeds_per_row
     }
 }
@@ -117,14 +107,14 @@ mod tests {
 
     #[test]
     fn test_random_stream_creation() {
-        let stream = RandomNumberStreamImpl::new(1).unwrap();
+        let stream = RandomNumberStream::new(1).unwrap();
         assert_eq!(stream.get_seeds_per_row(), 1);
         assert_eq!(stream.get_seeds_used(), 0);
     }
 
     #[test]
     fn test_random_stream_with_column() {
-        let stream = RandomNumberStreamImpl::new_with_column(1, 1).unwrap();
+        let stream = RandomNumberStream::new_with_column(1, 1).unwrap();
         assert_eq!(stream.get_seeds_per_row(), 1);
 
         // Initial seed should be computed based on column number
@@ -133,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_next_random() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let first = stream.next_random();
         let second = stream.next_random();
 
@@ -144,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_random_double() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let random_double = stream.next_random_double();
 
         // Should be between 0 and 1
@@ -153,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_reset_seed() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let initial = stream.next_random();
         stream.next_random(); // Generate another
 
@@ -166,8 +156,8 @@ mod tests {
 
     #[test]
     fn test_skip_rows() {
-        let mut stream1 = RandomNumberStreamImpl::new(2).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(2).unwrap();
+        let mut stream1 = RandomNumberStream::new(2).unwrap();
+        let mut stream2 = RandomNumberStream::new(2).unwrap();
 
         // Generate 2 rows manually on stream1
         stream1.next_random();

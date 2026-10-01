@@ -134,3 +134,9 @@ To verify the Rust implementation matches:
 # Verify at scale 10
 ./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 10
 ```
+
+## Scale factors above 100,000
+
+The TPC-DS spec only defines scale factors up to 100,000; scaling beyond that
+is not defined. Larger scale factors are allowed, and this crate does its best
+to simulate growth.

@@ -14,23 +14,25 @@
 
 //! Store sales row generator
 
-use crate::config::Session;
+use crate::config::{Scaling, Session};
 use crate::error::Result;
 use crate::generator::StoreSalesGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
-use crate::nulls::create_null_bit_map;
+use crate::join_key_utils::{generate_join_key, skip_join_key};
+use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
 use crate::row::store_returns_row::StoreReturnsRow;
 use crate::row::store_returns_row_generator::StoreReturnsRowGenerator;
 use crate::row::store_sales_row::StoreSalesRow;
 use crate::row::{
-    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesRowGenerator,
-    SalesRows,
+    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesReturnsSelection,
+    SalesRowGenerator, SalesRows,
 };
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
-use crate::types::{generate_pricing_for_sales_table, get_store_sales_pricing_limits};
+use crate::types::{
+    generate_pricing_for_sales_table, get_store_sales_pricing_limits, skip_pricing_for_sales_table,
+};
 
 /// Percentage of sales that get returned
 const SR_RETURN_PCT: i32 = 10;
@@ -92,10 +94,21 @@ pub struct StoreSalesRowGenerator {
     order_info: OrderInfo,
     item_index: i32,
     store_returns_generator: StoreReturnsRowGenerator,
+    selection: SalesReturnsSelection,
 }
 
 impl StoreSalesRowGenerator {
-    pub fn new() -> Self {
+    /// Create a generator for `store_sales` rows
+    pub fn sales() -> Self {
+        Self::new(SalesReturnsSelection::Sales)
+    }
+
+    /// Create a generator for `store_returns` rows
+    pub fn returns() -> Self {
+        Self::new(SalesReturnsSelection::Returns)
+    }
+
+    fn new(selection: SalesReturnsSelection) -> Self {
         StoreSalesRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::StoreSales),
             item_permutation: None,
@@ -103,7 +116,70 @@ impl StoreSalesRowGenerator {
             order_info: OrderInfo::default(),
             item_index: 0,
             store_returns_generator: StoreReturnsRowGenerator::new(),
+            selection,
         }
+    }
+
+    /// Advance the random streams an unreturned item's sales inputs would
+    /// have consumed, without calculating them.
+    ///
+    /// Used in [`SalesReturnsSelection::Returns`] mode to skip the pricing and
+    /// join-key calculations.
+    fn skip_item_sales_draws(&mut self) {
+        use StoreSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
+        skip_null_bit_map(stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&SsSoldPromoSk);
+        skip_join_key(crate::config::Table::Promotion, stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
+        skip_pricing_for_sales_table(stream);
+    }
+
+    /// Generate the sales row for the current item.
+    fn generate_sales_row(
+        &mut self,
+        ss_sold_item_sk: i64,
+        scaling: &Scaling,
+    ) -> Result<StoreSalesRow> {
+        use StoreSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
+        let null_bit_map = create_null_bit_map(Table::StoreSales, stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&SsSoldPromoSk);
+        let ss_sold_promo_sk = generate_join_key(
+            &SsSoldPromoSk,
+            stream,
+            crate::config::Table::Promotion,
+            1,
+            scaling,
+        )?;
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
+        let ss_pricing =
+            generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), stream);
+
+        Ok(StoreSalesRow::new(
+            null_bit_map,
+            self.order_info.ss_sold_date_sk,
+            self.order_info.ss_sold_time_sk,
+            ss_sold_item_sk,
+            self.order_info.ss_sold_customer_sk,
+            self.order_info.ss_sold_cdemo_sk,
+            self.order_info.ss_sold_hdemo_sk,
+            self.order_info.ss_sold_addr_sk,
+            self.order_info.ss_sold_store_sk,
+            ss_sold_promo_sk,
+            self.order_info.ss_ticket_number,
+            ss_pricing,
+        ))
     }
 
     fn generate_order_info(&mut self, row_number: u64, session: &Session) -> Result<OrderInfo> {
@@ -205,12 +281,6 @@ impl StoreSalesRowGenerator {
     }
 }
 
-impl Default for StoreSalesRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SalesRowGenerator for StoreSalesRowGenerator {
     type Sales = StoreSalesRow;
     type Returns = StoreReturnsRow;
@@ -250,10 +320,6 @@ impl SalesRowGenerator for StoreSalesRowGenerator {
                 RandomValueGenerator::generate_uniform_random_int(1, item_count as i32, stream);
         }
 
-        // Generate null bit map
-        let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
-        let null_bit_map = create_null_bit_map(Table::StoreSales, stream);
-
         // Items need to be unique within an order
         // Use a sequence within the permutation
         self.item_index += 1;
@@ -271,64 +337,37 @@ impl SalesRowGenerator for StoreSalesRowGenerator {
             scaling,
         );
 
-        // Generate promo sk
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&SsSoldPromoSk);
-        let ss_sold_promo_sk = generate_join_key(
-            &SsSoldPromoSk,
-            stream,
-            crate::config::Table::Promotion,
-            1,
-            scaling,
-        )?;
-
         // Generate pricing
-        let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
-        let ss_pricing =
-            generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), stream);
-
-        let store_sales_row = StoreSalesRow::new(
-            null_bit_map,
-            self.order_info.ss_sold_date_sk,
-            self.order_info.ss_sold_time_sk,
-            ss_sold_item_sk,
-            self.order_info.ss_sold_customer_sk,
-            self.order_info.ss_sold_cdemo_sk,
-            self.order_info.ss_sold_hdemo_sk,
-            self.order_info.ss_sold_addr_sk,
-            self.order_info.ss_sold_store_sk,
-            ss_sold_promo_sk,
-            self.order_info.ss_ticket_number,
-            ss_pricing,
-        );
-
-        // Check if this sale gets returned (10% return rate)
-        // We check and generate the return BEFORE moving the sales row to avoid cloning
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
 
-        // Generate return row if applicable (using reference before we move sales_row)
-        // Note: In Java's --table store_sales mode, returns are NOT generated.
-        // This code generates returns (like Java's --table store_returns mode).
-        // The consume_remaining_seeds_for_row() is called separately in the binary.
-        let return_row = if random_int < SR_RETURN_PCT {
-            Some(
-                self.store_returns_generator
-                    .generate_row(session, &store_sales_row)?,
-            )
-        } else {
-            None
+        let rows = match self.selection {
+            SalesReturnsSelection::Sales => SalesRows {
+                sales: Some(self.generate_sales_row(ss_sold_item_sk, scaling)?),
+                returns: None,
+            },
+            // Row is returned if random_int < SR_RETURN_PCT
+            SalesReturnsSelection::Returns if random_int < SR_RETURN_PCT => {
+                let row = self.generate_sales_row(ss_sold_item_sk, scaling)?;
+                SalesRows {
+                    sales: None,
+                    returns: Some(self.store_returns_generator.generate_row(session, &row)?),
+                }
+            }
+            SalesReturnsSelection::Returns => {
+                self.skip_item_sales_draws();
+                SalesRows {
+                    sales: None,
+                    returns: None,
+                }
+            }
         };
 
         self.remaining_line_items -= 1;
 
-        Ok(SalesRows {
-            sales: store_sales_row,
-            returns: return_row,
-        })
+        Ok(rows)
     }
 
     fn is_last_row_in_order(&self) -> bool {
@@ -336,16 +375,31 @@ impl SalesRowGenerator for StoreSalesRowGenerator {
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.store_returns_generator
-            .consume_remaining_seeds_for_row();
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+                self.store_returns_generator
+                    .consume_remaining_seeds_for_row();
+            }
+        }
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        self.store_returns_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+                self.store_returns_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+        }
     }
 }
 
@@ -364,7 +418,7 @@ impl RowGenerator for StoreSalesRowGenerator {
         let SalesRows { sales, returns } =
             SalesRowGenerator::generate_row(self, row_number, session)?;
         let mut rows: Vec<GeneratedRow> = Vec::with_capacity(2);
-        rows.push(sales.into());
+        rows.extend(sales.map(GeneratedRow::from));
         rows.extend(returns.map(GeneratedRow::from));
         Ok(RowGeneratorResult::new_with_multiple(
             rows,
@@ -389,14 +443,14 @@ mod tests {
 
     #[test]
     fn test_store_sales_row_generator_creation() {
-        let generator = StoreSalesRowGenerator::new();
+        let generator = StoreSalesRowGenerator::sales();
         assert!(generator.item_permutation.is_none());
         assert_eq!(generator.remaining_line_items, 0);
     }
 
     #[test]
     fn test_store_sales_row_generation() {
-        let mut generator = StoreSalesRowGenerator::new();
+        let mut generator = StoreSalesRowGenerator::sales();
         let session = Session::default();
 
         let result = generator
@@ -413,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_store_sales_order_grouping() {
-        let mut generator = StoreSalesRowGenerator::new();
+        let mut generator = StoreSalesRowGenerator::sales();
         let session = Session::default();
 
         // Generate first row (starts new order)

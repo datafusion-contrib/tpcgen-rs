@@ -124,7 +124,7 @@ impl LocationTypesDistribution {
     /// A location type string ("single family", "condo", or "apartment")
     pub fn pick_random_location_type(
         weights: LocationTypeWeights,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<String> {
         let dist = Self::get_instance();
 
@@ -141,7 +141,7 @@ impl LocationTypesDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_location_types_distribution_loading() {
@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_location_type() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let location_type = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::DistributionFrequency,
             &mut stream,
@@ -175,8 +175,8 @@ mod tests {
     #[test]
     fn test_pick_random_location_type_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let type1 = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::Uniform,
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_both_weight_types() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Both weight types should work
         let type_uniform = LocationTypesDistribution::pick_random_location_type(

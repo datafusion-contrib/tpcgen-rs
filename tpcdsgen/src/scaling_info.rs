@@ -27,6 +27,8 @@ impl ScalingInfo {
     pub const DEFINED_SCALES: [f64; 10] = [
         0.0, 1.0, 10.0, 100.0, 300.0, 1000.0, 3000.0, 10000.0, 30000.0, 100000.0,
     ];
+    /// Largest scale factor defined by TPC-DS (100_000).
+    const MAX_DEFINED_SCALE: f64 = Self::DEFINED_SCALES[Self::DEFINED_SCALES.len() - 1];
 
     /// Create new ScalingInfo
     pub fn new(
@@ -115,8 +117,12 @@ impl ScalingInfo {
 
         let base_row_count = if scale < 1.0 {
             self.get_row_count_for_scale(Self::DEFINED_SCALES[0])?
-        } else {
+        } else if scale <= Self::MAX_DEFINED_SCALE {
             self.get_row_count_for_scale(Self::DEFINED_SCALES[1])?
+        } else {
+            // Scaling above 100_000 is not defined by TPC-DS.
+            // Simulate growth above 100_000.
+            self.get_row_count_for_scale(Self::DEFINED_SCALES[scale_slot - 1])?
         };
 
         let count = ((float_offset * delta as f64) as i64) + base_row_count;

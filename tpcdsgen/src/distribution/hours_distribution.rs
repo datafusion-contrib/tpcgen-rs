@@ -166,10 +166,7 @@ impl HoursDistribution {
     /// # Returns
     ///
     /// An hour value (0-23) based on the weighted distribution
-    pub fn pick_random_hour(
-        weights: HoursWeights,
-        stream: &mut dyn RandomNumberStream,
-    ) -> Result<i32> {
+    pub fn pick_random_hour(weights: HoursWeights, stream: &mut RandomNumberStream) -> Result<i32> {
         let dist = Self::get_instance();
         let weights_list = &dist.weights_lists[weights as usize];
 
@@ -202,9 +199,9 @@ mod tests {
 
     #[test]
     fn test_pick_random_hour() {
-        use crate::random::RandomNumberStreamImpl;
+        use crate::random::RandomNumberStream;
 
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let hour = HoursDistribution::pick_random_hour(HoursWeights::Uniform, &mut stream).unwrap();
 
         // Hour should be in valid range [0, 23]
@@ -217,11 +214,11 @@ mod tests {
 
     #[test]
     fn test_pick_random_hour_deterministic() {
-        use crate::random::RandomNumberStreamImpl;
+        use crate::random::RandomNumberStream;
 
         // Same seed should produce same hour
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let hour1 = HoursDistribution::pick_random_hour(HoursWeights::Store, &mut stream1).unwrap();
         let hour2 = HoursDistribution::pick_random_hour(HoursWeights::Store, &mut stream2).unwrap();
@@ -231,10 +228,10 @@ mod tests {
 
     #[test]
     fn test_pick_random_hour_different_weights() {
-        use crate::random::RandomNumberStreamImpl;
+        use crate::random::RandomNumberStream;
 
         // Different weights should potentially produce different results
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         let hour_uniform =
             HoursDistribution::pick_random_hour(HoursWeights::Uniform, &mut stream).unwrap();

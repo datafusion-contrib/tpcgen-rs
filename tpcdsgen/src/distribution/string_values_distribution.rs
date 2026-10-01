@@ -82,7 +82,7 @@ impl StringValuesDistribution {
         &self,
         value_list_index: usize,
         weight_list_index: usize,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<&str> {
         if value_list_index >= self.values_lists.len() {
             return Err(TpcdsError::new(&format!(
@@ -131,7 +131,7 @@ impl StringValuesDistribution {
     pub fn pick_random_index(
         &self,
         weight_list_index: usize,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<usize> {
         if weight_list_index >= self.weights_lists.len() {
             return Err(TpcdsError::new(&format!(
@@ -191,7 +191,7 @@ impl StringValuesDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_build_call_centers_distribution() {
@@ -218,7 +218,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Pick using uniform weights (index 0)
         let center1 = dist.pick_random_value(0, 0, &mut stream).unwrap();
@@ -240,7 +240,7 @@ mod tests {
 
         assert!(dist.get_size() > 100); // Should have many names
 
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Pick using male frequency weights (index 0)
         let male_name = dist.pick_random_value(0, 0, &mut stream).unwrap();
@@ -261,8 +261,8 @@ mod tests {
             StringValuesDistribution::build_string_values_distribution("call_centers.dst", 1, 2)
                 .unwrap();
 
-        let mut stream1 = RandomNumberStreamImpl::new(1).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream1 = RandomNumberStream::new(1).unwrap();
+        let mut stream2 = RandomNumberStream::new(1).unwrap();
 
         let result1 = dist.pick_random_value(0, 0, &mut stream1).unwrap();
         let result2 = dist.pick_random_value(0, 0, &mut stream2).unwrap();
