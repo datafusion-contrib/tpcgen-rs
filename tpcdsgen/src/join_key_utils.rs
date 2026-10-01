@@ -492,49 +492,53 @@ mod tests {
     //     assert!(lag >= (CS_MIN_SHIP_DELAY * 2) as i64 && lag <= (CS_MAX_SHIP_DELAY * 2) as i64);
     // }
 
-    fn assert_skip_matches_generate(
-        to_table: Table,
-        join_count: i64,
-        skip: impl FnOnce(&mut dyn RandomNumberStream),
-    ) {
-        use crate::generator::StoreSalesGeneratorColumn;
-        let scaling = Scaling::new(1.0);
-        let mut generated = RandomNumberStreamImpl::new(1).unwrap();
-        let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
-        generate_join_key(
-            &StoreSalesGeneratorColumn::SsSoldPromoSk,
-            &mut generated,
-            to_table,
-            join_count,
-            &scaling,
+    /// Two identical streams, one for `generate_join_key` and one for its
+    /// `skip_*` counterpart.
+    fn paired_streams() -> (RandomNumberStreamImpl, RandomNumberStreamImpl) {
+        (
+            RandomNumberStreamImpl::new(1).unwrap(),
+            RandomNumberStreamImpl::new(1).unwrap(),
         )
-        .unwrap();
-        skip(&mut skipped);
-        assert_eq!(
-            generated.next_random(),
-            skipped.next_random(),
-            "{to_table:?} {join_count}"
-        );
     }
 
     #[test]
     fn test_skip_join_key_matches_generate() {
-        assert_skip_matches_generate(Table::Promotion, 1, |s| skip_join_key(Table::Promotion, s));
+        use crate::generator::StoreSalesGeneratorColumn;
+        let scaling = Scaling::new(1.0);
+        let (mut generated, mut skipped) = paired_streams();
+        generate_join_key(
+            &StoreSalesGeneratorColumn::SsSoldPromoSk,
+            &mut generated,
+            Table::Promotion,
+            1,
+            &scaling,
+        )
+        .unwrap();
+        skip_join_key(Table::Promotion, &mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
     }
 
     #[test]
     fn test_skip_join_key_catalog_page_matches_generate() {
+        let scaling = Scaling::new(1.0);
         let date = Date::JULIAN_DATA_START_DATE + 100;
-        assert_skip_matches_generate(Table::CatalogPage, date, skip_join_key_catalog_page);
+        let (mut generated, mut skipped) = paired_streams();
+        generate_catalog_page_join_key(&mut generated, date, &scaling).unwrap();
+        skip_join_key_catalog_page(&mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
     }
 
     #[test]
     fn test_skip_join_key_scd_matches_generate() {
+        let scaling = Scaling::new(1.0);
         for date in [
             Date::JULIAN_DATA_START_DATE + 100,
             Date::JULIAN_DATA_END_DATE + 1,
         ] {
-            assert_skip_matches_generate(Table::WebPage, date, |s| skip_join_key_scd(date, s));
+            let (mut generated, mut skipped) = paired_streams();
+            generate_scd_join_key(Table::WebPage, &mut generated, date, &scaling).unwrap();
+            skip_join_key_scd(date, &mut skipped);
+            assert_eq!(generated.next_random(), skipped.next_random(), "{date}");
         }
     }
 }
