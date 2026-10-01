@@ -120,7 +120,7 @@ pub fn skip_join_key_catalog_page(random_number_stream: &mut dyn RandomNumberStr
 /// `web_site`), without computing the key.
 ///
 /// Must be kept in sync with `generate_scd_join_key`.
-pub fn skip_join_key_scd(julian_date: i64, random_number_stream: &mut dyn RandomNumberStream) {
+pub fn skip_scd_join_key(julian_date: i64, random_number_stream: &mut dyn RandomNumberStream) {
     if julian_date <= Date::JULIAN_DATA_END_DATE {
         random_number_stream.next_random();
     }
@@ -529,7 +529,7 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_join_key_scd_matches_generate() {
+    fn test_skip_scd_join_key_matches_generate() {
         let scaling = Scaling::new(1.0);
         for date in [
             Date::JULIAN_DATA_START_DATE + 100,
@@ -537,7 +537,7 @@ mod tests {
         ] {
             let (mut generated, mut skipped) = paired_streams();
             generate_scd_join_key(Table::WebPage, &mut generated, date, &scaling).unwrap();
-            skip_join_key_scd(date, &mut skipped);
+            skip_scd_join_key(date, &mut skipped);
             assert_eq!(generated.next_random(), skipped.next_random(), "{date}");
         }
     }
