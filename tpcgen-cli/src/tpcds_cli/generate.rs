@@ -41,7 +41,6 @@ pub(super) fn output_location_for_table(
 }
 
 /// Trait for formatting text output for the TPC-DS row generators (DAT or CSV).
-/// Trait for formatting text output for the TPC-DS row generators (DAT or CSV).
 ///
 /// Generic over the row type `R` so the typed inventory path (row type
 /// `InventoryRow`) and the legacy enum path (row type `GeneratedRow`) can
