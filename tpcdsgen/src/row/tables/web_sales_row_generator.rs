@@ -17,7 +17,7 @@
 use crate::config::{Scaling, Session};
 use crate::error::Result;
 use crate::generator::WebSalesGeneratorColumn;
-use crate::join_key_utils::{generate_join_key, skip_join_key};
+use crate::join_key_utils::{generate_join_key, skip_join_key, skip_join_key_scd};
 use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
@@ -125,25 +125,25 @@ impl WebSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWebPageSk);
-        skip_join_key(crate::config::Table::WebPage, sold_date_sk, stream);
+        skip_join_key_scd(sold_date_sk, stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWebSiteSk);
-        skip_join_key(crate::config::Table::WebSite, sold_date_sk, stream);
+        skip_join_key_scd(sold_date_sk, stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsShipModeSk);
-        skip_join_key(crate::config::Table::ShipMode, 1, stream);
+        skip_join_key(crate::config::Table::ShipMode, stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWarehouseSk);
-        skip_join_key(crate::config::Table::Warehouse, 1, stream);
+        skip_join_key(crate::config::Table::Warehouse, stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
-        skip_join_key(crate::config::Table::Promotion, 1, stream);
+        skip_join_key(crate::config::Table::Promotion, stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
         skip_pricing_for_sales_table(stream);
