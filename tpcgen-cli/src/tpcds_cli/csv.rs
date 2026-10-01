@@ -20,6 +20,7 @@ use crate::progress::ProgressTracker;
 use crate::tpcds_cli::generate::{generate_table, RowFormat};
 use crate::tpcds_cli::plan::ChunkFormat;
 use crate::tpcds_cli::runner::{plan_tables, run_plans};
+use std::fmt::Display;
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
@@ -83,34 +84,32 @@ impl Csv {
     }
 }
 
-impl RowFormat<GeneratedRow> for Csv {
-    const EXTENSION: &'static str = "csv";
-
-    fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
-        // Checked by `generate_tables` before any generation starts.
-        let header = csv_header(table, self.delimiter)
-            .unwrap_or_else(|| panic!("table {} has no CSV output", table.get_name()));
-        writeln!(buffer, "{header}").expect("writing to memory cannot fail");
-        buffer
-    }
-
-    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
+/// A row type with a CSV rendering.
+pub(super) trait CsvRow {
+    type Csv<'a>: Display
     where
-        I: Iterator<Item = GeneratedRow>,
-    {
-        for row in rows {
-            writeln!(
-                buffer,
-                "{}",
-                GeneratedRowCsv::with_delimiter(&row, self.delimiter)
-            )
-            .expect("writing to memory cannot fail");
-        }
-        buffer
+        Self: 'a;
+
+    fn csv(&self, delimiter: char) -> Self::Csv<'_>;
+}
+
+impl CsvRow for GeneratedRow {
+    type Csv<'a> = GeneratedRowCsv<'a>;
+
+    fn csv(&self, delimiter: char) -> GeneratedRowCsv<'_> {
+        GeneratedRowCsv::with_delimiter(self, delimiter)
     }
 }
 
-impl RowFormat<InventoryRow> for Csv {
+impl CsvRow for InventoryRow {
+    type Csv<'a> = InventoryCsv<'a>;
+
+    fn csv(&self, delimiter: char) -> InventoryCsv<'_> {
+        InventoryCsv::with_delimiter(self, delimiter)
+    }
+}
+
+impl<R: CsvRow> RowFormat<R> for Csv {
     const EXTENSION: &'static str = "csv";
 
     fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
@@ -123,15 +122,10 @@ impl RowFormat<InventoryRow> for Csv {
 
     fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
     where
-        I: Iterator<Item = InventoryRow>,
+        I: Iterator<Item = R>,
     {
         for row in rows {
-            writeln!(
-                buffer,
-                "{}",
-                InventoryCsv::with_delimiter(&row, self.delimiter)
-            )
-            .expect("writing to memory cannot fail");
+            writeln!(buffer, "{}", row.csv(self.delimiter)).expect("writing to memory cannot fail");
         }
         buffer
     }
