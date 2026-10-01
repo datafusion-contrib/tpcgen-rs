@@ -44,6 +44,9 @@ impl RowGeneratorResult {
 }
 
 /// RowGenerator trait matching the Java RowGenerator interface
+///
+/// Note: this is planned for removal as part pf
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
 pub trait RowGenerator: Send + Sync {
     /// Generate a row and its child rows (generateRowAndChildRows).
     ///

@@ -17,12 +17,8 @@
 use crate::config::Session;
 use crate::row::SingleRowGenerator;
 
-/// Adapts a [`SingleRowGenerator`] into a streaming [`Iterator`] of its
-/// concrete `Row` type.
-///
-/// Unlike [`RowIter`](crate::row::RowIter), there is no [`GeneratedRow`]
-/// enum, pending-row queue, or per-call result allocation: each source row
-/// produces exactly one `G::Row`.
+/// Adapts a [`SingleRowGenerator`] into an [`Iterator`] of its concrete `Row`
+/// type.
 ///
 /// It is possible to restrict the iterator to a range of source rows with
 /// [`Self::set_source_row_range`].
@@ -63,6 +59,7 @@ impl<G: SingleRowGenerator> SingleRowIter<G> {
         self.row_count = self.row_count.min(ending_row_number);
     }
 }
+
 
 impl<G: SingleRowGenerator> Iterator for SingleRowIter<G> {
     type Item = G::Row;

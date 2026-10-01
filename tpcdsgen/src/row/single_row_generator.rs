@@ -12,18 +12,10 @@
  * limitations under the License.
  */
 
-//! [`SingleRowGenerator`]: a typed generator trait for tables that emit
-//! exactly one concrete row per source row.
+//! [`SingleRowGenerator`]: a generator  for tables that emit exactly one row
+//! per source row.
 //!
-//! Compared to [`RowGenerator`](crate::row::RowGenerator), this trait exposes
-//! the generator's concrete `Row` type directly, so callers never wrap or
-//! match on the [`GeneratedRow`](crate::row::GeneratedRow) enum and never
-//! allocate a per-call [`RowGeneratorResult`](crate::row::RowGeneratorResult).
-//!
-//! This trait is independent of [`RowGenerator`](crate::row::RowGenerator)
-//! and intentionally does not support paired fact-table generation (a single
-//! source row producing rows for more than one table); use `RowGenerator`
-//! for those generators.
+//! See also [`RowGenerator`](crate::row::RowGenerator)
 
 use crate::config::Session;
 use crate::error::Result;
