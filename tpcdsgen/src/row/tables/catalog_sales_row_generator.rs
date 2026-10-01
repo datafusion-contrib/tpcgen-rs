@@ -17,7 +17,7 @@
 use crate::config::{Scaling, Session};
 use crate::error::Result;
 use crate::generator::CatalogSalesGeneratorColumn;
-use crate::join_key_utils::{generate_join_key, skip_join_key, skip_join_key_catalog_page};
+use crate::join_key_utils::{generate_join_key, skip_catalog_page_join_key, skip_join_key};
 use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
@@ -132,7 +132,7 @@ impl CatalogSalesRowGenerator {
             let stream = self
                 .abstract_generator
                 .get_random_number_stream(&CsCatalogPageSk);
-            skip_join_key_catalog_page(stream);
+            skip_catalog_page_join_key(stream);
         }
 
         let stream = self

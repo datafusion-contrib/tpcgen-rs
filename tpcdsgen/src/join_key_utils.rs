@@ -109,7 +109,7 @@ pub fn skip_join_key(to_table: Table, random_number_stream: &mut dyn RandomNumbe
 /// would draw for a key to `catalog_page`, without computing the key.
 ///
 /// Must be kept in sync with `generate_catalog_page_join_key`.
-pub fn skip_join_key_catalog_page(random_number_stream: &mut dyn RandomNumberStream) {
+pub fn skip_catalog_page_join_key(random_number_stream: &mut dyn RandomNumberStream) {
     // catalog page type, then page within catalog
     random_number_stream.next_random();
     random_number_stream.next_random();
@@ -519,12 +519,12 @@ mod tests {
     }
 
     #[test]
-    fn test_skip_join_key_catalog_page_matches_generate() {
+    fn test_skip_catalog_page_join_key_matches_generate() {
         let scaling = Scaling::new(1.0);
         let date = Date::JULIAN_DATA_START_DATE + 100;
         let (mut generated, mut skipped) = paired_streams();
         generate_catalog_page_join_key(&mut generated, date, &scaling).unwrap();
-        skip_join_key_catalog_page(&mut skipped);
+        skip_catalog_page_join_key(&mut skipped);
         assert_eq!(generated.next_random(), skipped.next_random());
     }
 
