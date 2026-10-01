@@ -2,6 +2,8 @@ pub mod abstract_row_generator;
 pub mod generated_row;
 pub mod row_generator;
 pub mod row_iter;
+pub mod sales_row_generator;
+pub mod sales_row_iter;
 pub mod single_row_generator;
 pub mod single_row_iter;
 pub mod table_row;
@@ -11,6 +13,8 @@ pub use abstract_row_generator::AbstractRowGenerator;
 pub use generated_row::GeneratedRow;
 pub use row_generator::{RowGenerator, RowGeneratorResult};
 pub use row_iter::RowIter;
+pub use sales_row_generator::{SalesRowGenerator, SalesRows};
+pub use sales_row_iter::SalesRowIter;
 pub use single_row_generator::SingleRowGenerator;
 pub use single_row_iter::SingleRowIter;
 

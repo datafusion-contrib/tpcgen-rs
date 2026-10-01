@@ -4,7 +4,9 @@ use crate::distribution::ReturnReasonsDistribution;
 use crate::error::Result;
 use crate::generator::ReasonGeneratorColumn;
 use crate::random::RandomValueGenerator;
-use crate::row::{AbstractRowGenerator, ReasonRow, RowGenerator, RowGeneratorResult};
+use crate::row::{
+    AbstractRowGenerator, ReasonRow, RowGenerator, RowGeneratorResult, SingleRowGenerator,
+};
 use crate::table::Table;
 
 /// Row generator for the REASON table (ReasonRowGenerator)
@@ -60,16 +62,12 @@ impl ReasonRowGenerator {
     }
 }
 
-impl RowGenerator for ReasonRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
+impl SingleRowGenerator for ReasonRowGenerator {
+    type Row = ReasonRow;
+
+    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<ReasonRow> {
         let row = self.generate_reason_row(row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
+        Ok(row)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
@@ -79,5 +77,30 @@ impl RowGenerator for ReasonRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+    }
+}
+
+/// Temporary adapter for creating [`RowGeneratorResult`]
+///
+/// Needed until migration to typed generators is complete
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
+impl RowGenerator for ReasonRowGenerator {
+    fn generate_row_and_child_rows(
+        &mut self,
+        row_number: u64,
+        session: &Session,
+        _parent_row_generator: Option<&mut dyn RowGenerator>,
+        _child_row_generator: Option<&mut dyn RowGenerator>,
+    ) -> Result<RowGeneratorResult> {
+        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
+        Ok(RowGeneratorResult::new(row))
+    }
+
+    fn consume_remaining_seeds_for_row(&mut self) {
+        SingleRowGenerator::consume_remaining_seeds_for_row(self);
+    }
+
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
     }
 }

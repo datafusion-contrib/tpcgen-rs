@@ -2,18 +2,20 @@ use crate::conversions::{
     address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, julian_to_date32, opt,
     string_view_array_from_opt_iter,
 };
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Date32Array, Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, WebSiteRowGenerator};
+use tpcdsgen::row::{SingleRowIter, WebSiteRow, WebSiteRowGenerator};
 
 pub struct WebSiteArrow {
-    inner: RowIter<WebSiteRowGenerator>,
+    inner: SingleRowIter<WebSiteRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<WebSiteRow>,
 }
 
 impl WebSiteArrow {
@@ -25,8 +27,9 @@ impl WebSiteArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebSite);
         Self {
-            inner: RowIter::new(WebSiteRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(WebSiteRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -63,15 +66,10 @@ impl Iterator for WebSiteArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::WebSite(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }
@@ -95,7 +93,7 @@ impl Iterator for WebSiteArrow {
             Vec::with_capacity(rows.len());
         let mut web_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             web_sk.push(integer_sk_opt(nbm, 0, r.get_web_site_sk()));
             web_id.push(opt(nbm, 1, r.get_web_site_id()));

@@ -21,9 +21,13 @@ use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
+use crate::row::store_returns_row::StoreReturnsRow;
 use crate::row::store_returns_row_generator::StoreReturnsRowGenerator;
 use crate::row::store_sales_row::StoreSalesRow;
-use crate::row::{AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult};
+use crate::row::{
+    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesRowGenerator,
+    SalesRows,
+};
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::{generate_pricing_for_sales_table, get_store_sales_pricing_limits};
@@ -199,10 +203,6 @@ impl StoreSalesRowGenerator {
             ss_ticket_number,
         ))
     }
-
-    fn is_last_row_in_order(&self) -> bool {
-        self.remaining_line_items == 0
-    }
 }
 
 impl Default for StoreSalesRowGenerator {
@@ -211,14 +211,15 @@ impl Default for StoreSalesRowGenerator {
     }
 }
 
-impl RowGenerator for StoreSalesRowGenerator {
-    fn generate_row_and_child_rows(
+impl SalesRowGenerator for StoreSalesRowGenerator {
+    type Sales = StoreSalesRow;
+    type Returns = StoreReturnsRow;
+
+    fn generate_row(
         &mut self,
         row_number: u64,
         session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
+    ) -> Result<SalesRows<StoreSalesRow, StoreReturnsRow>> {
         use StoreSalesGeneratorColumn::*;
 
         let scaling = session.get_scaling();
@@ -322,20 +323,16 @@ impl RowGenerator for StoreSalesRowGenerator {
             None
         };
 
-        // Now move (not clone) the sales row into the result
-        let mut generated_rows: Vec<GeneratedRow> = Vec::with_capacity(2);
-        generated_rows.push(store_sales_row.into());
-
-        if let Some(ret_row) = return_row {
-            generated_rows.push(ret_row);
-        }
-
         self.remaining_line_items -= 1;
 
-        Ok(RowGeneratorResult::new_with_multiple(
-            generated_rows,
-            self.is_last_row_in_order(),
-        ))
+        Ok(SalesRows {
+            sales: store_sales_row,
+            returns: return_row,
+        })
+    }
+
+    fn is_last_row_in_order(&self) -> bool {
+        self.remaining_line_items == 0
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
@@ -349,6 +346,38 @@ impl RowGenerator for StoreSalesRowGenerator {
             .skip_rows_until_starting_row_number(starting_row_number);
         self.store_returns_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+    }
+}
+
+/// Temporary adapter for creating [`RowGeneratorResult`]
+///
+/// Needed until migration to typed generators is complete
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
+impl RowGenerator for StoreSalesRowGenerator {
+    fn generate_row_and_child_rows(
+        &mut self,
+        row_number: u64,
+        session: &Session,
+        _parent_row_generator: Option<&mut dyn RowGenerator>,
+        _child_row_generator: Option<&mut dyn RowGenerator>,
+    ) -> Result<RowGeneratorResult> {
+        let SalesRows { sales, returns } =
+            SalesRowGenerator::generate_row(self, row_number, session)?;
+        let mut rows: Vec<GeneratedRow> = Vec::with_capacity(2);
+        rows.push(sales.into());
+        rows.extend(returns.map(GeneratedRow::from));
+        Ok(RowGeneratorResult::new_with_multiple(
+            rows,
+            self.is_last_row_in_order(),
+        ))
+    }
+
+    fn consume_remaining_seeds_for_row(&mut self) {
+        SalesRowGenerator::consume_remaining_seeds_for_row(self);
+    }
+
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        SalesRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
     }
 }
 

@@ -1,16 +1,18 @@
 use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CustomerDemographicsRowGenerator, GeneratedRow};
+use tpcdsgen::row::{CustomerDemographicsRow, CustomerDemographicsRowGenerator, SingleRowIter};
 
 pub struct CustomerDemographicsArrow {
-    inner: RowIter<CustomerDemographicsRowGenerator>,
+    inner: SingleRowIter<CustomerDemographicsRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<CustomerDemographicsRow>,
 }
 
 impl CustomerDemographicsArrow {
@@ -24,8 +26,9 @@ impl CustomerDemographicsArrow {
             .get_scaling()
             .get_row_count(Table::CustomerDemographics);
         Self {
-            inner: RowIter::new(CustomerDemographicsRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(CustomerDemographicsRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -62,15 +65,10 @@ impl Iterator for CustomerDemographicsArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::CustomerDemographics(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }
@@ -85,7 +83,7 @@ impl Iterator for CustomerDemographicsArrow {
         let mut dep_emp: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut dep_college: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             demo_sk.push(integer_sk_opt(nbm, 0, r.get_cd_demo_sk()));
             gender.push(opt(nbm, 1, r.get_cd_gender()));

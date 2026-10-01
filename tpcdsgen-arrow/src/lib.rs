@@ -47,8 +47,6 @@ compile_error!("one of the `arrow_60` (default) or `arrow_59` features must be e
 pub mod conversions;
 mod tables;
 
-pub(crate) use tpcdsgen::row::RowIter;
-
 pub use tables::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,

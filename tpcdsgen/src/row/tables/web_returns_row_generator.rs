@@ -23,7 +23,7 @@ use crate::random::RandomValueGenerator;
 use crate::row::web_returns_row::WebReturnsRow;
 use crate::row::web_sales_row::WebSalesRow;
 use crate::row::web_sales_row_generator::GIFT_PERCENTAGE;
-use crate::row::{AbstractRowGenerator, GeneratedRow};
+use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
 
@@ -42,7 +42,7 @@ impl WebReturnsRowGenerator {
         &mut self,
         session: &Session,
         sales_row: &WebSalesRow,
-    ) -> Result<GeneratedRow> {
+    ) -> Result<WebReturnsRow> {
         use WebReturnsGeneratorColumn::*;
 
         let scaling = session.get_scaling();
@@ -183,8 +183,7 @@ impl WebReturnsRowGenerator {
             wr_reason_sk,
             wr_order_number,
             wr_pricing,
-        )
-        .into())
+        ))
     }
 
     pub fn consume_remaining_seeds_for_row(&mut self) {

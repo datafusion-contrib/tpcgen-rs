@@ -4,7 +4,9 @@ use crate::error::Result;
 use crate::generator::WebPageGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::random::RandomValueGenerator;
-use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult, WebPageRow};
+use crate::row::{
+    AbstractRowGenerator, RowGenerator, RowGeneratorResult, SingleRowGenerator, WebPageRow,
+};
 use crate::slowly_changing_dimension_utils::{
     compute_scd_key, generate_scd_history, get_value_for_slowly_changing_dimension,
 };
@@ -262,14 +264,10 @@ impl WebPageRowGenerator {
     }
 }
 
-impl RowGenerator for WebPageRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
+impl SingleRowGenerator for WebPageRowGenerator {
+    type Row = WebPageRow;
+
+    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<WebPageRow> {
         // Replay the missing slowly changing dimension (SCD) state this row
         // inherits from, which `skip_rows_until_starting_row_number` cleared.
         // This gives it the same values to copy from as an uninterrupted run.
@@ -277,7 +275,7 @@ impl RowGenerator for WebPageRowGenerator {
             generate_scd_history(self, row_number, session)?;
         }
         let row = self.generate_web_page_row(row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
+        Ok(row)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
@@ -291,5 +289,30 @@ impl RowGenerator for WebPageRowGenerator {
         // This tells `generate_row_and_child_rows` to replay it when needed.
         // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
         self.previous_row = None;
+    }
+}
+
+/// Temporary adapter for creating [`RowGeneratorResult`]
+///
+/// Needed until migration to typed generators is complete
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
+impl RowGenerator for WebPageRowGenerator {
+    fn generate_row_and_child_rows(
+        &mut self,
+        row_number: u64,
+        session: &Session,
+        _parent_row_generator: Option<&mut dyn RowGenerator>,
+        _child_row_generator: Option<&mut dyn RowGenerator>,
+    ) -> Result<RowGeneratorResult> {
+        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
+        Ok(RowGeneratorResult::new(row))
+    }
+
+    fn consume_remaining_seeds_for_row(&mut self) {
+        SingleRowGenerator::consume_remaining_seeds_for_row(self);
+    }
+
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
     }
 }

@@ -13,12 +13,16 @@
  */
 
 use crate::business_key_generator::make_business_key;
+use crate::config::Session;
 use crate::config::Table as ConfigTable;
+use crate::error::Result;
 use crate::generator::PromotionGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
-use crate::row::{AbstractRowGenerator, PromotionRow, RowGenerator, RowGeneratorResult};
+use crate::row::{
+    AbstractRowGenerator, PromotionRow, RowGenerator, RowGeneratorResult, SingleRowGenerator,
+};
 use crate::table::Table;
 use crate::types::{Date, Decimal};
 
@@ -48,14 +52,14 @@ impl Default for PromotionRowGenerator {
     }
 }
 
-impl RowGenerator for PromotionRowGenerator {
-    fn generate_row_and_child_rows(
+impl SingleRowGenerator for PromotionRowGenerator {
+    type Row = PromotionRow;
+
+    fn generate_row(
         &mut self,
         row_number: u64,
-        session: &crate::config::Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> crate::error::Result<RowGeneratorResult> {
+        session: &Session,
+    ) -> crate::error::Result<PromotionRow> {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         let scaling = session.get_scaling();
@@ -151,7 +155,7 @@ impl RowGenerator for PromotionRowGenerator {
 
         let p_purpose = "Unknown".to_string();
 
-        Ok(RowGeneratorResult::new(PromotionRow::new(
+        Ok(PromotionRow::new(
             null_bit_map,
             p_promo_sk,
             p_promo_id,
@@ -172,7 +176,7 @@ impl RowGenerator for PromotionRowGenerator {
             p_channel_details,
             p_purpose,
             p_discount_active,
-        )))
+        ))
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
@@ -183,6 +187,31 @@ impl RowGenerator for PromotionRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_row_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+    }
+}
+
+/// Temporary adapter for creating [`RowGeneratorResult`]
+///
+/// Needed until migration to typed generators is complete
+/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
+impl RowGenerator for PromotionRowGenerator {
+    fn generate_row_and_child_rows(
+        &mut self,
+        row_number: u64,
+        session: &Session,
+        _parent_row_generator: Option<&mut dyn RowGenerator>,
+        _child_row_generator: Option<&mut dyn RowGenerator>,
+    ) -> Result<RowGeneratorResult> {
+        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
+        Ok(RowGeneratorResult::new(row))
+    }
+
+    fn consume_remaining_seeds_for_row(&mut self) {
+        SingleRowGenerator::consume_remaining_seeds_for_row(self);
+    }
+
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
     }
 }
 

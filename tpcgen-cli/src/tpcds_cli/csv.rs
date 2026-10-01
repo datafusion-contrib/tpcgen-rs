@@ -24,8 +24,8 @@ use std::fmt::Display;
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::csv::{csv_header, GeneratedRowCsv, InventoryCsv};
-use tpcdsgen::row::{GeneratedRow, InventoryRow};
+use tpcdsgen::csv::*;
+use tpcdsgen::row::*;
 
 /// CSV output generator.
 #[derive(Debug, Clone)]
@@ -93,21 +93,47 @@ pub(super) trait CsvRow {
     fn csv(&self, delimiter: char) -> Self::Csv<'_>;
 }
 
-impl CsvRow for GeneratedRow {
-    type Csv<'a> = GeneratedRowCsv<'a>;
+macro_rules! impl_csv_row {
+    ($($row:ident => $csv:ident),* $(,)?) => {
+        $(
+            impl CsvRow for $row {
+                type Csv<'a> = $csv<'a>;
 
-    fn csv(&self, delimiter: char) -> GeneratedRowCsv<'_> {
-        GeneratedRowCsv::with_delimiter(self, delimiter)
-    }
+                fn csv(&self, delimiter: char) -> $csv<'_> {
+                    $csv::with_delimiter(self, delimiter)
+                }
+            }
+        )*
+    };
 }
 
-impl CsvRow for InventoryRow {
-    type Csv<'a> = InventoryCsv<'a>;
-
-    fn csv(&self, delimiter: char) -> InventoryCsv<'_> {
-        InventoryCsv::with_delimiter(self, delimiter)
-    }
-}
+impl_csv_row!(
+    CallCenterRow => CallCenterCsv,
+    CatalogPageRow => CatalogPageCsv,
+    CatalogReturnsRow => CatalogReturnsCsv,
+    CatalogSalesRow => CatalogSalesCsv,
+    CustomerRow => CustomerCsv,
+    CustomerAddressRow => CustomerAddressCsv,
+    CustomerDemographicsRow => CustomerDemographicsCsv,
+    DateDimRow => DateDimCsv,
+    DbgenVersionRow => DbgenVersionCsv,
+    HouseholdDemographicsRow => HouseholdDemographicsCsv,
+    IncomeBandRow => IncomeBandCsv,
+    InventoryRow => InventoryCsv,
+    ItemRow => ItemCsv,
+    PromotionRow => PromotionCsv,
+    ReasonRow => ReasonCsv,
+    ShipModeRow => ShipModeCsv,
+    StoreRow => StoreCsv,
+    StoreReturnsRow => StoreReturnsCsv,
+    StoreSalesRow => StoreSalesCsv,
+    TimeDimRow => TimeDimCsv,
+    WarehouseRow => WarehouseCsv,
+    WebPageRow => WebPageCsv,
+    WebReturnsRow => WebReturnsCsv,
+    WebSalesRow => WebSalesCsv,
+    WebSiteRow => WebSiteCsv,
+);
 
 impl<R: CsvRow> RowFormat<R> for Csv {
     const EXTENSION: &'static str = "csv";

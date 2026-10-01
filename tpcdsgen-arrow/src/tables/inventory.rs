@@ -63,10 +63,10 @@ impl Iterator for InventoryArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows = &mut self.scratch;
-        rows.clear();
-
-        rows.extend(self.inner.by_ref().take(self.batch_size));
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }

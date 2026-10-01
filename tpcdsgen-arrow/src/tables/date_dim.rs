@@ -1,18 +1,20 @@
 use crate::conversions::{
     bool_to_yn, date_to_date32, integer_sk_opt, string_view_array_from_opt_iter,
 };
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Date32Array, Int32Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{DateDimRowGenerator, GeneratedRow};
+use tpcdsgen::row::{DateDimRow, DateDimRowGenerator, SingleRowIter};
 
 pub struct DateDimArrow {
-    inner: RowIter<DateDimRowGenerator>,
+    inner: SingleRowIter<DateDimRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<DateDimRow>,
 }
 
 impl DateDimArrow {
@@ -24,8 +26,9 @@ impl DateDimArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::DateDim);
         Self {
-            inner: RowIter::new(DateDimRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(DateDimRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -62,15 +65,10 @@ impl Iterator for DateDimArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::DateDim(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }
@@ -104,7 +102,7 @@ impl Iterator for DateDimArrow {
         let mut d_current_quarter: Vec<&'static str> = Vec::with_capacity(rows.len());
         let mut d_current_year: Vec<&'static str> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             d_date_sk.push(integer_sk_opt(nbm, 0, r.d_date_sk));
             d_date_id.push(r.d_date_id.as_str());

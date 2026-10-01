@@ -22,7 +22,7 @@ use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::catalog_returns_row::CatalogReturnsRow;
 use crate::row::catalog_sales_row::CatalogSalesRow;
-use crate::row::{AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult};
+use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult};
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
 
@@ -49,7 +49,7 @@ impl CatalogReturnsRowGenerator {
         &mut self,
         session: &Session,
         sales_row: &CatalogSalesRow,
-    ) -> Result<GeneratedRow> {
+    ) -> Result<CatalogReturnsRow> {
         use CatalogReturnsGeneratorColumn::*;
 
         let scaling = session.get_scaling();
@@ -213,8 +213,7 @@ impl CatalogReturnsRowGenerator {
             cr_reason_sk,
             sales_row.get_cs_order_number(), // cr_order_number from sales
             cr_pricing,
-        )
-        .into())
+        ))
     }
 }
 

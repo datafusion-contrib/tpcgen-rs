@@ -1,16 +1,18 @@
 use crate::conversions::opt;
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, IncomeBandRowGenerator};
+use tpcdsgen::row::{IncomeBandRow, IncomeBandRowGenerator, SingleRowIter};
 
 pub struct IncomeBandArrow {
-    inner: RowIter<IncomeBandRowGenerator>,
+    inner: SingleRowIter<IncomeBandRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<IncomeBandRow>,
 }
 
 impl IncomeBandArrow {
@@ -22,8 +24,9 @@ impl IncomeBandArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::IncomeBand);
         Self {
-            inner: RowIter::new(IncomeBandRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(IncomeBandRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -60,15 +63,10 @@ impl Iterator for IncomeBandArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::IncomeBand(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }
@@ -77,7 +75,7 @@ impl Iterator for IncomeBandArrow {
         let mut lower: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut upper: Vec<Option<i32>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             band_sk.push(opt(nbm, 0, r.get_ib_income_band_sk()));
             lower.push(opt(nbm, 1, r.get_ib_lower_bound()));

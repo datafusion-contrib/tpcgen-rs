@@ -1,16 +1,18 @@
 use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt, sk_opt};
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, StoreSalesRowGenerator};
+use tpcdsgen::row::{SalesRowIter, StoreSalesRow, StoreSalesRowGenerator};
 
 pub struct StoreSalesArrow {
-    inner: RowIter<StoreSalesRowGenerator>,
+    inner: SalesRowIter<StoreSalesRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<StoreSalesRow>,
 }
 
 impl StoreSalesArrow {
@@ -22,8 +24,9 @@ impl StoreSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::StoreSales);
         Self {
-            inner: RowIter::new(StoreSalesRowGenerator::new(), session, row_count),
+            inner: SalesRowIter::new(StoreSalesRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -60,18 +63,10 @@ impl Iterator for StoreSalesArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .filter_map(|g| {
-                if let GeneratedRow::StoreSales(r) = g {
-                    Some(r)
-                } else {
-                    None
-                }
-            })
-            .take(self.batch_size)
-            .collect();
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().map(|r| r.sales).take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }
@@ -100,7 +95,7 @@ impl Iterator for StoreSalesArrow {
         let mut ss_net_paid_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
         let mut ss_net_profit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             let p = r.get_ss_pricing();
             ss_sold_date.push(integer_sk_opt(nbm, 0, r.get_ss_sold_date_sk()));

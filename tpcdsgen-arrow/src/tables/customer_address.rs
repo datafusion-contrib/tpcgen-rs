@@ -2,18 +2,20 @@ use crate::conversions::{
     gmt_offset_decimal128_array, integer_sk_opt, is_null, opt, string_view_array_from_opt_iter,
     string_view_array_from_string_opt_iter,
 };
-use crate::{RowIter, DEFAULT_BATCH_SIZE};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int32Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CustomerAddressRowGenerator, GeneratedRow};
+use tpcdsgen::row::{CustomerAddressRow, CustomerAddressRowGenerator, SingleRowIter};
 
 pub struct CustomerAddressArrow {
-    inner: RowIter<CustomerAddressRowGenerator>,
+    inner: SingleRowIter<CustomerAddressRowGenerator>,
     batch_size: usize,
+    // reused allocation across batches
+    scratch: Vec<CustomerAddressRow>,
 }
 
 impl CustomerAddressArrow {
@@ -25,8 +27,9 @@ impl CustomerAddressArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CustomerAddress);
         Self {
-            inner: RowIter::new(CustomerAddressRowGenerator::new(), session, row_count),
+            inner: SingleRowIter::new(CustomerAddressRowGenerator::new(), session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
+            scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -63,15 +66,10 @@ impl Iterator for CustomerAddressArrow {
     type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows: Vec<_> = self
-            .inner
-            .by_ref()
-            .map(|g| match g {
-                GeneratedRow::CustomerAddress(r) => r,
-                _ => unreachable!(),
-            })
-            .take(self.batch_size)
-            .collect();
+        self.scratch.clear();
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
+        let rows = &self.scratch;
         if rows.is_empty() {
             return None;
         }
@@ -90,7 +88,7 @@ impl Iterator for CustomerAddressArrow {
         let mut gmt_offset: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut location_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
 
-        for r in &rows {
+        for r in rows {
             let nbm = r.null_bit_map();
             let a = r.get_ca_address();
             ca_addr_sk.push(integer_sk_opt(nbm, 0, r.get_ca_addr_sk()));
