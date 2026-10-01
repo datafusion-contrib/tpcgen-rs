@@ -108,7 +108,8 @@ pub fn skip_join_key(to_table: Table, random_number_stream: &mut dyn RandomNumbe
 /// Advances `random_number_stream` past the values [`generate_join_key`]
 /// would draw for a key to `catalog_page`, without computing the key.
 ///
-/// Must be kept in sync with `generate_catalog_page_join_key`.
+/// Must be kept in sync with [`generate_catalog_page_join_key`].
+#[allow(rustdoc::private_intra_doc_links)]
 pub fn skip_catalog_page_join_key(random_number_stream: &mut dyn RandomNumberStream) {
     // catalog page type, then page within catalog
     random_number_stream.next_random();
@@ -119,7 +120,8 @@ pub fn skip_catalog_page_join_key(random_number_stream: &mut dyn RandomNumberStr
 /// would draw for a key to a table that keeps history (e.g. `web_page`,
 /// `web_site`), without computing the key.
 ///
-/// Must be kept in sync with `generate_scd_join_key`.
+/// Must be kept in sync with [`generate_scd_join_key`].
+#[allow(rustdoc::private_intra_doc_links)]
 pub fn skip_scd_join_key(julian_date: i64, random_number_stream: &mut dyn RandomNumberStream) {
     if julian_date <= Date::JULIAN_DATA_END_DATE {
         random_number_stream.next_random();
