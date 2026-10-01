@@ -12,25 +12,7 @@
  * limitations under the License.
  */
 
-//! Inventory row generator
-//!
-//! The inventory table represents weekly snapshots of item inventory levels
-//! at each warehouse. It's a cross-join of items x warehouses x weeks.
-//!
-//! # Example:
-//! ```
-//! use tpcdsgen::config::{Table, Session};
-//! use tpcdsgen::row::{InventoryRowGenerator, SingleRowIter};
-//!
-//! let session = Session::default();
-//! let row_count = session.get_scaling().get_row_count(Table::Inventory);
-//! let mut rows = SingleRowIter::new(InventoryRowGenerator::new(), session, row_count);
-//!
-//! // `rows` yields concrete `InventoryRow`s, not a `GeneratedRow` enum.
-//! let row = rows.next().expect("inventory has rows");
-//! assert_eq!(row.to_string(), "2450815|1|1|211|"); // DAT format
-//! ```
-//!
+//! [`InventoryRowGenerator`] for the `inventory` table.
 
 use crate::config::Session;
 use crate::error::Result;
@@ -43,6 +25,24 @@ use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::Date;
 
+/// [`InventoryRow`] generator for the `inventory` table.
+///
+/// The inventory table represents weekly snapshots of item inventory levels
+/// at each warehouse. It's a cross-join of items x warehouses x weeks.
+///
+/// # Example:
+/// ```
+/// use tpcdsgen::config::{Table, Session};
+/// use tpcdsgen::row::{InventoryRowGenerator, SingleRowIter};
+///
+/// let session = Session::default();
+/// let row_count = session.get_scaling().get_row_count(Table::Inventory);
+/// let mut rows = SingleRowIter::new(InventoryRowGenerator::new(), session, row_count);
+///
+/// // `rows` yields concrete `InventoryRow`s, not a `GeneratedRow` enum.
+/// let row = rows.next().expect("inventory has rows");
+/// assert_eq!(row.to_string(), "2450815|1|1|211|"); // DAT format
+/// ```
 pub struct InventoryRowGenerator {
     abstract_generator: AbstractRowGenerator,
 }
