@@ -102,7 +102,7 @@ impl TopDomainsDistribution {
     /// # Returns
     ///
     /// A domain suffix string (e.g., "com", "org", "edu")
-    pub fn pick_random_top_domain(stream: &mut dyn RandomNumberStream) -> Result<String> {
+    pub fn pick_random_top_domain(stream: &mut RandomNumberStream) -> Result<String> {
         let dist = Self::get_instance();
         let value_ref = pick_random_value(&dist.values, &dist.weights_list, stream)?;
         Ok(value_ref.clone())
@@ -112,7 +112,7 @@ impl TopDomainsDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_top_domains_distribution_loading() {
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_top_domain() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let domain = TopDomainsDistribution::pick_random_top_domain(&mut stream).unwrap();
 
         // Should be a non-empty string
@@ -142,8 +142,8 @@ mod tests {
     #[test]
     fn test_pick_random_top_domain_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let domain1 = TopDomainsDistribution::pick_random_top_domain(&mut stream1).unwrap();
         let domain2 = TopDomainsDistribution::pick_random_top_domain(&mut stream2).unwrap();
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn test_multiple_picks_are_valid() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // Pick multiple domains and verify all are valid
         for _ in 0..10 {

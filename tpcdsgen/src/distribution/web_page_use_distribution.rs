@@ -103,7 +103,7 @@ impl WebPageUseDistribution {
     /// # Returns
     ///
     /// A web page use type string (e.g., "general", "order", "welcome", "ad", "feedback", "protected", "dynamic")
-    pub fn pick_random_web_page_use_type(stream: &mut dyn RandomNumberStream) -> Result<String> {
+    pub fn pick_random_web_page_use_type(stream: &mut RandomNumberStream) -> Result<String> {
         let dist = Self::get_instance();
         let value_ref = pick_random_value(&dist.values, &dist.weights_list, stream)?;
         Ok(value_ref.clone())
@@ -113,7 +113,7 @@ impl WebPageUseDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_web_page_use_distribution_loading() {
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_web_page_use_type() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let page_use = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream).unwrap();
 
         // Should be a non-empty string
@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn test_pick_random_web_page_use_type_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let page_use1 =
             WebPageUseDistribution::pick_random_web_page_use_type(&mut stream1).unwrap();
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_multiple_picks_are_valid() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let valid_types = [
             "general",
             "order",

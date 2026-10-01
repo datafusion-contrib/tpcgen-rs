@@ -1,5 +1,5 @@
 use crate::generator::GeneratorColumn;
-use crate::random::{RandomNumberStream, RandomNumberStreamImpl};
+use crate::random::RandomNumberStream;
 use crate::table::Table;
 
 /// Abstract base for row generators (AbstractRowGenerator)
@@ -8,7 +8,7 @@ pub struct AbstractRowGenerator {
     table: Table,
     /// Random number streams stored in a Vec, indexed by (global_column_number - base_global_column_number)
     /// This replaces HashMap for O(1) direct array access without hashing overhead
-    random_number_streams: Vec<RandomNumberStreamImpl>,
+    random_number_streams: Vec<RandomNumberStream>,
     /// The minimum global column number for this table's columns
     /// Used to convert global_column_number to Vec index
     base_global_column_number: i32,
@@ -42,7 +42,7 @@ impl AbstractRowGenerator {
                 let seeds_per_row = gen_col.get_seeds_per_row();
 
                 let stream =
-                    RandomNumberStreamImpl::new_with_column(global_column_number, seeds_per_row)
+                    RandomNumberStream::new_with_column(global_column_number, seeds_per_row)
                         .expect("Failed to create random number stream");
                 random_number_streams.push(stream);
             }
@@ -65,7 +65,7 @@ impl AbstractRowGenerator {
     pub fn get_random_number_stream(
         &mut self,
         column: &dyn GeneratorColumn,
-    ) -> &mut dyn RandomNumberStream {
+    ) -> &mut RandomNumberStream {
         let global_column_number = column.get_global_column_number();
         let index = (global_column_number - self.base_global_column_number) as usize;
 

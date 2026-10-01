@@ -117,7 +117,7 @@ impl CatalogPageTypesDistribution {
     /// # Returns
     ///
     /// A catalog type string ("monthly", "bi-annual", or "quarterly")
-    pub fn pick_random_catalog_page_type(stream: &mut dyn RandomNumberStream) -> Result<String> {
+    pub fn pick_random_catalog_page_type(stream: &mut RandomNumberStream) -> Result<String> {
         let dist = Self::get_instance();
 
         // Use the second weight list (sales volume, index 1)
@@ -129,7 +129,7 @@ impl CatalogPageTypesDistribution {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_catalog_page_types_distribution_loading() {
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_catalog_page_type() {
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let catalog_type =
             CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream).unwrap();
 
@@ -158,8 +158,8 @@ mod tests {
     #[test]
     fn test_pick_random_catalog_page_type_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let type1 =
             CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream1).unwrap();

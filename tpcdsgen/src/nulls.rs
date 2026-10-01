@@ -40,14 +40,14 @@ use crate::table::Table;
 ///
 /// ```
 /// use tpcdsgen::table::Table;
-/// use tpcdsgen::random::RandomNumberStreamImpl;
+/// use tpcdsgen::random::RandomNumberStream;
 /// use tpcdsgen::nulls::create_null_bit_map;
 ///
-/// let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+/// let mut stream = RandomNumberStream::new(1).unwrap();
 /// let null_bitmap = create_null_bit_map(Table::CallCenter, &mut stream);
 /// // null_bitmap will be 0 or a value respecting CallCenter's not-null constraints
 /// ```
-pub fn create_null_bit_map(table: Table, random_number_stream: &mut dyn RandomNumberStream) -> i64 {
+pub fn create_null_bit_map(table: Table, random_number_stream: &mut RandomNumberStream) -> i64 {
     let threshold =
         RandomValueGenerator::generate_uniform_random_int(0, 9999, random_number_stream);
     let bit_map =
@@ -64,12 +64,12 @@ pub fn create_null_bit_map(table: Table, random_number_stream: &mut dyn RandomNu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::random::RandomNumberStreamImpl;
+    use crate::random::RandomNumberStream;
 
     #[test]
     fn test_create_null_bit_map_for_table_with_zero_null_basis_points() {
         // Tables with 0 null basis points should always return 0
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // IncomeBand has 0 null basis points
         let null_bitmap = create_null_bit_map(Table::IncomeBand, &mut stream);
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_create_null_bit_map_respects_not_null_constraints() {
         // Generate multiple bitmaps and verify they respect not-null constraints
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         // CallCenter has null basis points of 100 and not-null bitmap of 0xB
         for _ in 0..10 {
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn test_create_null_bit_map_produces_varied_results() {
         // Verify that the function can produce both zero and non-zero results
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let mut has_zero = false;
         let mut has_non_zero = false;
 
@@ -129,8 +129,8 @@ mod tests {
     #[test]
     fn test_create_null_bit_map_deterministic() {
         // Same seed should produce same results
-        let mut stream1 = RandomNumberStreamImpl::new(1).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream1 = RandomNumberStream::new(1).unwrap();
+        let mut stream2 = RandomNumberStream::new(1).unwrap();
 
         let bitmap1 = create_null_bit_map(Table::CallCenter, &mut stream1);
         let bitmap2 = create_null_bit_map(Table::CallCenter, &mut stream2);

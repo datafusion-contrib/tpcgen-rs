@@ -144,7 +144,7 @@ impl CalendarDistribution {
     /// A day of year value (1-366) based on the weighted distribution
     pub fn pick_random_day_of_year(
         weights: CalendarWeights,
-        stream: &mut dyn RandomNumberStream,
+        stream: &mut RandomNumberStream,
     ) -> Result<i32> {
         let dist = Self::get_instance();
         let weights_list = &dist.weights_lists[weights as usize];
@@ -223,9 +223,9 @@ mod tests {
 
     #[test]
     fn test_pick_random_day_of_year() {
-        use crate::random::RandomNumberStreamImpl;
+        use crate::random::RandomNumberStream;
 
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
         let day =
             CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream)
                 .unwrap();
@@ -240,11 +240,11 @@ mod tests {
 
     #[test]
     fn test_pick_random_day_of_year_deterministic() {
-        use crate::random::RandomNumberStreamImpl;
+        use crate::random::RandomNumberStream;
 
         // Same seed should produce same day
-        let mut stream1 = RandomNumberStreamImpl::new(42).unwrap();
-        let mut stream2 = RandomNumberStreamImpl::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42).unwrap();
+        let mut stream2 = RandomNumberStream::new(42).unwrap();
 
         let day1 =
             CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream1)
@@ -258,10 +258,10 @@ mod tests {
 
     #[test]
     fn test_pick_random_day_of_year_different_weights() {
-        use crate::random::RandomNumberStreamImpl;
+        use crate::random::RandomNumberStream;
 
         // Different weights should potentially produce different results
-        let mut stream = RandomNumberStreamImpl::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1).unwrap();
 
         let day_uniform =
             CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream)

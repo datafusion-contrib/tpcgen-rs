@@ -232,7 +232,7 @@ impl PricingLimits {
 /// This is the Rust equivalent of Java's Pricing.generatePricingForSalesTable
 pub fn generate_pricing_for_sales_table(
     limits: &PricingLimits,
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
 ) -> Pricing {
     let quantity = RandomValueGenerator::generate_uniform_random_int(
         Pricing::QUANTITY_MIN,
@@ -359,7 +359,7 @@ pub fn get_catalog_sales_pricing_limits() -> PricingLimits {
 /// Generate pricing for returns table (store_returns, catalog_returns, web_returns)
 /// This is the Rust equivalent of Java's Pricing.generatePricingForReturnsTable
 pub fn generate_pricing_for_returns_table(
-    stream: &mut dyn RandomNumberStream,
+    stream: &mut RandomNumberStream,
     quantity: i32,
     base_pricing: &Pricing,
 ) -> Pricing {
