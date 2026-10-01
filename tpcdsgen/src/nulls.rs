@@ -65,7 +65,7 @@ pub fn create_null_bit_map(table: Table, random_number_stream: &mut RandomNumber
 /// would draw, without computing a bitmap.
 ///
 /// Must be kept in sync with [`create_null_bit_map`]
-pub fn skip_null_bit_map(random_number_stream: &mut dyn RandomNumberStream) {
+pub fn skip_null_bit_map(random_number_stream: &mut RandomNumberStream) {
     random_number_stream.next_random();
     random_number_stream.next_random();
 }
@@ -152,8 +152,8 @@ mod tests {
 
     #[test]
     fn test_skip_null_bit_map_matches_create() {
-        let mut created = RandomNumberStreamImpl::new(1).unwrap();
-        let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
+        let mut created = RandomNumberStream::new(1).unwrap();
+        let mut skipped = RandomNumberStream::new(1).unwrap();
         create_null_bit_map(Table::CallCenter, &mut created);
         skip_null_bit_map(&mut skipped);
         assert_eq!(created.next_random(), skipped.next_random());

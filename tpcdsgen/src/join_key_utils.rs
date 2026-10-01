@@ -92,7 +92,7 @@ pub fn generate_join_key(
 /// would draw for a key to `to_table`, without computing the key.
 ///
 /// Must be kept in sync with [`generate_join_key`].
-pub fn skip_join_key(to_table: Table, random_number_stream: &mut dyn RandomNumberStream) {
+pub fn skip_join_key(to_table: Table, random_number_stream: &mut RandomNumberStream) {
     debug_assert!(
         !to_table.keeps_history()
             && !matches!(
@@ -474,8 +474,8 @@ mod tests {
     fn test_skip_join_key_matches_generate() {
         use crate::generator::StoreSalesGeneratorColumn;
         let scaling = Scaling::new(1.0);
-        let mut generated = RandomNumberStreamImpl::new(1).unwrap();
-        let mut skipped = RandomNumberStreamImpl::new(1).unwrap();
+        let mut generated = RandomNumberStream::new(1).unwrap();
+        let mut skipped = RandomNumberStream::new(1).unwrap();
         generate_join_key(
             &StoreSalesGeneratorColumn::SsSoldPromoSk,
             &mut generated,
