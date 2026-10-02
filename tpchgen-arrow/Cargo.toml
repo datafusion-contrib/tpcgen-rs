@@ -1,6 +1,6 @@
 [package]
 name = "tpchgen-arrow"
-version = "3.0.0"
+version = { workspace = true }
 edition = "2024"
 authors = ["clflushopt", "alamb"]
 description = "TPC-H data generator into Apache Arrow format"
@@ -12,7 +12,7 @@ license = "Apache-2.0"
 [dependencies]
 arrow_59 = { workspace = true, optional = true }
 arrow_60 = { workspace = true, optional = true }
-tpchgen = { path = "../tpchgen", version = "3.0.0" }
+tpchgen = { workspace = true }
 
 [features]
 default = ["arrow_60"]

@@ -11,9 +11,15 @@ homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/datafusion-contrib/tpcgen-rs"
-version = "3.0.0"
+version = "4.0.0-rc.1"
 
 [workspace.dependencies]
+tpcdsgen = { path = "tpcdsgen", version = "4.0.0-rc.1" }
+tpcdsgen-arrow = { path = "tpcdsgen-arrow", version = "4.0.0-rc.1" }
+tpcgen-cli = { path = "tpcgen-cli", version = "4.0.0-rc.1", default-features = false }
+tpchgen = { path = "tpchgen", version = "4.0.0-rc.1" }
+tpchgen-arrow = { path = "tpchgen-arrow", version = "4.0.0-rc.1" }
+
 arrow = { version = "60", default-features = false }
 parquet = "60"
 # `tpchgen-arrow` and `tpcdsgen-arrow` build against arrow 60 (`arrow_60`,

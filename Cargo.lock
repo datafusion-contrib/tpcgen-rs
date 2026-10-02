@@ -1567,11 +1567,11 @@ dependencies = [
 
 [[package]]
 name = "tpcdsgen"
-version = "0.1.0"
+version = "4.0.0-rc.1"
 
 [[package]]
 name = "tpcdsgen-arrow"
-version = "0.1.0"
+version = "4.0.0-rc.1"
 dependencies = [
  "arrow 59.3.0",
  "arrow 60.0.0",
@@ -1581,7 +1581,7 @@ dependencies = [
 
 [[package]]
 name = "tpcgen-cli"
-version = "0.1.0"
+version = "4.0.0-rc.1"
 dependencies = [
  "arrow 60.0.0",
  "assert_cmd",
@@ -1603,14 +1603,14 @@ dependencies = [
 
 [[package]]
 name = "tpchgen"
-version = "3.0.0"
+version = "4.0.0-rc.1"
 dependencies = [
  "flate2",
 ]
 
 [[package]]
 name = "tpchgen-arrow"
-version = "3.0.0"
+version = "4.0.0-rc.1"
 dependencies = [
  "arrow 59.3.0",
  "arrow 60.0.0",
@@ -1620,7 +1620,7 @@ dependencies = [
 
 [[package]]
 name = "tpchgen-cli"
-version = "3.0.0"
+version = "4.0.0-rc.1"
 dependencies = [
  "assert_cmd",
  "clap",

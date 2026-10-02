@@ -1,6 +1,6 @@
 [package]
 name = "tpchgen-cli"
-version = "3.0.0"
+version = { workspace = true }
 authors = { workspace = true }
 description = "Blazing fast pure Rust TPC-H data generator command line tool."
 readme = "README.md"
@@ -15,7 +15,7 @@ path = "bin/tpchgen_cli.rs"
 
 [dependencies]
 clap = { version = "4.5.32", features = ["derive"] }
-tpcgen-cli = { path = "../tpcgen-cli", version = "0.1.0", default-features = false }
+tpcgen-cli = { workspace = true }
 tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread"] }
 
 [features]
