@@ -453,16 +453,12 @@ mod tests {
         let mut generator = StoreSalesRowGenerator::sales();
         let session = Session::default();
 
-        let result = generator
-            .generate_row_and_child_rows(1, &session, None, None)
-            .unwrap();
+        let SalesRows { sales, returns } = generator.generate_row(1, &session).unwrap();
 
-        // Should have at least one row (the store_sales row)
-        assert!(!result.get_rows().is_empty());
-
-        // First row should have 23 columns
-        let first_row = &result.get_rows()[0];
-        assert_eq!(dat_values(&first_row).len(), 23);
+        // A `sales()` generator only fills in the store_sales row
+        let sales = sales.expect("store_sales row");
+        assert!(returns.is_none());
+        assert_eq!(dat_values(&sales).len(), 23);
     }
 
     #[test]
@@ -471,17 +467,13 @@ mod tests {
         let session = Session::default();
 
         // Generate first row (starts new order)
-        let result1 = generator
-            .generate_row_and_child_rows(1, &session, None, None)
-            .unwrap();
-        let values1 = dat_values(&result1.get_rows()[0]);
+        let row1 = generator.generate_row(1, &session).unwrap();
+        let values1 = dat_values(&row1.sales.expect("store_sales row"));
         let ticket1 = &values1[9]; // ss_ticket_number
 
         // Generate second row (should be in same order)
-        let result2 = generator
-            .generate_row_and_child_rows(2, &session, None, None)
-            .unwrap();
-        let values2 = dat_values(&result2.get_rows()[0]);
+        let row2 = generator.generate_row(2, &session).unwrap();
+        let values2 = dat_values(&row2.sales.expect("store_sales row"));
         let ticket2 = &values2[9];
 
         // Same ticket number means same order

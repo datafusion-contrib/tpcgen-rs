@@ -223,11 +223,8 @@ mod tests {
         let mut generator = PromotionRowGenerator::new();
         let session = Session::default();
 
-        let result = generator.generate_row_and_child_rows(1, &session, None, None);
-        assert!(result.is_ok());
-
-        let row_result = result.unwrap();
-        let values = dat_values(&row_result.get_rows()[0]);
+        let row = generator.generate_row(1, &session).unwrap();
+        let values = dat_values(&row);
         assert_eq!(values.len(), 19);
     }
 }
