@@ -251,10 +251,10 @@ struct ParquetArgs {
 
     /// Parquet block compression format.
     ///
-    /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP, LZO, BROTLI, LZ4
+    /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP(N), BROTLI(N), LZ4_RAW, LZ4
     ///
-    /// Note to use zstd you must supply the "compression" level (1-22)
-    /// as a number in parentheses, e.g. `ZSTD(1)` for level 1 compression.
+    /// ZSTD, GZIP, and BROTLI require a compression level as a number in
+    /// parentheses, e.g. `ZSTD(1)`. Levels: ZSTD 1-22, GZIP 0-9, BROTLI 0-11.
     ///
     /// Using `ZSTD` results in the best compression, but is about 2x slower than
     /// UNCOMPRESSED. For example, for the lineitem table at SF=10
