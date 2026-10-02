@@ -4,7 +4,6 @@ name: publish-crates.yml
 on:
   release:
     types: [published]
-  workflow_dispatch:
 
 jobs:
   publish:
