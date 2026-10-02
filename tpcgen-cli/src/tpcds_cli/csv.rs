@@ -24,8 +24,10 @@ use std::fmt::Display;
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::csv::{csv_header, GeneratedRowCsv, InventoryCsv};
-use tpcdsgen::row::{GeneratedRow, InventoryRow};
+use tpcdsgen::csv::{
+    csv_header, CatalogReturnsCsv, CatalogSalesCsv, GeneratedRowCsv, InventoryCsv,
+};
+use tpcdsgen::row::{CatalogReturnsRow, CatalogSalesRow, GeneratedRow, InventoryRow};
 
 /// CSV output generator.
 #[derive(Debug, Clone)]
@@ -101,13 +103,25 @@ impl CsvRow for GeneratedRow {
     }
 }
 
-impl CsvRow for InventoryRow {
-    type Csv<'a> = InventoryCsv<'a>;
+macro_rules! impl_csv_row {
+    ($($row:ident => $csv:ident),* $(,)?) => {
+        $(
+            impl CsvRow for $row {
+                type Csv<'a> = $csv<'a>;
 
-    fn csv(&self, delimiter: char) -> InventoryCsv<'_> {
-        InventoryCsv::with_delimiter(self, delimiter)
-    }
+                fn csv(&self, delimiter: char) -> $csv<'_> {
+                    $csv::with_delimiter(self, delimiter)
+                }
+            }
+        )*
+    };
 }
+
+impl_csv_row!(
+    CatalogReturnsRow => CatalogReturnsCsv,
+    CatalogSalesRow => CatalogSalesCsv,
+    InventoryRow => InventoryCsv,
+);
 
 impl<R: CsvRow> RowFormat<R> for Csv {
     const EXTENSION: &'static str = "csv";

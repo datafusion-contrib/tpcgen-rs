@@ -104,7 +104,7 @@ impl_factory!(
 // Implement factory for generators that emit sales and returns rows, but
 // haven't yet been converted to `SalesReturnsSelection` (see
 // `StoreSalesRowGenerator` below for the converted pattern).
-impl_factory!(CatalogSalesRowGenerator, WebSalesRowGenerator);
+impl_factory!(WebSalesRowGenerator);
 
 impl RowGeneratorFactory for StoreSalesRowGenerator {
     fn create(table: Table) -> Self {
@@ -116,31 +116,60 @@ impl RowGeneratorFactory for StoreSalesRowGenerator {
     }
 }
 
-/// Trait for creating typed [`SingleRowGenerator`] row generators.
-pub(super) trait SingleRowGeneratorFactory: SingleRowGenerator + Sized {
-    fn create() -> Self;
-}
-
-impl SingleRowGeneratorFactory for InventoryRowGenerator {
-    fn create() -> Self {
-        Self::new()
-    }
-}
-
 /// Generate one planned table (one `--parts` chunk of one table) into
 /// `base_location`, using up to `num_threads` threads.
 ///
 /// A sales generator emits rows for its returns table too; each output keeps
 /// only its own rows, the same way the Arrow generators produce them.
-pub(super) async fn generate_table<F: RowFormat<GeneratedRow> + RowFormat<InventoryRow>>(
+pub(super) async fn generate_table<F>(
     format: F,
     base_location: OutputLocation,
     planned: PlannedTable,
     num_threads: usize,
-) -> io::Result<()> {
+) -> io::Result<()>
+where
+    F: RowFormat<GeneratedRow>
+        + RowFormat<InventoryRow>
+        + RowFormat<CatalogSalesRow>
+        + RowFormat<CatalogReturnsRow>,
+{
     macro_rules! generate {
         ($GENERATOR:ty) => {
             write_table::<F, $GENERATOR>(format, &base_location, planned, num_threads).await
+        };
+    }
+    // One concrete row per source row
+    macro_rules! single {
+        ($GENERATOR:ty) => {
+            write_typed_table(
+                format,
+                &base_location,
+                planned,
+                num_threads,
+                |session, source_rows, range| {
+                    let mut rows = SingleRowIter::new(<$GENERATOR>::new(), session, source_rows);
+                    rows.set_source_row_range(*range.start(), *range.end());
+                    rows
+                },
+            )
+            .await
+        };
+    }
+    // Sales generators emit a sales row and maybe a returns row per line item
+    macro_rules! sales {
+        ($generator:expr, $select:expr) => {
+            write_typed_table(
+                format,
+                &base_location,
+                planned,
+                num_threads,
+                |session, source_rows, range| {
+                    let mut rows = SalesRowIter::new($generator, session, source_rows);
+                    rows.set_source_row_range(*range.start(), *range.end());
+                    rows.filter_map($select)
+                },
+            )
+            .await
         };
     }
 
@@ -155,18 +184,8 @@ pub(super) async fn generate_table<F: RowFormat<GeneratedRow> + RowFormat<Invent
         Table::DbgenVersion => generate!(DbgenVersionRowGenerator),
         Table::HouseholdDemographics => generate!(HouseholdDemographicsRowGenerator),
         Table::IncomeBand => generate!(IncomeBandRowGenerator),
-        // Inventory uses the typed `SingleRowGenerator` path directly: no
-        // `GeneratedRow` wrapping/matching and no per-row filter, since its
-        // generator emits only inventory rows.
-        Table::Inventory => {
-            write_single_row_table::<F, InventoryRowGenerator>(
-                format,
-                &base_location,
-                planned,
-                num_threads,
-            )
-            .await
-        }
+        // Typed path: no `GeneratedRow` wrapping/matching and no per-row filter
+        Table::Inventory => single!(InventoryRowGenerator),
         Table::Item => generate!(ItemRowGenerator),
         Table::Promotion => generate!(PromotionRowGenerator),
         Table::Reason => generate!(ReasonRowGenerator),
@@ -179,7 +198,9 @@ pub(super) async fn generate_table<F: RowFormat<GeneratedRow> + RowFormat<Invent
 
         // Sales tables and the returns tables their generator also emits
         Table::StoreSales | Table::StoreReturns => generate!(StoreSalesRowGenerator),
-        Table::CatalogSales | Table::CatalogReturns => generate!(CatalogSalesRowGenerator),
+        // Typed path: each output keeps its own rows
+        Table::CatalogSales => sales!(CatalogSalesRowGenerator::new(), |r| r.sales),
+        Table::CatalogReturns => sales!(CatalogSalesRowGenerator::new(), |r| r.returns),
         Table::WebSales | Table::WebReturns => generate!(WebSalesRowGenerator),
 
         // Source tables - skip
@@ -287,20 +308,21 @@ where
     }
 }
 
-/// Generate the rows in `planned` for a table whose generator is a typed
-/// [`SingleRowGenerator`] (one concrete row per source row, no per-row table
-/// filter needed). This mirrors [`write_table`]; once every table is
-/// migrated, that legacy function and the `GeneratedRow` enum can be
-/// deleted.
-async fn write_single_row_table<F, G>(
+/// Generate the rows in `planned` for a table with a typed row iterator,
+/// which `make_rows` creates for one chunk: `(session, source_rows, range)`.
+///
+/// This mirrors [`write_table`]; once every table is migrated, that legacy
+/// function and the `GeneratedRow` enum can be deleted.
+async fn write_typed_table<F, I>(
     format: F,
     base_location: &OutputLocation,
     planned: PlannedTable,
     num_threads: usize,
+    make_rows: fn(Session, u64, RangeInclusive<u64>) -> I,
 ) -> io::Result<()>
 where
-    F: RowFormat<G::Row>,
-    G: SingleRowGeneratorFactory + Send + 'static,
+    F: RowFormat<I::Item>,
+    I: Iterator + 'static,
 {
     let PlannedTable {
         table,
@@ -320,13 +342,13 @@ where
         String::new()
     };
     let source_rows = session.get_scaling().get_row_count(table.source_table());
-    let sources = plan.into_iter().map(move |range| SingleRowSource::<F, G> {
+    let sources = plan.into_iter().map(move |range| TypedRowSource {
         format: format.clone(),
         table,
         session: session.clone(),
         source_rows,
         range,
-        generator: PhantomData,
+        make_rows,
     });
 
     info!(
@@ -351,22 +373,22 @@ where
     Ok(())
 }
 
-/// Generates the text for one chunk (a range of source rows) of one table,
-/// via a typed [`SingleRowGenerator`].
-struct SingleRowSource<F, G> {
+/// Generates the text for one chunk (a range of source rows) of one table
+/// via a typed row iterator.
+struct TypedRowSource<F, I> {
     format: F,
     table: Table,
     session: Session,
     source_rows: u64,
     /// The 1-based inclusive source rows of this chunk
     range: RangeInclusive<u64>,
-    generator: PhantomData<G>,
+    make_rows: fn(Session, u64, RangeInclusive<u64>) -> I,
 }
 
-impl<F, G> Source for SingleRowSource<F, G>
+impl<F, I> Source for TypedRowSource<F, I>
 where
-    F: RowFormat<G::Row>,
-    G: SingleRowGeneratorFactory + Send + 'static,
+    F: RowFormat<I::Item>,
+    I: Iterator + 'static,
 {
     fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
         self.format.write_header(self.table, buffer)
@@ -379,12 +401,10 @@ where
             session,
             source_rows,
             range,
-            ..
+            make_rows,
         } = self;
 
-        let mut rows = SingleRowIter::new(G::create(), session, source_rows);
-        rows.set_source_row_range(*range.start(), *range.end());
-
+        let rows = make_rows(session, source_rows, range);
         format.write_rows(table, rows, buffer)
     }
 }
