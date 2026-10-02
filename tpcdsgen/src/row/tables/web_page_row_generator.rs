@@ -274,8 +274,7 @@ impl SingleRowGenerator for WebPageRowGenerator {
         if self.previous_row.is_none() {
             generate_scd_history(self, row_number, session)?;
         }
-        let row = self.generate_web_page_row(row_number, session)?;
-        Ok(row)
+        self.generate_web_page_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

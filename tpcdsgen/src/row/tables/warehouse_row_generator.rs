@@ -86,8 +86,7 @@ impl SingleRowGenerator for WarehouseRowGenerator {
     type Row = WarehouseRow;
 
     fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<WarehouseRow> {
-        let row = self.generate_warehouse_row(row_number, session)?;
-        Ok(row)
+        self.generate_warehouse_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

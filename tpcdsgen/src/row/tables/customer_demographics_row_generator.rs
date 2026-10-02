@@ -116,8 +116,7 @@ impl SingleRowGenerator for CustomerDemographicsRowGenerator {
         row_number: u64,
         session: &Session,
     ) -> Result<CustomerDemographicsRow> {
-        let row = self.generate_customer_demographics_row(row_number, session)?;
-        Ok(row)
+        self.generate_customer_demographics_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

@@ -66,8 +66,7 @@ impl SingleRowGenerator for ReasonRowGenerator {
     type Row = ReasonRow;
 
     fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<ReasonRow> {
-        let row = self.generate_reason_row(row_number, session)?;
-        Ok(row)
+        self.generate_reason_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

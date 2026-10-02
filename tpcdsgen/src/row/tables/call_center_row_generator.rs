@@ -412,8 +412,7 @@ impl SingleRowGenerator for CallCenterRowGenerator {
         if self.previous_row.is_none() {
             generate_scd_history(self, row_number, session)?;
         }
-        let row = self.generate_call_center_row(row_number, session)?;
-        Ok(row)
+        self.generate_call_center_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

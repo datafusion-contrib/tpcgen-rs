@@ -90,8 +90,7 @@ impl SingleRowGenerator for ShipModeRowGenerator {
     type Row = ShipModeRow;
 
     fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<ShipModeRow> {
-        let row = self.generate_ship_mode_row(row_number, session)?;
-        Ok(row)
+        self.generate_ship_mode_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

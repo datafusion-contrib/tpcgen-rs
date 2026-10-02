@@ -132,8 +132,7 @@ impl SingleRowGenerator for CatalogPageRowGenerator {
     type Row = CatalogPageRow;
 
     fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<CatalogPageRow> {
-        let row = self.generate_catalog_page_row(row_number, session)?;
-        Ok(row)
+        self.generate_catalog_page_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {

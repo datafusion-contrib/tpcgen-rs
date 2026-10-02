@@ -117,8 +117,7 @@ impl SingleRowGenerator for DbgenVersionRowGenerator {
     type Row = DbgenVersionRow;
 
     fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<DbgenVersionRow> {
-        let row = self.generate_dbgen_version_row(row_number, session)?;
-        Ok(row)
+        self.generate_dbgen_version_row(row_number, session)
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
