@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{SalesRowIter, WebReturnsRow, WebSalesRowGenerator};
+use tpcdsgen::row::{WebReturnsRow, WebReturnsRowGenerator};
 
 pub struct WebReturnsArrow {
-    inner: SalesRowIter<WebSalesRowGenerator>,
+    inner: WebReturnsRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<WebReturnsRow>,
@@ -24,7 +24,7 @@ impl WebReturnsArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebSales);
         Self {
-            inner: SalesRowIter::new(WebSalesRowGenerator::returns(), session, row_count),
+            inner: WebReturnsRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
@@ -64,12 +64,8 @@ impl Iterator for WebReturnsArrow {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.scratch.clear();
-        self.scratch.extend(
-            self.inner
-                .by_ref()
-                .filter_map(|r| r.returns)
-                .take(self.batch_size),
-        );
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
         let rows = &self.scratch;
         if rows.is_empty() {
             return None;

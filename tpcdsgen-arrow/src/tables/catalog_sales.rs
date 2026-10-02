@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CatalogSalesRow, CatalogSalesRowGenerator, SalesRowIter};
+use tpcdsgen::row::{CatalogSalesRow, CatalogSalesRowGenerator};
 
 pub struct CatalogSalesArrow {
-    inner: SalesRowIter<CatalogSalesRowGenerator>,
+    inner: CatalogSalesRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<CatalogSalesRow>,
@@ -24,7 +24,7 @@ impl CatalogSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CatalogSales);
         Self {
-            inner: SalesRowIter::new(CatalogSalesRowGenerator::sales(), session, row_count),
+            inner: CatalogSalesRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }
@@ -64,12 +64,8 @@ impl Iterator for CatalogSalesArrow {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.scratch.clear();
-        self.scratch.extend(
-            self.inner
-                .by_ref()
-                .filter_map(|r| r.sales)
-                .take(self.batch_size),
-        );
+        self.scratch
+            .extend(self.inner.by_ref().take(self.batch_size));
         let rows = &self.scratch;
         if rows.is_empty() {
             return None;

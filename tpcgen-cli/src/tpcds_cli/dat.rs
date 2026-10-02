@@ -93,14 +93,8 @@ macro_rules! define_dat_source {
 // Define .dat sources for all tables
 define_dat_source!(CallCenterDatSource, SingleRowIter<CallCenterRowGenerator>);
 define_dat_source!(CatalogPageDatSource, SingleRowIter<CatalogPageRowGenerator>);
-define_dat_source!(
-    CatalogReturnsDatSource,
-    ReturnsOnlyIter<CatalogSalesRowGenerator>
-);
-define_dat_source!(
-    CatalogSalesDatSource,
-    SalesOnlyIter<CatalogSalesRowGenerator>
-);
+define_dat_source!(CatalogReturnsDatSource, CatalogReturnsRowGenerator);
+define_dat_source!(CatalogSalesDatSource, CatalogSalesRowGenerator);
 define_dat_source!(CustomerDatSource, SingleRowIter<CustomerRowGenerator>);
 define_dat_source!(
     CustomerAddressDatSource,
@@ -126,14 +120,11 @@ define_dat_source!(PromotionDatSource, SingleRowIter<PromotionRowGenerator>);
 define_dat_source!(ReasonDatSource, SingleRowIter<ReasonRowGenerator>);
 define_dat_source!(ShipModeDatSource, SingleRowIter<ShipModeRowGenerator>);
 define_dat_source!(StoreDatSource, SingleRowIter<StoreRowGenerator>);
-define_dat_source!(
-    StoreReturnsDatSource,
-    ReturnsOnlyIter<StoreSalesRowGenerator>
-);
-define_dat_source!(StoreSalesDatSource, SalesOnlyIter<StoreSalesRowGenerator>);
+define_dat_source!(StoreReturnsDatSource, StoreReturnsRowGenerator);
+define_dat_source!(StoreSalesDatSource, StoreSalesRowGenerator);
 define_dat_source!(TimeDimDatSource, SingleRowIter<TimeDimRowGenerator>);
 define_dat_source!(WarehouseDatSource, SingleRowIter<WarehouseRowGenerator>);
 define_dat_source!(WebPageDatSource, SingleRowIter<WebPageRowGenerator>);
-define_dat_source!(WebReturnsDatSource, ReturnsOnlyIter<WebSalesRowGenerator>);
-define_dat_source!(WebSalesDatSource, SalesOnlyIter<WebSalesRowGenerator>);
+define_dat_source!(WebReturnsDatSource, WebReturnsRowGenerator);
+define_dat_source!(WebSalesDatSource, WebSalesRowGenerator);
 define_dat_source!(WebSiteDatSource, SingleRowIter<WebSiteRowGenerator>);

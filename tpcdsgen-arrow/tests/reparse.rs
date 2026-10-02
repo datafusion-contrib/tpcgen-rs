@@ -22,13 +22,13 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
 use tpcdsgen::row::{
-    CallCenterRowGenerator, CatalogPageRowGenerator, CatalogSalesRowGenerator,
-    CustomerAddressRowGenerator, CustomerDemographicsRowGenerator, CustomerRowGenerator,
-    DateDimRowGenerator, GeneratedRow, HouseholdDemographicsRowGenerator, IncomeBandRowGenerator,
-    InventoryRowGenerator, ItemRowGenerator, PromotionRowGenerator, ReasonRowGenerator,
-    RowGenerator, ShipModeRowGenerator, StoreRowGenerator, StoreSalesRowGenerator,
-    TimeDimRowGenerator, WarehouseRowGenerator, WebPageRowGenerator, WebSalesRowGenerator,
-    WebSiteRowGenerator,
+    CallCenterRowGenerator, CatalogPageRowGenerator, CatalogReturnsRowGenerator,
+    CatalogSalesRowGenerator, CustomerAddressRowGenerator, CustomerDemographicsRowGenerator,
+    CustomerRowGenerator, DateDimRowGenerator, GeneratedRow, HouseholdDemographicsRowGenerator,
+    IncomeBandRowGenerator, InventoryRowGenerator, ItemRowGenerator, PromotionRowGenerator,
+    ReasonRowGenerator, RowGenerator, ShipModeRowGenerator, StoreReturnsRowGenerator,
+    StoreRowGenerator, StoreSalesRowGenerator, TimeDimRowGenerator, WarehouseRowGenerator,
+    WebPageRowGenerator, WebReturnsRowGenerator, WebSalesRowGenerator, WebSiteRowGenerator,
 };
 use tpcdsgen_arrow::arrow;
 use tpcdsgen_arrow::{
@@ -178,6 +178,37 @@ where
     .flatten()
 }
 
+/// Yields Arrow RecordBatches by writing `rows` (of `table`) in `format`, and
+/// parsing the result back to Arrow.
+fn reparsed_rows<R: Into<GeneratedRow>>(
+    mut rows: impl Iterator<Item = R>,
+    format: Format,
+    table: Table,
+    schema: &SchemaRef,
+) -> impl Iterator<Item = RecordBatch> {
+    let schema = Arc::clone(schema);
+
+    const REPARSE_BUFFER_TARGET_BYTES: usize = 256 * 1024;
+    std::iter::from_fn(move || {
+        let mut data = Vec::new();
+        format.write_header(table, &mut data);
+        let header_len = data.len();
+
+        while data.len() < REPARSE_BUFFER_TARGET_BYTES {
+            let Some(row) = rows.next() else { break };
+            format.write_row(&row.into(), &mut data);
+        }
+
+        if data.len() == header_len {
+            None
+        } else {
+            let batches = format.parse(&data, &schema).collect::<Vec<_>>();
+            Some(batches)
+        }
+    })
+    .flatten()
+}
+
 /// Asserts that two streams of Arrow RecordBatches are logically equal up to a
 /// specified row limit.
 ///
@@ -292,6 +323,72 @@ macro_rules! table_test {
                     starting_row_number,
                     source_row_count,
                 );
+
+                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
+            }
+        }
+    };
+}
+
+macro_rules! sales_table_test {
+    // $name: module name
+    // $gen: row generator type: an `Iterator` over the table's rows, created
+    //       with `new(session, source_row_count)`.
+    // $arrow_gen: constructor for the matching Arrow RecordBatch generator.
+    // $table: TPC-DS table enum value used for row counts and skip planning.
+    // $output: TPC-DS table enum value of the generated table.
+    ($name:ident, $gen:ty, $arrow_gen:expr, $table:expr, $output:expr) => {
+        mod $name {
+            use super::*;
+
+            #[test]
+            fn from_start_dat() {
+                from_start(Format::Dat);
+            }
+
+            #[test]
+            fn from_start_csv() {
+                from_start(Format::Csv);
+            }
+
+            #[test]
+            fn skip_dat() {
+                skip(Format::Dat);
+            }
+
+            #[test]
+            fn skip_csv() {
+                skip(Format::Csv);
+            }
+
+            /// Parse from the start of the table
+            fn from_start(format: Format) {
+                let source_row_count = SESSION.get_scaling().get_row_count($table);
+                let row_limit = test_row_count($table) as usize;
+                let arrow_gen = $arrow_gen(SESSION.clone());
+                let schema = arrow_gen.schema();
+                let rows = <$gen>::new(SESSION.clone(), source_row_count);
+                let reparsed = reparsed_rows(rows, format, $output, &schema);
+
+                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
+            }
+
+            /// Parse after skipping some rows.
+            fn skip(format: Format) {
+                let source_row_count = SESSION.get_scaling().get_row_count($table);
+                let starting_row_number = source_row_count.min(100);
+                let remaining_source_rows = source_row_count - starting_row_number + 1;
+                let row_limit =
+                    test_row_count($table).min(remaining_source_rows).min(1024) as usize;
+
+                let mut rows = <$gen>::new(SESSION.clone(), source_row_count);
+                rows.skip_rows_until_starting_row_number(starting_row_number);
+
+                let mut arrow_gen = $arrow_gen(SESSION.clone());
+                arrow_gen.skip_rows_until_starting_row_number(starting_row_number);
+
+                let schema = arrow_gen.schema();
+                let reparsed = reparsed_rows(rows, format, $output, &schema);
 
                 assert_record_batch_streams(arrow_gen, reparsed, row_limit);
             }
@@ -426,47 +523,47 @@ table_test!(
     CallCenter
 );
 
-table_test!(
+sales_table_test!(
     catalog_sales,
-    CatalogSalesRowGenerator::sales(),
+    CatalogSalesRowGenerator,
     CatalogSalesArrow::new,
     Table::CatalogSales,
-    CatalogSales
+    Table::CatalogSales
 );
-table_test!(
+sales_table_test!(
     catalog_returns,
-    CatalogSalesRowGenerator::returns(),
+    CatalogReturnsRowGenerator,
     CatalogReturnsArrow::new,
     Table::CatalogSales,
-    CatalogReturns
+    Table::CatalogReturns
 );
-table_test!(
+sales_table_test!(
     store_sales,
-    StoreSalesRowGenerator::sales(),
+    StoreSalesRowGenerator,
     StoreSalesArrow::new,
     Table::StoreSales,
-    StoreSales
+    Table::StoreSales
 );
-table_test!(
+sales_table_test!(
     store_returns,
-    StoreSalesRowGenerator::returns(),
+    StoreReturnsRowGenerator,
     StoreReturnsArrow::new,
     Table::StoreSales,
-    StoreReturns
+    Table::StoreReturns
 );
-table_test!(
+sales_table_test!(
     web_sales,
-    WebSalesRowGenerator::sales(),
+    WebSalesRowGenerator,
     WebSalesArrow::new,
     Table::WebSales,
-    WebSales
+    Table::WebSales
 );
-table_test!(
+sales_table_test!(
     web_returns,
-    WebSalesRowGenerator::returns(),
+    WebReturnsRowGenerator,
     WebReturnsArrow::new,
     Table::WebSales,
-    WebReturns
+    Table::WebReturns
 );
 
 /// Adapts an iterator of RecordBatches to emit batches with a fixed row count.

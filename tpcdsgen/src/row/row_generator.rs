@@ -1,17 +1,6 @@
 use crate::config::Session;
 use crate::row::GeneratedRow;
 
-/// Output selection for row generators that produce a sales table and a paired
-/// returns table (store, catalog, and web sales/returns) from a single shared
-/// generator.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SalesReturnsSelection {
-    /// Calculate and emit only the sales rows; never calculate returns.
-    Sales,
-    /// Emit only the returns rows.
-    Returns,
-}
-
 /// Result of row generation (RowGeneratorResult)
 ///
 /// Uses `GeneratedRow` enum instead of a boxed trait object to avoid

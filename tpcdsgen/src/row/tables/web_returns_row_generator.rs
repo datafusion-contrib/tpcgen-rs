@@ -22,30 +22,55 @@ use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::web_returns_row::WebReturnsRow;
 use crate::row::web_sales_row::WebSalesRow;
-use crate::row::web_sales_row_generator::GIFT_PERCENTAGE;
+use crate::row::web_sales_row_generator::{WebSalesRowGenerator, GIFT_PERCENTAGE};
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
 
+/// Generates `web_returns` rows: the returned line items of `web_sales`.
+///
+/// Replays the `web_sales` line items through a [`WebSalesRowGenerator`],
+/// generating the sales row only for the ~10% of line items that are
+/// returned.
 pub struct WebReturnsRowGenerator {
+    sales: WebSalesRowGenerator,
     abstract_generator: AbstractRowGenerator,
 }
 
 impl WebReturnsRowGenerator {
-    pub fn new() -> Self {
+    /// Generate the returns of `web_sales` source rows `1..=row_count`.
+    pub fn new(session: Session, row_count: u64) -> Self {
         WebReturnsRowGenerator {
+            sales: WebSalesRowGenerator::new(session, row_count),
             abstract_generator: AbstractRowGenerator::new(Table::WebReturns),
         }
     }
 
-    pub fn generate_row(
-        &mut self,
-        session: &Session,
-        sales_row: &WebSalesRow,
-    ) -> Result<WebReturnsRow> {
+    /// Start generating at source row `starting_row_number` (1-based), fast
+    /// forwarding the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        self.sales
+            .skip_rows_until_starting_row_number(starting_row_number);
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.sales
+            .set_source_row_range(starting_row_number, ending_row_number);
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+    }
+
+    /// Generate the return row for `sales_row`.
+    fn generate_row(&mut self, sales_row: &WebSalesRow) -> Result<WebReturnsRow> {
         use WebReturnsGeneratorColumn::*;
 
-        let scaling = session.get_scaling();
+        let scaling = self.sales.session().get_scaling();
 
         // Generate null bit map
         let stream = self.abstract_generator.get_random_number_stream(&WrNulls);
@@ -185,19 +210,30 @@ impl WebReturnsRowGenerator {
             wr_pricing,
         ))
     }
-
-    pub fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-    }
 }
 
-impl Default for WebReturnsRowGenerator {
-    fn default() -> Self {
-        Self::new()
+impl Iterator for WebReturnsRowGenerator {
+    type Item = WebReturnsRow;
+
+    fn next(&mut self) -> Option<WebReturnsRow> {
+        loop {
+            let item = self.sales.next_line_item().expect("row gen")?;
+            let row = if item.is_returned {
+                let sales_row = self
+                    .sales
+                    .generate_sales_row(item.item_sk)
+                    .expect("row gen");
+                Some(self.generate_row(&sales_row).expect("row gen"))
+            } else {
+                self.sales.skip_item_sales_draws();
+                None
+            };
+            if self.sales.finish_line_item() {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+            }
+            if row.is_some() {
+                return row;
+            }
+        }
     }
 }

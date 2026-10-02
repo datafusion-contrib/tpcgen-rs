@@ -97,9 +97,6 @@ pub(super) fn output_location_for_table(
 
 /// Generate one planned table (one `--parts` chunk of one table) in `format`,
 /// using up to `num_threads` threads.
-///
-/// A sales generator emits rows for its returns table too; each output keeps
-/// only its own rows, the same way the Arrow generators produce them.
 async fn run_plan(
     format: &OutputFormat,
     planned: PlannedTable,
@@ -145,26 +142,23 @@ async fn run_plan(
 ///
 /// Arguments:
 /// `$FUN_NAME`: name of the function to create
-/// `$GENERATOR`: the table's row generator type. A sales or returns table
-///   names its sales generator as `$GENERATOR::sales` or `$GENERATOR::returns`
+/// `$GENERATOR`: the table's row generator type. A sales or returns generator
+///   iterates over its source rows directly, named as `$GENERATOR: Iterator`
 /// `$DAT_SOURCE`: the [`Source`] type to use for DAT format
 /// `$CSV_SOURCE`: the [`Source`] type to use for CSV format
 /// `$PARQUET_SOURCE`: the [`arrow::record_batch::RecordBatchReader`] type to use for Parquet format
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        define_run!(@rows $FUN_NAME, SingleRowIter<$GENERATOR>, <$GENERATOR>::new(),
+        define_run!(@rows $FUN_NAME, SingleRowIter<$GENERATOR>,
+            |session, source_rows| SingleRowIter::new(<$GENERATOR>::new(), session, source_rows),
             $DAT_SOURCE, $CSV_SOURCE, $PARQUET_SOURCE);
     };
-    ($FUN_NAME:ident, $GENERATOR:ident::sales, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        define_run!(@rows $FUN_NAME, SalesOnlyIter<$GENERATOR>, <$GENERATOR>::sales(),
+    ($FUN_NAME:ident, $GENERATOR:ident: Iterator, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
+        define_run!(@rows $FUN_NAME, $GENERATOR, <$GENERATOR>::new,
             $DAT_SOURCE, $CSV_SOURCE, $PARQUET_SOURCE);
     };
-    ($FUN_NAME:ident, $GENERATOR:ident::returns, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        define_run!(@rows $FUN_NAME, ReturnsOnlyIter<$GENERATOR>, <$GENERATOR>::returns(),
-            $DAT_SOURCE, $CSV_SOURCE, $PARQUET_SOURCE);
-    };
-    // `$ROWS` iterates the rows of one chunk of `$generator`
-    (@rows $FUN_NAME:ident, $ROWS:ty, $generator:expr, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
+    // `$ROWS` iterates the rows of one chunk, built by `$new_rows(session, source_rows)`
+    (@rows $FUN_NAME:ident, $ROWS:ty, $new_rows:expr, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(
             format: &OutputFormat,
             planned: PlannedTable,
@@ -172,7 +166,7 @@ macro_rules! define_run {
         ) -> io::Result<()> {
             /// The rows of one chunk: source rows `range` of `source_rows`
             fn rows(session: Session, source_rows: u64, range: RangeInclusive<u64>) -> $ROWS {
-                let mut rows = <$ROWS>::new($generator, session, source_rows);
+                let mut rows = $new_rows(session, source_rows);
                 rows.set_source_row_range(*range.start(), *range.end());
                 rows
             }
@@ -220,14 +214,14 @@ define_run!(
 );
 define_run!(
     run_catalog_returns,
-    CatalogSalesRowGenerator::returns,
+    CatalogReturnsRowGenerator: Iterator,
     CatalogReturnsDatSource,
     CatalogReturnsCsvSource,
     CatalogReturnsArrow
 );
 define_run!(
     run_catalog_sales,
-    CatalogSalesRowGenerator::sales,
+    CatalogSalesRowGenerator: Iterator,
     CatalogSalesDatSource,
     CatalogSalesCsvSource,
     CatalogSalesArrow
@@ -325,14 +319,14 @@ define_run!(
 );
 define_run!(
     run_store_returns,
-    StoreSalesRowGenerator::returns,
+    StoreReturnsRowGenerator: Iterator,
     StoreReturnsDatSource,
     StoreReturnsCsvSource,
     StoreReturnsArrow
 );
 define_run!(
     run_store_sales,
-    StoreSalesRowGenerator::sales,
+    StoreSalesRowGenerator: Iterator,
     StoreSalesDatSource,
     StoreSalesCsvSource,
     StoreSalesArrow
@@ -360,14 +354,14 @@ define_run!(
 );
 define_run!(
     run_web_returns,
-    WebSalesRowGenerator::returns,
+    WebReturnsRowGenerator: Iterator,
     WebReturnsDatSource,
     WebReturnsCsvSource,
     WebReturnsArrow
 );
 define_run!(
     run_web_sales,
-    WebSalesRowGenerator::sales,
+    WebSalesRowGenerator: Iterator,
     WebSalesDatSource,
     WebSalesCsvSource,
     WebSalesArrow

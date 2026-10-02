@@ -223,37 +223,28 @@ impl Display for CatalogPageCsv<'_> {
 }
 /// Writes [`CatalogReturnsRow`]s in CSV format.
 ///
-/// Not every catalog sales row has a matching return, so the loop below runs
-/// over more row numbers than the three returns rows it produces.
-///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CatalogReturnsCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogSalesRowGenerator};
+/// # use tpcdsgen::row::CatalogReturnsRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CatalogSalesRowGenerator::returns();
+/// let row_count = session.get_scaling().get_row_count(Table::CatalogSales);
+/// let generator = CatalogReturnsRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CatalogReturnsCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=30 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::CatalogReturns(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CatalogReturnsCsv::new(row)).unwrap();
-/// #   }
-/// #   if result.should_end_row() {
-/// #     generator.consume_remaining_seeds_for_row();
-/// #   }
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CatalogReturnsCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amt_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss\n\
-///    2450926,45816,17368,14601,797995,6189,9583,14601,797995,4703,9583,1,106,2,2,30,5,47,3888.31,233.29,4121.60,91.23,1348.90,3577.24,186.64,124.43,1673.42\n\
-///    2450946,74710,6295,14601,797995,6189,9583,82809,665550,991,14832,1,17,2,5,6,5,49,2490.18,99.60,2589.78,52.54,1867.39,323.72,931.57,1234.89,2019.53\n\
-///    2451065,71104,3391,25383,3755,2480,5652,2311,700704,5571,12485,4,7,13,2,1,26,12,64.32,4.50,68.82,22.97,78.60,1.28,55.47,7.57,106.07\n"
+///    2450926,45816,17368,14601,797995,6189,9583,14601,797995,4703,9583,1,106,2,2,30,2,47,3888.31,233.29,4121.60,91.23,1348.90,3577.24,186.64,124.43,1673.42\n\
+///    2450946,74710,6295,14601,797995,6189,9583,82809,665550,991,14832,1,17,2,5,6,2,49,2490.18,99.60,2589.78,52.54,1867.39,323.72,931.57,1234.89,2019.53\n\
+///    2451065,71104,3391,25383,3755,2480,5652,2311,700704,5571,12485,4,7,13,2,1,4,12,64.32,4.50,68.82,22.97,78.60,1.28,55.47,7.57,106.07\n"
 /// );
 /// ```
 pub struct CatalogReturnsCsv<'a> {
@@ -323,26 +314,20 @@ impl Display for CatalogReturnsCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CatalogSalesCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogSalesRowGenerator};
+/// # use tpcdsgen::row::CatalogSalesRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CatalogSalesRowGenerator::sales();
+/// let row_count = session.get_scaling().get_row_count(Table::CatalogSales);
+/// let generator = CatalogSalesRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CatalogSalesCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::CatalogSales(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CatalogSalesCsv::new(row)).unwrap();
-/// #   }
-/// #   if result.should_end_row() {
-/// #     generator.consume_remaining_seeds_for_row();
-/// #   }
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CatalogSalesCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "cs_sold_date_sk,cs_sold_time_sk,cs_ship_date_sk,cs_bill_customer_sk,cs_bill_cdemo_sk,cs_bill_hdemo_sk,cs_bill_addr_sk,cs_ship_customer_sk,cs_ship_cdemo_sk,cs_ship_hdemo_sk,cs_ship_addr_sk,cs_call_center_sk,cs_catalog_page_sk,cs_ship_mode_sk,cs_warehouse_sk,cs_item_sk,cs_promo_sk,cs_order_number,cs_quantity,cs_wholesale_cost,cs_list_price,cs_sales_price,cs_ext_discount_amt,cs_ext_sales_price,cs_ext_wholesale_cost,cs_ext_list_price,cs_ext_tax,cs_coupon_amt,cs_ext_ship_cost,cs_net_paid,cs_net_paid_inc_tax,cs_net_paid_inc_ship,cs_net_paid_inc_ship_tax,cs_net_profit\n\
@@ -1368,27 +1353,17 @@ impl Display for StoreCsv<'_> {
 /// ```
 /// # use tpcdsgen::config::Session;
 /// # use tpcdsgen::csv::{StoreReturnsCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
+/// # use tpcdsgen::row::StoreReturnsRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// // store_returns rows are generated as child rows of the store_sales generator
-/// let mut generator = StoreSalesRowGenerator::returns();
-/// // Output the returns rows produced by the first 2 store_sales row numbers
+/// // Output the returns of the first 2 store_sales tickets in CSV format
+/// let generator = StoreReturnsRowGenerator::new(session, 2);
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", StoreReturnsCsv::header()).unwrap(); // write header
-/// # let mut row_number = 1;
-/// # while row_number <= 2 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::StoreReturns(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", StoreReturnsCsv::new(row)).unwrap();
-/// #   }
-/// #   if result.should_end_row() {
-/// #     generator.consume_remaining_seeds_for_row();
-/// #     row_number += 1;
-/// #   }
-/// # }
+/// for row in generator {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", StoreReturnsCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "sr_returned_date_sk,sr_return_time_sk,sr_item_sk,sr_customer_sk,sr_cdemo_sk,sr_hdemo_sk,sr_addr_sk,sr_store_sk,sr_reason_sk,sr_ticket_number,sr_return_quantity,sr_return_amt,sr_return_tax,sr_return_amt_inc_tax,sr_fee,sr_return_ship_cost,sr_refunded_cash,sr_reversed_charge,sr_store_credit,sr_net_loss\n\
@@ -1477,26 +1452,20 @@ impl Display for StoreReturnsCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{StoreSalesCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
+/// # use tpcdsgen::row::StoreSalesRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = StoreSalesRowGenerator::sales();
+/// let row_count = session.get_scaling().get_row_count(Table::StoreSales);
+/// let generator = StoreSalesRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", StoreSalesCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::StoreSales(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", StoreSalesCsv::new(row)).unwrap();
-/// #   }
-/// #   if result.should_end_row() {
-/// #     generator.consume_remaining_seeds_for_row();
-/// #   }
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", StoreSalesCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "ss_sold_date_sk,ss_sold_time_sk,ss_item_sk,ss_customer_sk,ss_cdemo_sk,ss_hdemo_sk,ss_addr_sk,ss_store_sk,ss_promo_sk,ss_ticket_number,ss_quantity,ss_wholesale_cost,ss_list_price,ss_sales_price,ss_ext_discount_amt,ss_ext_sales_price,ss_ext_wholesale_cost,ss_ext_list_price,ss_ext_tax,ss_coupon_amt,ss_net_paid,ss_net_paid_inc_tax,ss_net_profit\n\
@@ -1817,32 +1786,26 @@ impl Display for WebPageCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{WebReturnsCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSalesRowGenerator};
+/// # use tpcdsgen::row::WebReturnsRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WebSalesRowGenerator::returns();
+/// let row_count = session.get_scaling().get_row_count(Table::WebSales);
+/// let generator = WebReturnsRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WebReturnsCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=15 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::WebReturns(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", WebReturnsCsv::new(row)).unwrap();
-/// #   }
-/// #   if result.should_end_row() {
-/// #     generator.consume_remaining_seeds_for_row();
-/// #   }
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", WebReturnsCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_account_credit,wr_net_loss\n\
 ///    2451653,7022,10402,46224,1011635,3446,4057,46224,1011635,3446,4057,56,23,1,10,698.20,13.96,712.16,18.63,820.30,300.22,382.06,15.92,852.89\n\
 ///    2451627,64915,15464,3811,18405,199,48793,3811,18405,199,48793,13,9,1,47,1248.79,49.95,1298.74,61.81,709.23,262.24,128.25,858.30,820.99\n\
-///    2452798,,9559,,31639,,18790,,31639,2038,18790,,11,10,11,,25.52,,,16.72,,16.36,165.47,\n"
+///    2452798,,9559,,31639,,18790,,31639,2038,18790,,11,2,11,,25.52,,,16.72,,16.36,165.47,\n"
 /// );
 /// ```
 pub struct WebReturnsCsv<'a> {
@@ -1909,26 +1872,20 @@ impl Display for WebReturnsCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{WebSalesCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSalesRowGenerator};
+/// # use tpcdsgen::row::WebSalesRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WebSalesRowGenerator::sales();
+/// let row_count = session.get_scaling().get_row_count(Table::WebSales);
+/// let generator = WebSalesRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WebSalesCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::WebSales(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", WebSalesCsv::new(row)).unwrap();
-/// #   }
-/// #   if result.should_end_row() {
-/// #     generator.consume_remaining_seeds_for_row();
-/// #   }
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", WebSalesCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "ws_sold_date_sk,ws_sold_time_sk,ws_ship_date_sk,ws_item_sk,ws_bill_customer_sk,ws_bill_cdemo_sk,ws_bill_hdemo_sk,ws_bill_addr_sk,ws_ship_customer_sk,ws_ship_cdemo_sk,ws_ship_hdemo_sk,ws_ship_addr_sk,ws_web_page_sk,ws_web_site_sk,ws_ship_mode_sk,ws_warehouse_sk,ws_promo_sk,ws_order_number,ws_quantity,ws_wholesale_cost,ws_list_price,ws_sales_price,ws_ext_discount_amt,ws_ext_sales_price,ws_ext_wholesale_cost,ws_ext_list_price,ws_ext_tax,ws_coupon_amt,ws_ext_ship_cost,ws_net_paid,ws_net_paid_inc_tax,ws_net_paid_inc_ship,ws_net_paid_inc_ship_tax,ws_net_profit\n\

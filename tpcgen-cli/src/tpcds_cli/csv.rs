@@ -89,12 +89,12 @@ define_csv_source!(
 );
 define_csv_source!(
     CatalogReturnsCsvSource,
-    ReturnsOnlyIter<CatalogSalesRowGenerator>,
+    CatalogReturnsRowGenerator,
     CatalogReturnsCsv
 );
 define_csv_source!(
     CatalogSalesCsvSource,
-    SalesOnlyIter<CatalogSalesRowGenerator>,
+    CatalogSalesRowGenerator,
     CatalogSalesCsv
 );
 define_csv_source!(
@@ -156,14 +156,10 @@ define_csv_source!(
 define_csv_source!(StoreCsvSource, SingleRowIter<StoreRowGenerator>, StoreCsv);
 define_csv_source!(
     StoreReturnsCsvSource,
-    ReturnsOnlyIter<StoreSalesRowGenerator>,
+    StoreReturnsRowGenerator,
     StoreReturnsCsv
 );
-define_csv_source!(
-    StoreSalesCsvSource,
-    SalesOnlyIter<StoreSalesRowGenerator>,
-    StoreSalesCsv
-);
+define_csv_source!(StoreSalesCsvSource, StoreSalesRowGenerator, StoreSalesCsv);
 define_csv_source!(
     TimeDimCsvSource,
     SingleRowIter<TimeDimRowGenerator>,
@@ -179,16 +175,8 @@ define_csv_source!(
     SingleRowIter<WebPageRowGenerator>,
     WebPageCsv
 );
-define_csv_source!(
-    WebReturnsCsvSource,
-    ReturnsOnlyIter<WebSalesRowGenerator>,
-    WebReturnsCsv
-);
-define_csv_source!(
-    WebSalesCsvSource,
-    SalesOnlyIter<WebSalesRowGenerator>,
-    WebSalesCsv
-);
+define_csv_source!(WebReturnsCsvSource, WebReturnsRowGenerator, WebReturnsCsv);
+define_csv_source!(WebSalesCsvSource, WebSalesRowGenerator, WebSalesCsv);
 define_csv_source!(
     WebSiteCsvSource,
     SingleRowIter<WebSiteRowGenerator>,

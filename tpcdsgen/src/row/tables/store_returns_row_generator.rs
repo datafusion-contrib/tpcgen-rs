@@ -22,34 +22,58 @@ use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::store_returns_row::StoreReturnsRow;
 use crate::row::store_sales_row::StoreSalesRow;
-use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult};
+use crate::row::store_sales_row_generator::StoreSalesRowGenerator;
+use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
 
 /// Percentage of returns where the same customer returns the item
 const SR_SAME_CUSTOMER: i32 = 80;
 
+/// Generates `store_returns` rows: the returned line items of `store_sales`.
+///
+/// Replays the `store_sales` line items through a [`StoreSalesRowGenerator`],
+/// generating the sales row only for the ~10% of line items that are
+/// returned.
 pub struct StoreReturnsRowGenerator {
+    sales: StoreSalesRowGenerator,
     abstract_generator: AbstractRowGenerator,
 }
 
 impl StoreReturnsRowGenerator {
-    pub fn new() -> Self {
+    /// Generate the returns of `store_sales` source rows `1..=row_count`.
+    pub fn new(session: Session, row_count: u64) -> Self {
         StoreReturnsRowGenerator {
+            sales: StoreSalesRowGenerator::new(session, row_count),
             abstract_generator: AbstractRowGenerator::new(Table::StoreReturns),
         }
     }
 
-    /// Generate a return row from a sales row
-    /// This is called by StoreSalesRowGenerator when a sale is returned
-    pub fn generate_row(
-        &mut self,
-        session: &Session,
-        sales_row: &StoreSalesRow,
-    ) -> Result<StoreReturnsRow> {
+    /// Start generating at source row `starting_row_number` (1-based), fast
+    /// forwarding the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        self.sales
+            .skip_rows_until_starting_row_number(starting_row_number);
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.sales
+            .set_source_row_range(starting_row_number, ending_row_number);
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+    }
+
+    /// Generate the return row for `sales_row`.
+    fn generate_row(&mut self, sales_row: &StoreSalesRow) -> Result<StoreReturnsRow> {
         use StoreReturnsGeneratorColumn::*;
 
-        let scaling = session.get_scaling();
+        let scaling = self.sales.session().get_scaling();
 
         // Generate null bit map
         let stream = self.abstract_generator.get_random_number_stream(&SrNulls);
@@ -170,48 +194,42 @@ impl StoreReturnsRowGenerator {
     }
 }
 
-impl Default for StoreReturnsRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl Iterator for StoreReturnsRowGenerator {
+    type Item = StoreReturnsRow;
 
-impl RowGenerator for StoreReturnsRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        _row_number: u64,
-        _session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        // The store_returns table is a child of the store_sales table because you can only
-        // return things that have already been purchased. This method should only get called
-        // if we are generating the store_returns table in isolation.
-        // Otherwise store_returns is generated during the generation of the store_sales table
-        // via the generate_row method above.
-        //
-        // For now, we panic if called directly - the proper way is to generate through
-        // store_sales which calls our generate_row method.
-        panic!("StoreReturnsRowGenerator::generate_row_and_child_rows should not be called directly. Use StoreSalesRowGenerator to generate both sales and returns.");
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+    fn next(&mut self) -> Option<StoreReturnsRow> {
+        loop {
+            let item = self.sales.next_line_item().expect("row gen")?;
+            let row = if item.is_returned {
+                let sales_row = self
+                    .sales
+                    .generate_sales_row(item.item_sk)
+                    .expect("row gen");
+                Some(self.generate_row(&sales_row).expect("row gen"))
+            } else {
+                self.sales.skip_item_sales_draws();
+                None
+            };
+            if self.sales.finish_line_item() {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+            }
+            if row.is_some() {
+                return row;
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::Session;
+    use crate::row::dat_values;
 
     #[test]
-    fn test_store_returns_row_generator_creation() {
-        let _generator = StoreReturnsRowGenerator::new();
-        // Just test that it creates successfully
+    fn test_store_returns_row_generation() {
+        let mut generator = StoreReturnsRowGenerator::new(Session::default(), 100);
+        let row = generator.next().expect("a returned line item");
+        assert_eq!(dat_values(&row).len(), 20);
     }
 }
