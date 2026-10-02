@@ -66,24 +66,20 @@ pub trait CsvRow<'a>: Display + Sized {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CallCenterCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CallCenterRowGenerator};
+/// # use tpcdsgen::row::CallCenterRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CallCenterRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::CallCenter);
+/// let generator = CallCenterRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CallCenterCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::CallCenter(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CallCenterCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CallCenterCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "cc_call_center_sk,cc_call_center_id,cc_rec_start_date,cc_rec_end_date,cc_closed_date_sk,cc_open_date_sk,cc_name,cc_class,cc_employees,cc_sq_ft,cc_hours,cc_manager,cc_mkt_id,cc_mkt_class,cc_mkt_desc,cc_market_manager,cc_division,cc_division_name,cc_company,cc_company_name,cc_street_number,cc_street_name,cc_street_type,cc_suite_number,cc_city,cc_county,cc_state,cc_zip,cc_country,cc_gmt_offset,cc_tax_percentage\n\
@@ -156,24 +152,20 @@ impl Display for CallCenterCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CatalogPageCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogPageRowGenerator};
+/// # use tpcdsgen::row::CatalogPageRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CatalogPageRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::CatalogPage);
+/// let generator = CatalogPageRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CatalogPageCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::CatalogPage(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CatalogPageCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CatalogPageCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "cp_catalog_page_sk,cp_catalog_page_id,cp_start_date_sk,cp_end_date_sk,cp_department,cp_catalog_number,cp_catalog_page_number,cp_description,cp_type\n\
@@ -428,24 +420,20 @@ impl Display for CatalogSalesCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CustomerCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CustomerRowGenerator};
+/// # use tpcdsgen::row::CustomerRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CustomerRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Customer);
+/// let generator = CustomerRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CustomerCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Customer(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CustomerCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CustomerCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "c_customer_sk,c_customer_id,c_current_cdemo_sk,c_current_hdemo_sk,c_current_addr_sk,c_first_shipto_date_sk,c_first_sales_date_sk,c_salutation,c_first_name,c_last_name,c_preferred_cust_flag,c_birth_day,c_birth_month,c_birth_year,c_birth_country,c_login,c_email_address,c_last_review_date_sk\n\
@@ -507,24 +495,20 @@ impl Display for CustomerCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CustomerAddressCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CustomerAddressRowGenerator};
+/// # use tpcdsgen::row::CustomerAddressRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CustomerAddressRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::CustomerAddress);
+/// let generator = CustomerAddressRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CustomerAddressCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::CustomerAddress(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CustomerAddressCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CustomerAddressCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "ca_address_sk,ca_address_id,ca_street_number,ca_street_name,ca_street_type,ca_suite_number,ca_city,ca_county,ca_state,ca_zip,ca_country,ca_gmt_offset,ca_location_type\n\
@@ -577,24 +561,20 @@ impl Display for CustomerAddressCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{CustomerDemographicsCsv, CsvRow};
-/// # use tpcdsgen::row::{CustomerDemographicsRowGenerator, GeneratedRow, RowGenerator};
+/// # use tpcdsgen::row::CustomerDemographicsRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = CustomerDemographicsRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::CustomerDemographics);
+/// let generator = CustomerDemographicsRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", CustomerDemographicsCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::CustomerDemographics(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", CustomerDemographicsCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", CustomerDemographicsCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "cd_demo_sk,cd_gender,cd_marital_status,cd_education_status,cd_purchase_estimate,cd_credit_rating,cd_dep_count,cd_dep_employed_count,cd_dep_college_count\n\
@@ -643,24 +623,20 @@ impl Display for CustomerDemographicsCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{DateDimCsv, CsvRow};
-/// # use tpcdsgen::row::{DateDimRowGenerator, GeneratedRow, RowGenerator};
+/// # use tpcdsgen::row::DateDimRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = DateDimRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::DateDim);
+/// let generator = DateDimRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", DateDimCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::DateDim(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", DateDimCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", DateDimCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "d_date_sk,d_date_id,d_date,d_month_seq,d_week_seq,d_quarter_seq,d_year,d_dow,d_moy,d_dom,d_qoy,d_fy_year,d_fy_quarter_seq,d_fy_week_seq,d_day_name,d_quarter_name,d_holiday,d_weekend,d_following_holiday,d_first_dom,d_last_dom,d_same_day_ly,d_same_day_lq,d_current_day,d_current_week,d_current_month,d_current_quarter,d_current_year\n\
@@ -732,24 +708,20 @@ impl Display for DateDimCsv<'_> {
 /// the command line used, neither of which is reproducible, so this example
 /// checks only the stable parts of the line.
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{DbgenVersionCsv, CsvRow};
-/// # use tpcdsgen::row::{DbgenVersionRowGenerator, GeneratedRow, RowGenerator};
+/// # use tpcdsgen::row::DbgenVersionRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = DbgenVersionRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::DbgenVersion);
+/// let generator = DbgenVersionRowGenerator::new(session, row_count);
 /// // Output the first row in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", DbgenVersionCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=1 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::DbgenVersion(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", DbgenVersionCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(1) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", DbgenVersionCsv::new(&row)).unwrap();
+/// }
 /// let mut lines = csv.lines();
 /// assert_eq!(
 ///   lines.next().unwrap(),
@@ -796,24 +768,20 @@ impl Display for DbgenVersionCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{HouseholdDemographicsCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, HouseholdDemographicsRowGenerator, RowGenerator};
+/// # use tpcdsgen::row::HouseholdDemographicsRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = HouseholdDemographicsRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::HouseholdDemographics);
+/// let generator = HouseholdDemographicsRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", HouseholdDemographicsCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::HouseholdDemographics(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", HouseholdDemographicsCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", HouseholdDemographicsCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "hd_demo_sk,hd_income_band_sk,hd_buy_potential,hd_dep_count,hd_vehicle_count\n\
@@ -858,24 +826,20 @@ impl Display for HouseholdDemographicsCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{IncomeBandCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, IncomeBandRowGenerator, RowGenerator};
+/// # use tpcdsgen::row::IncomeBandRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = IncomeBandRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::IncomeBand);
+/// let generator = IncomeBandRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", IncomeBandCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::IncomeBand(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", IncomeBandCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", IncomeBandCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "ib_income_band_sk,ib_lower_bound,ib_upper_bound\n\
@@ -918,24 +882,20 @@ impl Display for IncomeBandCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{InventoryCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, InventoryRowGenerator, RowGenerator};
+/// # use tpcdsgen::row::InventoryRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = InventoryRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Inventory);
+/// let generator = InventoryRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", InventoryCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Inventory(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", InventoryCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", InventoryCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "inv_date_sk,inv_item_sk,inv_warehouse_sk,inv_quantity_on_hand\n\
@@ -981,24 +941,20 @@ impl Display for InventoryCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{ItemCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, ItemRowGenerator};
+/// # use tpcdsgen::row::ItemRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = ItemRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Item);
+/// let generator = ItemRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", ItemCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Item(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", ItemCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", ItemCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "i_item_sk,i_item_id,i_rec_start_date,i_rec_end_date,i_item_desc,i_current_price,i_wholesale_cost,i_brand_id,i_brand,i_class_id,i_class,i_category_id,i_category,i_manufact_id,i_manufact,i_size,i_formulation,i_color,i_units,i_container,i_manager_id,i_product_name\n\
@@ -1062,24 +1018,20 @@ impl Display for ItemCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{PromotionCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, PromotionRowGenerator};
+/// # use tpcdsgen::row::PromotionRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = PromotionRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Promotion);
+/// let generator = PromotionRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", PromotionCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Promotion(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", PromotionCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", PromotionCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "p_promo_sk,p_promo_id,p_start_date_sk,p_end_date_sk,p_item_sk,p_cost,p_response_target,p_promo_name,p_channel_dmail,p_channel_email,p_channel_catalog,p_channel_tv,p_channel_radio,p_channel_press,p_channel_event,p_channel_demo,p_channel_details,p_purpose,p_discount_active\n\
@@ -1140,24 +1092,20 @@ impl Display for PromotionCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{ReasonCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, ReasonRowGenerator};
+/// # use tpcdsgen::row::ReasonRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = ReasonRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Reason);
+/// let generator = ReasonRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", ReasonCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Reason(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", ReasonCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", ReasonCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "r_reason_sk,r_reason_id,r_reason_desc\n\
@@ -1200,24 +1148,20 @@ impl Display for ReasonCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{ShipModeCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, ShipModeRowGenerator};
+/// # use tpcdsgen::row::ShipModeRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = ShipModeRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::ShipMode);
+/// let generator = ShipModeRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", ShipModeCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::ShipMode(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", ShipModeCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", ShipModeCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "sm_ship_mode_sk,sm_ship_mode_id,sm_type,sm_code,sm_carrier,sm_contract\n\
@@ -1263,24 +1207,20 @@ impl Display for ShipModeCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{StoreCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreRowGenerator};
+/// # use tpcdsgen::row::StoreRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = StoreRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Store);
+/// let generator = StoreRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", StoreCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Store(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", StoreCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", StoreCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "s_store_sk,s_store_id,s_rec_start_date,s_rec_end_date,s_closed_date_sk,s_store_name,s_number_employees,s_floor_space,s_hours,s_manager,s_market_id,s_geography_class,s_market_desc,s_market_manager,s_division_id,s_division_name,s_company_id,s_company_name,s_street_number,s_street_name,s_street_type,s_suite_number,s_city,s_county,s_state,s_zip,s_country,s_gmt_offset,s_tax_precentage\n\
@@ -1573,24 +1513,20 @@ impl Display for StoreSalesCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{TimeDimCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, TimeDimRowGenerator};
+/// # use tpcdsgen::row::TimeDimRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = TimeDimRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::TimeDim);
+/// let generator = TimeDimRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", TimeDimCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::TimeDim(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", TimeDimCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", TimeDimCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "t_time_sk,t_time_id,t_time,t_hour,t_minute,t_second,t_am_pm,t_shift,t_sub_shift,t_meal_time\n\
@@ -1640,24 +1576,20 @@ impl Display for TimeDimCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{WarehouseCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WarehouseRowGenerator};
+/// # use tpcdsgen::row::WarehouseRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WarehouseRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::Warehouse);
+/// let generator = WarehouseRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WarehouseCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::Warehouse(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", WarehouseCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", WarehouseCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "w_warehouse_sk,w_warehouse_id,w_warehouse_name,w_warehouse_sq_ft,w_street_number,w_street_name,w_street_type,w_suite_number,w_city,w_county,w_state,w_zip,w_country,w_gmt_offset\n\
@@ -1713,24 +1645,20 @@ impl Display for WarehouseCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{WebPageCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebPageRowGenerator};
+/// # use tpcdsgen::row::WebPageRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WebPageRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::WebPage);
+/// let generator = WebPageRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WebPageCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::WebPage(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", WebPageCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", WebPageCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "wp_web_page_sk,wp_web_page_id,wp_rec_start_date,wp_rec_end_date,wp_creation_date_sk,wp_access_date_sk,wp_autogen_flag,wp_customer_sk,wp_url,wp_type,wp_char_count,wp_link_count,wp_image_count,wp_max_ad_count\n\
@@ -1962,24 +1890,20 @@ impl Display for WebSalesCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpcdsgen::config::Session;
+/// # use tpcdsgen::config::{Session, Table};
 /// # use tpcdsgen::csv::{WebSiteCsv, CsvRow};
-/// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSiteRowGenerator};
+/// # use tpcdsgen::row::WebSiteRowGenerator;
 /// # use std::fmt::Write;
 /// # let session = Session::default();
-/// let mut generator = WebSiteRowGenerator::new();
+/// let row_count = session.get_scaling().get_row_count(Table::WebSite);
+/// let generator = WebSiteRowGenerator::new(session, row_count);
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", WebSiteCsv::header()).unwrap(); // write header
-/// # for row_number in 1..=3 {
-/// #   let result = generator.generate_row_and_child_rows(row_number, &session, None, None).unwrap();
-/// #   for row in result.get_rows() {
-/// #     let GeneratedRow::WebSite(row) = row else { continue };
-/// // write line using CSV formatter
-/// writeln!(&mut csv, "{}", WebSiteCsv::new(row)).unwrap();
-/// #   }
-/// #   generator.consume_remaining_seeds_for_row();
-/// # }
+/// for row in generator.take(3) {
+///     // write line using CSV formatter
+///     writeln!(&mut csv, "{}", WebSiteCsv::new(&row)).unwrap();
+/// }
 /// assert_eq!(
 ///   csv,
 ///   "web_site_sk,web_site_id,web_rec_start_date,web_rec_end_date,web_name,web_open_date_sk,web_close_date_sk,web_class,web_manager,web_mkt_id,web_mkt_class,web_mkt_desc,web_market_manager,web_company_id,web_company_name,web_street_number,web_street_name,web_street_type,web_suite_number,web_city,web_county,web_state,web_zip,web_country,web_gmt_offset,web_tax_percentage\n\

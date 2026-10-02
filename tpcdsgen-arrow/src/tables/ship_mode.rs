@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{ShipModeRow, ShipModeRowGenerator, SingleRowIter};
+use tpcdsgen::row::{ShipModeRow, ShipModeRowGenerator};
 
 pub struct ShipModeArrow {
-    inner: SingleRowIter<ShipModeRowGenerator>,
+    inner: ShipModeRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<ShipModeRow>,
@@ -24,7 +24,7 @@ impl ShipModeArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::ShipMode);
         Self {
-            inner: SingleRowIter::new(ShipModeRowGenerator::new(), session, row_count),
+            inner: ShipModeRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

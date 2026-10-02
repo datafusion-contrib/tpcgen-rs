@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{InventoryRow, InventoryRowGenerator, SingleRowIter};
+use tpcdsgen::row::{InventoryRow, InventoryRowGenerator};
 
 pub struct InventoryArrow {
-    inner: SingleRowIter<InventoryRowGenerator>,
+    inner: InventoryRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<InventoryRow>,
@@ -24,7 +24,7 @@ impl InventoryArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Inventory);
         Self {
-            inner: SingleRowIter::new(InventoryRowGenerator::new(), session, row_count),
+            inner: InventoryRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

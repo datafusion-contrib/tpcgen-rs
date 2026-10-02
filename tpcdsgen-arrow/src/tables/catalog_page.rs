@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CatalogPageRow, CatalogPageRowGenerator, SingleRowIter};
+use tpcdsgen::row::{CatalogPageRow, CatalogPageRowGenerator};
 
 pub struct CatalogPageArrow {
-    inner: SingleRowIter<CatalogPageRowGenerator>,
+    inner: CatalogPageRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<CatalogPageRow>,
@@ -24,7 +24,7 @@ impl CatalogPageArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CatalogPage);
         Self {
-            inner: SingleRowIter::new(CatalogPageRowGenerator::new(), session, row_count),
+            inner: CatalogPageRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

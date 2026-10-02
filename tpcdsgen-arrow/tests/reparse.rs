@@ -189,23 +189,12 @@ where
 
 macro_rules! table_test {
     // $name: module name
-    // $gen: the table's row generator type. A sales or returns generator
-    //       iterates over its source rows directly, named as `$gen: Iterator`.
+    // $gen: the table's row generator type, an `Iterator` over its rows
+    //       created with `new(session, source_row_count)`.
     // $csv: the [`CsvRow`] wrapper for the table's rows.
     // $arrow_gen: constructor for the matching Arrow RecordBatch generator.
     // $table: TPC-DS table whose row count is the number of source rows.
     ($name:ident, $gen:ident, $csv:ident, $arrow_gen:expr, $table:expr) => {
-        table_test!(@rows $name,
-            |source_rows| SingleRowIter::new(<$gen>::new(), SESSION.clone(), source_rows),
-            $csv, $arrow_gen, $table);
-    };
-    ($name:ident, $gen:ident: Iterator, $csv:ident, $arrow_gen:expr, $table:expr) => {
-        table_test!(@rows $name,
-            |source_rows| <$gen>::new(SESSION.clone(), source_rows),
-            $csv, $arrow_gen, $table);
-    };
-    // `$rows(source_rows)` iterates the table's rows
-    (@rows $name:ident, $rows:expr, $csv:ident, $arrow_gen:expr, $table:expr) => {
         mod $name {
             use super::*;
 
@@ -235,7 +224,7 @@ macro_rules! table_test {
                 let row_limit = test_row_count($table) as usize;
                 let arrow_gen = $arrow_gen(SESSION.clone());
                 let schema = arrow_gen.schema();
-                let rows = $rows(source_row_count);
+                let rows = <$gen>::new(SESSION.clone(), source_row_count);
                 let reparsed = reparsed_rows(
                     rows,
                     format,
@@ -255,7 +244,7 @@ macro_rules! table_test {
                 let row_limit =
                     test_row_count($table).min(remaining_source_rows).min(1024) as usize;
 
-                let mut rows = $rows(source_row_count);
+                let mut rows = <$gen>::new(SESSION.clone(), source_row_count);
                 rows.skip_rows_until_starting_row_number(starting_row_number);
 
                 let mut arrow_gen = $arrow_gen(SESSION.clone());
@@ -399,42 +388,42 @@ table_test!(
 
 table_test!(
     catalog_sales,
-    CatalogSalesRowGenerator: Iterator,
+    CatalogSalesRowGenerator,
     CatalogSalesCsv,
     CatalogSalesArrow::new,
     Table::CatalogSales
 );
 table_test!(
     catalog_returns,
-    CatalogReturnsRowGenerator: Iterator,
+    CatalogReturnsRowGenerator,
     CatalogReturnsCsv,
     CatalogReturnsArrow::new,
     Table::CatalogSales
 );
 table_test!(
     store_sales,
-    StoreSalesRowGenerator: Iterator,
+    StoreSalesRowGenerator,
     StoreSalesCsv,
     StoreSalesArrow::new,
     Table::StoreSales
 );
 table_test!(
     store_returns,
-    StoreReturnsRowGenerator: Iterator,
+    StoreReturnsRowGenerator,
     StoreReturnsCsv,
     StoreReturnsArrow::new,
     Table::StoreSales
 );
 table_test!(
     web_sales,
-    WebSalesRowGenerator: Iterator,
+    WebSalesRowGenerator,
     WebSalesCsv,
     WebSalesArrow::new,
     Table::WebSales
 );
 table_test!(
     web_returns,
-    WebReturnsRowGenerator: Iterator,
+    WebReturnsRowGenerator,
     WebReturnsCsv,
     WebReturnsArrow::new,
     Table::WebSales

@@ -8,10 +8,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{DateDimRow, DateDimRowGenerator, SingleRowIter};
+use tpcdsgen::row::{DateDimRow, DateDimRowGenerator};
 
 pub struct DateDimArrow {
-    inner: SingleRowIter<DateDimRowGenerator>,
+    inner: DateDimRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<DateDimRow>,
@@ -26,7 +26,7 @@ impl DateDimArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::DateDim);
         Self {
-            inner: SingleRowIter::new(DateDimRowGenerator::new(), session, row_count),
+            inner: DateDimRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

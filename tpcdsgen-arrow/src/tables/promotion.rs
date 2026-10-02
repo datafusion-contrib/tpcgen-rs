@@ -9,10 +9,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{PromotionRow, PromotionRowGenerator, SingleRowIter};
+use tpcdsgen::row::{PromotionRow, PromotionRowGenerator};
 
 pub struct PromotionArrow {
-    inner: SingleRowIter<PromotionRowGenerator>,
+    inner: PromotionRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<PromotionRow>,
@@ -27,7 +27,7 @@ impl PromotionArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Promotion);
         Self {
-            inner: SingleRowIter::new(PromotionRowGenerator::new(), session, row_count),
+            inner: PromotionRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

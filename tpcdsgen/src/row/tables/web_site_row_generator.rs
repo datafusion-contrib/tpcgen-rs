@@ -20,11 +20,9 @@ use crate::generator::WebSiteGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
-use crate::row::{
-    AbstractRowGenerator, RowGenerator, RowGeneratorResult, SingleRowGenerator, WebSiteRow,
-};
+use crate::row::{AbstractRowGenerator, WebSiteRow};
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, generate_scd_history, get_value_for_slowly_changing_dimension,
+    compute_scd_key, get_value_for_slowly_changing_dimension, scd_history,
 };
 use crate::table::Table;
 use crate::types::{Address, Decimal};
@@ -32,33 +30,46 @@ use crate::types::{Address, Decimal};
 pub struct WebSiteRowGenerator {
     abstract_generator: AbstractRowGenerator,
     previous_row: Option<WebSiteRow>,
-}
-
-impl Default for WebSiteRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
+    session: Session,
+    current_row: u64,
+    row_count: u64,
 }
 
 impl WebSiteRowGenerator {
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::WebSite),
             previous_row: None,
+            session,
+            current_row: 1,
+            row_count,
         }
     }
-}
 
-impl SingleRowGenerator for WebSiteRowGenerator {
-    type Row = WebSiteRow;
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+        // Invalidate the retained slowly changing dimension (SCD) state.
+        // This tells `next` to replay it when needed.
+        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
+        self.previous_row = None;
+        self.current_row = starting_row_number;
+    }
 
-    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<WebSiteRow> {
-        // Replay the missing slowly changing dimension (SCD) state this row
-        // inherits from, which `skip_rows_until_starting_row_number` cleared.
-        // This gives it the same values to copy from as an uninterrupted run.
-        if self.previous_row.is_none() {
-            generate_scd_history(self, row_number, session)?;
-        }
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
+    }
+
+    fn generate_web_site_row(&mut self, row_number: u64) -> Result<WebSiteRow> {
+        let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         let scaling = session.get_scaling();
@@ -369,43 +380,35 @@ impl SingleRowGenerator for WebSiteRowGenerator {
         self.previous_row = Some(row.clone());
         Ok(row)
     }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        // Invalidate the retained slowly changing dimension (SCD) state.
-        // This tells `generate_row_and_child_rows` to replay it when needed.
-        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
-        self.previous_row = None;
-    }
 }
 
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for WebSiteRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
+impl Iterator for WebSiteRowGenerator {
+    type Item = WebSiteRow;
 
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+    fn next(&mut self) -> Option<WebSiteRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
+        // Replay the missing slowly changing dimension (SCD) state this row
+        // inherits from, which `skip_rows_until_starting_row_number` cleared.
+        // This gives it the same values to copy from as an uninterrupted run.
+        if self.previous_row.is_none() {
+            let history = scd_history(self.current_row);
+            if !history.is_empty() {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(history.start);
+                for row_number in history {
+                    self.generate_web_site_row(row_number).expect("row gen");
+                    self.abstract_generator.consume_remaining_seeds_for_row();
+                }
+            }
+        }
+        let row = self
+            .generate_web_site_row(self.current_row)
+            .expect("row gen");
+        self.abstract_generator.consume_remaining_seeds_for_row();
+        self.current_row += 1;
+        Some(row)
     }
 }
 
@@ -415,19 +418,11 @@ mod tests {
     use crate::row::dat_values;
 
     #[test]
-    fn test_web_site_row_generator_creation() {
-        let _generator = WebSiteRowGenerator::new();
-    }
-
-    #[test]
     fn test_generate_web_site_row() {
         use crate::config::Session;
 
-        let mut generator = WebSiteRowGenerator::new();
-        let session = Session::default();
-
-        let row = generator.generate_row(1, &session).unwrap();
-        let values = dat_values(&row);
-        assert_eq!(values.len(), 26);
+        let mut generator = WebSiteRowGenerator::new(Session::default(), 1);
+        let row = generator.next().expect("row");
+        assert_eq!(dat_values(&row).len(), 26);
     }
 }

@@ -3,36 +3,28 @@ use crate::distribution::DemographicsDistributions;
 use crate::error::Result;
 use crate::generator::IncomeBandGeneratorColumn;
 use crate::random::RandomValueGenerator;
-use crate::row::{
-    AbstractRowGenerator, IncomeBandRow, RowGenerator, RowGeneratorResult, SingleRowGenerator,
-};
+use crate::row::{AbstractRowGenerator, IncomeBandRow};
 use crate::table::Table;
 
 /// Row generator for the INCOME_BAND table (IncomeBandRowGenerator)
 pub struct IncomeBandRowGenerator {
     abstract_generator: AbstractRowGenerator,
-}
-
-impl Default for IncomeBandRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
+    current_row: u64,
+    row_count: u64,
 }
 
 impl IncomeBandRowGenerator {
-    /// Create a new IncomeBandRowGenerator
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(_session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::IncomeBand),
+            current_row: 1,
+            row_count,
         }
     }
 
     /// Generate an IncomeBandRow with realistic data following Java implementation
-    fn generate_income_band_row(
-        &mut self,
-        row_number: u64,
-        _session: &Session,
-    ) -> Result<IncomeBandRow> {
+    fn generate_income_band_row(&mut self, row_number: u64) -> Result<IncomeBandRow> {
         // Create null bit map (createNullBitMap call)
         let nulls_stream = self
             .abstract_generator
@@ -63,46 +55,37 @@ impl IncomeBandRowGenerator {
             ib_upper_bound,
         ))
     }
-}
 
-impl SingleRowGenerator for IncomeBandRowGenerator {
-    type Row = IncomeBandRow;
-
-    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<IncomeBandRow> {
-        self.generate_income_band_row(row_number, session)
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+        self.current_row = starting_row_number;
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
     }
 }
 
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for IncomeBandRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
+impl Iterator for IncomeBandRowGenerator {
+    type Item = IncomeBandRow;
 
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+    fn next(&mut self) -> Option<IncomeBandRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
+        let row = self
+            .generate_income_band_row(self.current_row)
+            .expect("row gen");
+        self.abstract_generator.consume_remaining_seeds_for_row();
+        self.current_row += 1;
+        Some(row)
     }
 }

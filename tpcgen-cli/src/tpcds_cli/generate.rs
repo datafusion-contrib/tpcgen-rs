@@ -138,31 +138,20 @@ async fn run_plan(
 ///
 /// Arguments:
 /// `$FUN_NAME`: name of the function to create
-/// `$GENERATOR`: the table's row generator type. A sales or returns generator
-///   iterates over its source rows directly, named as `$GENERATOR: Iterator`
+/// `$GENERATOR`: the table's row generator type, an `Iterator` over its rows
 /// `$DAT_SOURCE`: the [`Source`] type to use for DAT format
 /// `$CSV_SOURCE`: the [`Source`] type to use for CSV format
 /// `$PARQUET_SOURCE`: the [`arrow::record_batch::RecordBatchReader`] type to use for Parquet format
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        define_run!(@rows $FUN_NAME, SingleRowIter<$GENERATOR>,
-            |session, source_rows| SingleRowIter::new(<$GENERATOR>::new(), session, source_rows),
-            $DAT_SOURCE, $CSV_SOURCE, $PARQUET_SOURCE);
-    };
-    ($FUN_NAME:ident, $GENERATOR:ident: Iterator, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        define_run!(@rows $FUN_NAME, $GENERATOR, <$GENERATOR>::new,
-            $DAT_SOURCE, $CSV_SOURCE, $PARQUET_SOURCE);
-    };
-    // `$ROWS` iterates the rows of one chunk, built by `$new_rows(session, source_rows)`
-    (@rows $FUN_NAME:ident, $ROWS:ty, $new_rows:expr, $DAT_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(
             format: &OutputFormat,
             planned: PlannedTable,
             num_threads: usize,
         ) -> io::Result<()> {
             /// The rows of one chunk: source rows `range` of `source_rows`
-            fn rows(session: Session, source_rows: u64, range: RangeInclusive<u64>) -> $ROWS {
-                let mut rows = $new_rows(session, source_rows);
+            fn rows(session: Session, source_rows: u64, range: RangeInclusive<u64>) -> $GENERATOR {
+                let mut rows = <$GENERATOR>::new(session, source_rows);
                 rows.set_source_row_range(*range.start(), *range.end());
                 rows
             }
@@ -210,14 +199,14 @@ define_run!(
 );
 define_run!(
     run_catalog_returns,
-    CatalogReturnsRowGenerator: Iterator,
+    CatalogReturnsRowGenerator,
     CatalogReturnsDatSource,
     CatalogReturnsCsvSource,
     CatalogReturnsArrow
 );
 define_run!(
     run_catalog_sales,
-    CatalogSalesRowGenerator: Iterator,
+    CatalogSalesRowGenerator,
     CatalogSalesDatSource,
     CatalogSalesCsvSource,
     CatalogSalesArrow
@@ -315,14 +304,14 @@ define_run!(
 );
 define_run!(
     run_store_returns,
-    StoreReturnsRowGenerator: Iterator,
+    StoreReturnsRowGenerator,
     StoreReturnsDatSource,
     StoreReturnsCsvSource,
     StoreReturnsArrow
 );
 define_run!(
     run_store_sales,
-    StoreSalesRowGenerator: Iterator,
+    StoreSalesRowGenerator,
     StoreSalesDatSource,
     StoreSalesCsvSource,
     StoreSalesArrow
@@ -350,14 +339,14 @@ define_run!(
 );
 define_run!(
     run_web_returns,
-    WebReturnsRowGenerator: Iterator,
+    WebReturnsRowGenerator,
     WebReturnsDatSource,
     WebReturnsCsvSource,
     WebReturnsArrow
 );
 define_run!(
     run_web_sales,
-    WebSalesRowGenerator: Iterator,
+    WebSalesRowGenerator,
     WebSalesDatSource,
     WebSalesCsvSource,
     WebSalesArrow
