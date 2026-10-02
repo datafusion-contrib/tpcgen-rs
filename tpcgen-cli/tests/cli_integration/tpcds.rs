@@ -364,6 +364,7 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_e
 #[test]
 fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let output_dir = temp_dir.path().join("out");
 
     let assert = cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
@@ -373,7 +374,7 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
         .arg("--tables")
         .arg("reason,item")
         .arg("--output-dir")
-        .arg(temp_dir.path())
+        .arg(&output_dir)
         .arg("--column-encoding")
         .arg("r_reason_desc_typo=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
@@ -384,12 +385,9 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
         stderr.contains("column 'r_reason_desc_typo'"),
         "unexpected stderr: {stderr}"
     );
-    assert_eq!(
-        fs::read_dir(temp_dir.path())
-            .expect("Failed to read output directory")
-            .count(),
-        0,
-        "expected no output files when validation fails before generation starts"
+    assert!(
+        !output_dir.exists(),
+        "expected no output directory when validation fails"
     );
 }
 
