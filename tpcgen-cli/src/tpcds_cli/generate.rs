@@ -47,11 +47,14 @@ pub(super) trait RowFormat<R>: Clone + Send + 'static {
     /// The file extension of this format's output files.
     const EXTENSION: &'static str;
 
-    /// Write the header line for `table`, if this format has one. Called once
-    /// per file, before any rows.
+    /// Write the header line for `table`, if this format has one, at the end of
+    /// `buffer`, returning the buffer with new content .
+    ///
+    /// Called once per file, before any rows.
     fn write_header(&self, table: Table, buffer: Vec<u8>) -> Vec<u8>;
 
-    /// Format `rows` (all belonging to `table`) into `buffer`.
+    /// Format `rows` (all belonging to `table`) at the end of `buffer`,
+    /// returning the buffer with the new content.
     fn write_rows<I>(&self, table: Table, rows: I, buffer: Vec<u8>) -> Vec<u8>
     where
         I: Iterator<Item = R>;
