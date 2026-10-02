@@ -1,11 +1,12 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
 use crate::generate::{Source, TextOutput};
+use crate::parquet::column_encodings_for_table;
 use crate::parquet::ParquetOutput;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::tpch_cli::csv::*;
-use crate::tpch_cli::generator::column_encodings_for_table;
+use crate::tpch_cli::generator::table_schema;
 use crate::tpch_cli::output_plan::OutputPlan;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
@@ -169,7 +170,7 @@ where
     // Keep only the encodings for columns on this table.
     let column_encodings = plan
         .parquet_column_encodings()
-        .map(|encodings| column_encodings_for_table(plan.table(), encodings));
+        .map(|encodings| column_encodings_for_table(&table_schema(plan.table()), encodings));
     let column_encodings = column_encodings.as_deref();
 
     let written = plan

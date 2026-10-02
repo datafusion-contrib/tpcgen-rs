@@ -52,43 +52,6 @@ fn table_schema(table: Table) -> SchemaRef {
     }
 }
 
-/// Checks each column in `encodings` against every table in `tables`.
-///
-/// Rejects an encoding `reject_unsupported_encoding` always rejects.
-/// Rejects a column name that matches no table (almost always a typo). A
-/// column that matches only some tables is fine: [`column_encodings_for_table`]
-/// applies it there and skips it elsewhere.
-fn validate_column_encodings(tables: &[Table], encodings: &[(String, Encoding)]) -> io::Result<()> {
-    for (col, enc) in encodings {
-        crate::parquet::reject_unsupported_encoding(*enc)?;
-        let matches_any_table = tables.iter().any(|table| {
-            table_schema(*table)
-                .fields()
-                .iter()
-                .any(|f| f.name() == col)
-        });
-        if !matches_any_table {
-            return Err(io::Error::other(format!(
-                "column '{col}' for --column-encoding not found in any selected table"
-            )));
-        }
-    }
-    Ok(())
-}
-
-/// Keeps only the encodings whose column exists in `table`'s schema.
-fn column_encodings_for_table(
-    table: Table,
-    encodings: &[(String, Encoding)],
-) -> Vec<(String, Encoding)> {
-    let schema = table_schema(table);
-    encodings
-        .iter()
-        .filter(|(col, _)| schema.fields().iter().any(|f| f.name() == col))
-        .cloned()
-        .collect()
-}
-
 /// Parquet output generator.
 #[derive(Debug, Clone)]
 pub(super) struct Parquet {
@@ -121,9 +84,10 @@ impl Parquet {
     /// column that only matches some tables, so that case is not an error.
     pub(super) fn validate(&self, table_sessions: &[(Table, Session)]) -> io::Result<()> {
         if let Some(encodings) = &self.column_encodings {
-            let selected_tables: Vec<Table> =
-                table_sessions.iter().map(|(table, _)| *table).collect();
-            validate_column_encodings(&selected_tables, encodings)?;
+            crate::parquet::validate_column_encodings(
+                table_sessions.iter().map(|(table, _)| table_schema(*table)),
+                encodings,
+            )?;
         }
         Ok(())
     }
@@ -156,10 +120,9 @@ impl Parquet {
 
         // Keep only the encodings for columns on this table.
         // --column-encoding usually targets a few tables, not all of them.
-        let column_encodings = self
-            .column_encodings
-            .as_ref()
-            .map(|encodings| column_encodings_for_table(table, encodings));
+        let column_encodings = self.column_encodings.as_ref().map(|encodings| {
+            crate::parquet::column_encodings_for_table(&table_schema(table), encodings)
+        });
 
         let location = output_location_for_table(&self.base_location, table, "parquet", &session)?;
         let chunk_count = plan.chunk_count() as u64;
@@ -198,54 +161,5 @@ impl Parquet {
         }
         progress.complete();
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validate_column_encodings_accepts_a_column_present_on_just_one_table() {
-        // r_reason_desc exists only on reason, not item.
-        let tables = [Table::Reason, Table::Item];
-        let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN)];
-        assert!(validate_column_encodings(&tables, &encodings).is_ok());
-    }
-
-    #[test]
-    fn validate_column_encodings_rejects_a_typo() {
-        let tables = [Table::Reason];
-        let encodings = [("r_reason_desc_typo".to_string(), Encoding::PLAIN)];
-        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
-        assert!(
-            err.to_string().contains("column 'r_reason_desc_typo'"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn validate_column_encodings_rejects_dictionary_encoding() {
-        // The column is real, so the only reason to fail is the encoding.
-        let tables = [Table::Reason];
-        let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN_DICTIONARY)];
-        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
-        assert!(err.to_string().contains("dictionary encoding"), "{err}");
-    }
-
-    #[test]
-    fn column_encodings_for_table_keeps_only_matching_columns() {
-        let encodings = [
-            ("r_reason_desc".to_string(), Encoding::PLAIN),
-            ("i_item_desc".to_string(), Encoding::PLAIN),
-        ];
-        assert_eq!(
-            column_encodings_for_table(Table::Reason, &encodings),
-            vec![("r_reason_desc".to_string(), Encoding::PLAIN)]
-        );
-        assert_eq!(
-            column_encodings_for_table(Table::CallCenter, &encodings),
-            Vec::new()
-        );
     }
 }
