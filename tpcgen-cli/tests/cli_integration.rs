@@ -148,3 +148,28 @@ fn test_parquet_rejects_non_positive_row_group_bytes() {
         }
     }
 }
+
+#[test]
+fn test_parquet_field_ids_false() {
+    for (benchmark, table) in [("tpch", "region"), ("tpcds", "reason")] {
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+
+        cargo_bin_cmd!("tpcgen-cli")
+            .args([
+                benchmark,
+                "parquet",
+                "--scale-factor",
+                "0",
+                "--tables",
+                table,
+                "--field-ids=false",
+                "--no-progress",
+            ])
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .assert()
+            .success();
+
+        test_helpers::expect_no_field_ids(&temp_dir.path().join(format!("{table}.parquet")));
+    }
+}
