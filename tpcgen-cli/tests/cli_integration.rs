@@ -4,6 +4,9 @@ use predicates::prelude::PredicateBooleanExt;
 #[path = "cli_integration/test_helpers.rs"]
 mod test_helpers;
 
+#[path = "cli_integration/column_encoding.rs"]
+mod column_encoding;
+
 // TPCH-specific CLI coverage
 #[path = "cli_integration/tpch.rs"]
 mod tpch;

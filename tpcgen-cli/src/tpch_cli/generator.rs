@@ -199,6 +199,7 @@ impl Default for GeneratorConfig {
     }
 }
 
+/// Returns `table`'s Arrow schema without building a generator.
 pub(super) fn table_schema(table: Table) -> SchemaRef {
     match table {
         Table::Nation => NationArrow::schema_ref(),
@@ -212,31 +213,17 @@ pub(super) fn table_schema(table: Table) -> SchemaRef {
     }
 }
 
-/// Checks each column in `encodings` against every table in `tables`.
-///
-/// Rejects an encoding `reject_unsupported_encoding` always rejects.
-/// Rejects a column name that matches no table (almost always a typo). A
-/// column that matches only some tables is fine: [`column_encodings_for_table`]
-/// applies it there and skips it elsewhere.
+/// Validates the effective overrides against all selected tables before output.
 pub(super) fn validate_column_encodings(
     tables: &[Table],
     encodings: &[(String, Encoding)],
 ) -> io::Result<()> {
-    for (col, enc) in encodings {
-        crate::parquet::reject_unsupported_encoding(*enc)?;
-        let matches_any_table = tables.iter().any(|table| {
-            table_schema(*table)
-                .fields()
-                .iter()
-                .any(|f| f.name() == col)
-        });
-        if !matches_any_table {
-            return Err(io::Error::other(format!(
-                "column '{col}' for --column-encoding not found in any selected table"
-            )));
-        }
-    }
-    Ok(())
+    crate::parquet::column_encoding::validate_column_encodings(
+        tables
+            .iter()
+            .map(|table| (table.name(), table_schema(*table))),
+        encodings,
+    )
 }
 
 /// Keeps only the encodings whose column exists in `table`'s schema.
@@ -305,9 +292,9 @@ impl TpchGenerator {
         );
 
         // Reject a --column-encoding column that matches no selected table
-        // (a typo) before any work starts. column_encodings_for_table
-        // (below) skips a column that only matches some tables, so that
-        // case is not an error.
+        // (a typo), or an encoding its column cannot use, before any work
+        // starts. column_encodings_for_table (below) skips a column that
+        // only matches some tables, so that case is not an error.
         if let Some(encodings) = &config.parquet_column_encodings {
             validate_column_encodings(&tables, encodings)?;
         }
@@ -539,6 +526,19 @@ mod tests {
         let tables = [Table::Lineitem];
         let encodings = [("l_comment".to_string(), Encoding::PLAIN_DICTIONARY)];
         assert!(validate_column_encodings(&tables, &encodings).is_err());
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_an_encoding_the_column_cannot_use() {
+        // l_orderkey is INT64; DELTA_LENGTH_BYTE_ARRAY needs BYTE_ARRAY.
+        let tables = [Table::Lineitem, Table::Orders];
+        let encodings = [("l_orderkey".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot encode column 'l_orderkey'"),
+            "{err}"
+        );
     }
 
     #[test]

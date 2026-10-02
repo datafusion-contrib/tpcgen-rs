@@ -24,6 +24,7 @@ use tpcdsgen_arrow::{
 /// Parquet files can have at most 32767 row groups
 pub(super) const MAX_ROW_GROUPS: u64 = 32767;
 
+/// Returns `table`'s Arrow schema without building a generator.
 fn table_schema(table: Table) -> SchemaRef {
     match table {
         Table::CallCenter => CallCenterArrow::schema_ref(),
@@ -55,28 +56,14 @@ fn table_schema(table: Table) -> SchemaRef {
     }
 }
 
-/// Checks each column in `encodings` against every table in `tables`.
-///
-/// Rejects an encoding `reject_unsupported_encoding` always rejects.
-/// Rejects a column name that matches no table (almost always a typo). A
-/// column that matches only some tables is fine: [`column_encodings_for_table`]
-/// applies it there and skips it elsewhere.
+/// Validates the effective overrides against all selected tables before output.
 fn validate_column_encodings(tables: &[Table], encodings: &[(String, Encoding)]) -> io::Result<()> {
-    for (col, enc) in encodings {
-        crate::parquet::reject_unsupported_encoding(*enc)?;
-        let matches_any_table = tables.iter().any(|table| {
-            table_schema(*table)
-                .fields()
-                .iter()
-                .any(|f| f.name() == col)
-        });
-        if !matches_any_table {
-            return Err(io::Error::other(format!(
-                "column '{col}' for --column-encoding not found in any selected table"
-            )));
-        }
-    }
-    Ok(())
+    crate::parquet::column_encoding::validate_column_encodings(
+        tables
+            .iter()
+            .map(|table| (table.get_name(), table_schema(*table))),
+        encodings,
+    )
 }
 
 /// Keeps only the encodings whose column exists in `table`'s schema.
@@ -116,6 +103,14 @@ impl Parquet {
         }
     }
 
+    /// Check overrides before creating output directories or generator sessions.
+    pub(super) fn validate_column_encodings(&self, tables: &[Table]) -> io::Result<()> {
+        if let Some(encodings) = &self.column_encodings {
+            validate_column_encodings(tables, encodings)?;
+        }
+        Ok(())
+    }
+
     /// Generate the given TPC-DS tables as Parquet files.
     pub(super) async fn generate_tables(
         &self,
@@ -123,16 +118,6 @@ impl Parquet {
         num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
-        // Reject a --column-encoding column that matches no selected table
-        // (a typo) before any work starts. column_encodings_for_table
-        // (below) skips a column that only matches some tables, so that
-        // case is not an error.
-        if let Some(encodings) = &self.column_encodings {
-            let selected_tables: Vec<Table> =
-                table_sessions.iter().map(|(table, _)| *table).collect();
-            validate_column_encodings(&selected_tables, encodings)?;
-        }
-
         let work = plan_tables(
             table_sessions,
             self.row_group_bytes,
@@ -584,6 +569,19 @@ mod tests {
         let encodings = [("r_reason_desc".to_string(), Encoding::PLAIN_DICTIONARY)];
         let err = validate_column_encodings(&tables, &encodings).unwrap_err();
         assert!(err.to_string().contains("dictionary encoding"), "{err}");
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_an_encoding_the_column_cannot_use() {
+        // r_reason_sk is INT32; DELTA_LENGTH_BYTE_ARRAY needs BYTE_ARRAY.
+        let tables = [Table::Reason];
+        let encodings = [("r_reason_sk".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot encode column 'r_reason_sk'"),
+            "{err}"
+        );
     }
 
     #[test]

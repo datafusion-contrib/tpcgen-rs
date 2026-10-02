@@ -342,6 +342,10 @@ impl CommonArgs {
         let tables = self.tables()?;
         let parts = self.part_list()?;
 
+        if let OutputFormat::Parquet(output) = &output_format {
+            output.validate_column_encodings(&tables)?;
+        }
+
         let base_location = self.base_location()?;
 
         let partition = match (self.parts, self.part) {

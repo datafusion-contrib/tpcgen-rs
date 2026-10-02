@@ -5,11 +5,9 @@ use arrow::record_batch::RecordBatchReader;
 use futures_util::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk, ArrowRowGroupWriterFactory};
-use parquet::arrow::{
-    add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter, PARQUET_FIELD_ID_META_KEY,
-};
+use parquet::arrow::{add_encoded_arrow_schema_to_metadata, PARQUET_FIELD_ID_META_KEY};
 use parquet::basic::{Compression, Encoding};
-use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAULT_COERCE_TYPES};
+use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
 use std::io;
@@ -21,6 +19,9 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::output_location::WriteOutput;
 use crate::progress::ProgressHandle;
 use crate::statistics::WriteStatistics;
+
+pub(crate) mod column_encoding;
+use column_encoding::{check_encoding_supports_type, effective_column_encodings, parquet_schema};
 
 fn schema_with_field_ids(schema: &Schema) -> Schema {
     let fields = schema
@@ -59,43 +60,38 @@ pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), 
 /// `BIT_PACKED` is not supported for writing in this parquet version.
 pub(crate) fn reject_unsupported_encoding(encoding: Encoding) -> io::Result<()> {
     match encoding {
-        Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => Err(io::Error::other(format!(
+        Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => Err(io::Error::new(io::ErrorKind::InvalidInput, format!(
             "encoding {encoding} cannot be set with --column-encoding; dictionary encoding is the writer default. Use a non-dictionary encoding such as PLAIN or DELTA_LENGTH_BYTE_ARRAY"
         ))),
         #[allow(deprecated)]
-        Encoding::BIT_PACKED => Err(io::Error::other(
+        Encoding::BIT_PACKED => Err(io::Error::new(io::ErrorKind::InvalidInput,
             "encoding BIT_PACKED is not supported for Parquet writing",
         )),
         _ => Ok(()),
     }
 }
 
-/// Applies `encodings` to `builder`.
+/// Applies only the effective final encoding for each column to `builder`.
 ///
-/// Does not check an encoding against the column's physical type (RLE
-/// needs a boolean column, for example). The parquet writer checks this
-/// itself, but panics instead of returning an error. Not yet filed
-/// upstream in apache/arrow-rs.
-///
-/// So a bad match only fails once its table starts generating, unlike an
-/// unknown column or a rejected encoding. In a multi-table run, another
-/// table can finish first.
+/// Every effective pair must name a column of `parquet_schema` and an encoding
+/// that can encode it (see [`check_encoding_supports_type`]).
 fn apply_column_encodings(
     mut builder: WriterPropertiesBuilder,
     parquet_schema: &SchemaDescPtr,
     encodings: &[(String, Encoding)],
 ) -> io::Result<WriterPropertiesBuilder> {
-    for (col, enc) in encodings {
-        reject_unsupported_encoding(*enc)?;
+    for (col, enc) in effective_column_encodings(encodings)? {
         let Some(descr) = parquet_schema
             .columns()
             .iter()
             .find(|d| d.name() == col.as_str())
         else {
-            return Err(io::Error::other(format!(
-                "unknown column '{col}' for --column-encoding"
-            )));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("unknown column '{col}' for --column-encoding"),
+            ));
         };
+        check_encoding_supports_type(col, *enc, descr.physical_type())?;
         let path = descr.path().clone();
         builder = builder
             .set_column_encoding(path.clone(), *enc)
@@ -134,15 +130,8 @@ where
     let schema = Arc::new(schema_with_field_ids(&first_iter.schema()));
 
     // Compute the parquet schema first. apply_column_encodings needs it to
-    // map column names to a ColumnPath and check they exist. Nothing here
-    // sets coerce_types, so use the default constant instead of building a
-    // WriterProperties just to read it back.
-    let parquet_schema = Arc::new(
-        ArrowSchemaConverter::new()
-            .with_coerce_types(DEFAULT_COERCE_TYPES)
-            .convert(&schema)
-            .map_err(io::Error::other)?,
-    );
+    // map column names to a ColumnPath and check their physical types.
+    let parquet_schema = parquet_schema(&schema)?;
 
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
     if let Some(encodings) = column_encodings {
@@ -438,6 +427,7 @@ mod tests {
         )
         .await
         .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         assert!(
             err.to_string().contains("unknown column 'not_a_column'"),
             "{err}"
@@ -475,46 +465,5 @@ mod tests {
             err.to_string().contains("BIT_PACKED is not supported"),
             "{err}"
         );
-    }
-
-    #[tokio::test]
-    async fn encoding_incompatible_with_column_type_errors_instead_of_crashing() {
-        // We do not check the encoding against the column type here (see
-        // `apply_column_encodings`). The parquet writer panics on a bad
-        // match instead. We only check that the panic comes back as an
-        // `Err`, not the exact message.
-        //
-        // r_regionkey is INT64, not BOOLEAN. RLE needs a boolean column.
-        let output_dir = tempfile::tempdir().unwrap();
-        let output_path = output_dir.path().join("regionkey_rle.parquet");
-        assert!(write_region(
-            Some(&[("r_regionkey".to_string(), Encoding::RLE)]),
-            &output_path
-        )
-        .await
-        .is_err());
-    }
-
-    #[tokio::test]
-    async fn encoding_compatible_with_column_type_succeeds() {
-        let output_dir = tempfile::tempdir().unwrap();
-
-        let output_path = output_dir.path().join("regionkey_delta.parquet");
-        write_region(
-            Some(&[("r_regionkey".to_string(), Encoding::DELTA_BINARY_PACKED)]),
-            &output_path,
-        )
-        .await
-        .unwrap();
-        assert!(std::fs::metadata(&output_path).unwrap().len() > 0);
-
-        let output_path = output_dir.path().join("name_delta_length.parquet");
-        write_region(
-            Some(&[("r_name".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)]),
-            &output_path,
-        )
-        .await
-        .unwrap();
-        assert!(std::fs::metadata(&output_path).unwrap().len() > 0);
     }
 }
