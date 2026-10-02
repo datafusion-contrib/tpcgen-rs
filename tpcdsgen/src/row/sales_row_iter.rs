@@ -79,3 +79,83 @@ impl<G: SalesRowGenerator> Iterator for SalesRowIter<G> {
         Some(rows)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{SessionBuilder, Table};
+    use crate::row::StoreSalesRowGenerator;
+
+    /// Collect the DAT text of the rows `G` emits over each of `ranges`,
+    /// concatenated in order. `select` picks the sales or returns row out of
+    /// each [`SalesRows`].
+    fn rows_for<G, R>(
+        generator: impl Fn() -> G,
+        select: impl Fn(SalesRows<G::Sales, G::Returns>) -> Option<R>,
+        session: &Session,
+        row_count: u64,
+        ranges: &[(u64, u64)],
+    ) -> Vec<String>
+    where
+        G: SalesRowGenerator,
+        R: std::fmt::Display,
+    {
+        let mut out = Vec::new();
+        for &(start, end) in ranges {
+            let mut rows = SalesRowIter::new(generator(), session.clone(), row_count);
+            rows.set_source_row_range(start, end);
+            out.extend(rows.filter_map(&select).map(|row| row.to_string()));
+        }
+        out
+    }
+
+    /// Splitting a table into source row ranges must produce exactly the same
+    /// rows as generating it in one pass, for both the sales and the returns
+    /// selection of a sales generator.
+    #[test]
+    fn source_row_ranges_concatenate_to_the_unranged_output() {
+        let session = SessionBuilder::new()
+            .with_scale_factor(0.01)
+            .build()
+            .expect("session");
+        let source_rows = session.get_scaling().get_row_count(Table::StoreSales);
+        assert!(source_rows > 100, "need enough rows to split");
+        let split = [(1, source_rows / 2), (source_rows / 2 + 1, source_rows)];
+
+        let sales = |rows: SalesRows<_, _>| rows.sales;
+        let whole = rows_for(
+            StoreSalesRowGenerator::sales,
+            sales,
+            &session,
+            source_rows,
+            &[(1, source_rows)],
+        );
+        let chunked = rows_for(
+            StoreSalesRowGenerator::sales,
+            sales,
+            &session,
+            source_rows,
+            &split,
+        );
+        assert!(!whole.is_empty(), "store_sales produced no rows");
+        assert_eq!(whole, chunked, "store_sales ranged output differs");
+
+        let returns = |rows: SalesRows<_, _>| rows.returns;
+        let whole = rows_for(
+            StoreSalesRowGenerator::returns,
+            returns,
+            &session,
+            source_rows,
+            &[(1, source_rows)],
+        );
+        let chunked = rows_for(
+            StoreSalesRowGenerator::returns,
+            returns,
+            &session,
+            source_rows,
+            &split,
+        );
+        assert!(!whole.is_empty(), "store_returns produced no rows");
+        assert_eq!(whole, chunked, "store_returns ranged output differs");
+    }
+}
