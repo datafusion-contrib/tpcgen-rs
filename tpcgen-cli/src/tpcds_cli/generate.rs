@@ -44,10 +44,6 @@ impl OutputFormat {
         num_threads: usize,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
-        if let Self::Parquet(parquet) = &self {
-            parquet.validate(&table_sessions)?;
-        }
-
         let work = plan_tables(
             table_sessions,
             self.chunk_size_bytes(),

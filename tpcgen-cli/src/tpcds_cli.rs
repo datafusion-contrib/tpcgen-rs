@@ -394,6 +394,10 @@ impl CommonArgs {
             }
         }
 
+        if let OutputFormat::Parquet(output) = &output_format {
+            output.validate(&table_sessions)?;
+        }
+
         // Create the output directory if it doesn't exist (writing to stdout
         // creates no directories)
         base_location.create_dir_all()?;
