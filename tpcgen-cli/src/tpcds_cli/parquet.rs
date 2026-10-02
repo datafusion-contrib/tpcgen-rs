@@ -99,6 +99,7 @@ pub(super) struct Parquet {
     pub(super) compression: Compression,
     pub(super) row_group_bytes: i64,
     column_encodings: Option<Vec<(String, Encoding)>>,
+    field_ids: bool,
 }
 
 impl Parquet {
@@ -107,12 +108,14 @@ impl Parquet {
         compression: Compression,
         row_group_bytes: i64,
         column_encodings: Option<Vec<(String, Encoding)>>,
+        field_ids: bool,
     ) -> Self {
         Self {
             base_location,
             compression,
             row_group_bytes,
             column_encodings,
+            field_ids,
         }
     }
 
@@ -540,6 +543,7 @@ impl Parquet {
                 num_threads,
                 compression: self.compression,
                 column_encodings: column_encodings.as_deref(),
+                field_ids: self.field_ids,
                 progress: progress.clone(),
             })
             .await?;

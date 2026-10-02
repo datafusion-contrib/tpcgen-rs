@@ -165,6 +165,8 @@ pub struct GeneratorConfig {
     pub parquet_compression: Compression,
     /// Per-column Parquet encodings (overrides writer defaults)
     pub parquet_column_encodings: Option<Vec<(String, Encoding)>>,
+    /// Write sequential Parquet field IDs (1-based column positions)
+    pub parquet_field_ids: bool,
     /// Target row group size in bytes for Parquet files
     pub parquet_row_group_bytes: i64,
     /// Number of partitions to generate (if None, generates a single file per table)
@@ -189,6 +191,7 @@ impl Default for GeneratorConfig {
             num_threads: crate::args::default_num_threads(),
             parquet_compression: Compression::SNAPPY,
             parquet_column_encodings: None,
+            parquet_field_ids: true,
             parquet_row_group_bytes: DEFAULT_PARQUET_ROW_GROUP_BYTES,
             parts: None,
             part: None,
@@ -328,6 +331,7 @@ impl TpchGenerator {
             ParquetWriterOptions {
                 compression: config.parquet_compression,
                 column_encodings: config.parquet_column_encodings,
+                field_ids: config.parquet_field_ids,
             },
             config.parquet_row_group_bytes,
             base_location.clone(),
@@ -421,6 +425,12 @@ impl TpchGeneratorBuilder {
         encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {
         self.config.parquet_column_encodings = encodings;
+        self
+    }
+
+    /// Set whether to write sequential Parquet field IDs (default: true).
+    pub fn with_parquet_field_ids(mut self, field_ids: bool) -> Self {
+        self.config.parquet_field_ids = field_ids;
         self
     }
 

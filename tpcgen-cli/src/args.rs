@@ -186,8 +186,11 @@ pub(crate) fn assert_format_options_have_logging_policy(
         let (logged, omitted): (&[&str], &[&str]) = match name {
             "tbl" | "dat" => (&[], &[]),
             "csv" => (&["delimiter"], &[]),
-            // Per-column overrides are too detailed for the info-level summary.
-            "parquet" => (&["compression", "row_group_bytes"], &["column_encoding"]),
+            // Per-column overrides and field IDs are too detailed for the info-level summary.
+            "parquet" => (
+                &["compression", "row_group_bytes"],
+                &["column_encoding", "field_ids"],
+            ),
             other => panic!("add a logging policy for the `{other}` subcommand"),
         };
         let expected: BTreeSet<_> = logged.iter().chain(omitted).copied().collect();

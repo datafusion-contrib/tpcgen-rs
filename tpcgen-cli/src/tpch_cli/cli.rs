@@ -304,6 +304,19 @@ struct ParquetArgs {
         help_heading = "Parquet Options"
     )]
     column_encoding: Option<Vec<(String, Encoding)>>,
+
+    /// Write Parquet field IDs (true or false).
+    ///
+    /// When true, each column gets a field ID equal to its 1-based position.
+    #[arg(
+        long,
+        default_value_t = true,
+        action = ArgAction::Set,
+        value_name = "BOOL",
+        hide_possible_values = true,
+        help_heading = "Parquet Options"
+    )]
+    field_ids: bool,
 }
 
 // TableValueParser is CLI-specific and uses the Table type from the library
@@ -409,6 +422,7 @@ impl ParquetArgs {
             .with_parquet_compression(self.compression)
             .with_parquet_row_group_bytes(self.row_group_bytes)
             .with_parquet_column_encodings(self.column_encoding)
+            .with_parquet_field_ids(self.field_ids)
             .build()
             .generate()
             .await

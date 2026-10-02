@@ -116,6 +116,7 @@ pub async fn generate_parquet<W, I>(
     num_threads: usize,
     parquet_compression: Compression,
     column_encodings: Option<&[(String, Encoding)]>,
+    field_ids: bool,
     progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
@@ -131,7 +132,11 @@ where
     let Some(first_iter) = iter_iter.peek() else {
         return Ok(()); // no data
     };
-    let schema = Arc::new(schema_with_field_ids(&first_iter.schema()));
+    let schema = if field_ids {
+        Arc::new(schema_with_field_ids(&first_iter.schema()))
+    } else {
+        first_iter.schema()
+    };
 
     // Compute the parquet schema first. apply_column_encodings needs it to
     // map column names to a ColumnPath and check they exist. Nothing here
@@ -248,6 +253,8 @@ pub(crate) struct ParquetOutput<'a, I> {
     pub(crate) compression: Compression,
     /// Per-column encodings (`--column-encoding`)
     pub(crate) column_encodings: Option<&'a [(String, Encoding)]>,
+    /// Write sequential Parquet field IDs (`--field-ids`)
+    pub(crate) field_ids: bool,
     /// Advanced once per written row group
     pub(crate) progress: ProgressHandle,
 }
@@ -264,6 +271,7 @@ where
             self.num_threads,
             self.compression,
             self.column_encodings,
+            self.field_ids,
             self.progress,
         )
         .await
@@ -373,6 +381,7 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             None,
+            true,
             ProgressHandle::new(|_, _| {}),
         )
         .await
@@ -397,6 +406,7 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             None,
+            true,
             progress,
         )
         .await
@@ -420,6 +430,7 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             encodings,
+            true,
             progress,
         )
         .await

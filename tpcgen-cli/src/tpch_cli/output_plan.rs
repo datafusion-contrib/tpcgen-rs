@@ -17,6 +17,7 @@ use std::io;
 pub struct ParquetWriterOptions {
     pub compression: Compression,
     pub column_encodings: Option<Vec<(String, Encoding)>>,
+    pub field_ids: bool,
 }
 
 impl Default for ParquetWriterOptions {
@@ -24,6 +25,7 @@ impl Default for ParquetWriterOptions {
         Self {
             compression: Compression::SNAPPY,
             column_encodings: None,
+            field_ids: true,
         }
     }
 }
@@ -95,6 +97,11 @@ impl OutputPlan {
 
     pub fn parquet_column_encodings(&self) -> Option<&[(String, Encoding)]> {
         self.parquet.column_encodings.as_deref()
+    }
+
+    /// Return whether to write Parquet field IDs
+    pub fn parquet_field_ids(&self) -> bool {
+        self.parquet.field_ids
     }
 
     /// Return the number of chunks part(ition) count (the number of data chunks

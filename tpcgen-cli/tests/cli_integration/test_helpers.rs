@@ -175,6 +175,27 @@ pub(crate) fn expect_sequential_field_ids(path: &Path) {
     }
 }
 
+pub(crate) fn expect_no_field_ids(path: &Path) {
+    let reader = SerializedFileReader::new(
+        File::open(path).unwrap_or_else(|e| panic!("Failed to open {}: {e}", path.display())),
+    )
+    .unwrap_or_else(|e| panic!("Failed to read {}: {e}", path.display()));
+    for field in reader
+        .metadata()
+        .file_metadata()
+        .schema_descr()
+        .root_schema()
+        .get_fields()
+    {
+        assert!(
+            !field.get_basic_info().has_id(),
+            "{} field {} must not have an ID",
+            path.display(),
+            field.name()
+        );
+    }
+}
+
 /// Generate `table` from `benchmark` (`tpch` or `tpcds`) with `subcommand`
 /// (the benchmark's default output format when `None`), once to a file and
 /// once with `--stdout`, and assert the bytes written to stdout are exactly

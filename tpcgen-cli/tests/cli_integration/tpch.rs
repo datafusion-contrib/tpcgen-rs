@@ -1,7 +1,7 @@
 use super::test_helpers::{
     assert_flags_under_help_heading, assert_overwrites_existing_file,
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes,
-    expect_sequential_field_ids, RowGroups,
+    assert_stdout_matches_file_output, expect_column_encoding, expect_no_field_ids,
+    expect_row_group_sizes, expect_sequential_field_ids, RowGroups,
 };
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -129,6 +129,31 @@ fn test_tpcgen_cli_tpch_parquet_fields_have_ids() {
 
     for table in ["region", "lineitem"] {
         expect_sequential_field_ids(&temp_dir.path().join(format!("{table}.parquet")));
+    }
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_parquet_field_ids_false() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpch",
+            "parquet",
+            "--scale-factor",
+            "0",
+            "--tables",
+            "region,lineitem",
+            "--field-ids=false",
+            "--no-progress",
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    for table in ["region", "lineitem"] {
+        expect_no_field_ids(&temp_dir.path().join(format!("{table}.parquet")));
     }
 }
 

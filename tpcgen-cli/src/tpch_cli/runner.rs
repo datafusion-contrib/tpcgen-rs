@@ -179,6 +179,7 @@ where
             num_threads,
             compression: plan.parquet_compression(),
             column_encodings,
+            field_ids: plan.parquet_field_ids(),
             progress: progress.clone(),
         })
         .await?;
