@@ -14,23 +14,25 @@
 
 //! Web sales row generator
 
-use crate::config::Session;
+use crate::config::{Scaling, Session};
 use crate::error::Result;
 use crate::generator::WebSalesGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
-use crate::nulls::create_null_bit_map;
+use crate::join_key_utils::{generate_join_key, skip_join_key, skip_scd_join_key};
+use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
 use crate::row::web_returns_row::WebReturnsRow;
 use crate::row::web_returns_row_generator::WebReturnsRowGenerator;
 use crate::row::web_sales_row::WebSalesRow;
 use crate::row::{
-    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesRowGenerator,
-    SalesRows,
+    AbstractRowGenerator, GeneratedRow, RowGenerator, RowGeneratorResult, SalesReturnsSelection,
+    SalesRowGenerator, SalesRows,
 };
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
-use crate::types::{generate_pricing_for_sales_table, get_web_sales_pricing_limits};
+use crate::types::{
+    generate_pricing_for_sales_table, get_web_sales_pricing_limits, skip_pricing_for_sales_table,
+};
 
 /// Percentage for determining if order ships to different customer (gift)
 /// Note: In Java, condition is `randomInt > GIFT_PERCENTAGE`, meaning ~92% are gifts
@@ -78,10 +80,21 @@ pub struct WebSalesRowGenerator {
     order_info: OrderInfo,
     item_index: i32,
     web_returns_generator: WebReturnsRowGenerator,
+    selection: SalesReturnsSelection,
 }
 
 impl WebSalesRowGenerator {
-    pub fn new() -> Self {
+    /// Create a generator for `web_sales` rows
+    pub fn sales() -> Self {
+        Self::new(SalesReturnsSelection::Sales)
+    }
+
+    /// Create a generator for `web_returns` rows
+    pub fn returns() -> Self {
+        Self::new(SalesReturnsSelection::Returns)
+    }
+
+    fn new(selection: SalesReturnsSelection) -> Self {
         WebSalesRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::WebSales),
             item_permutation: None,
@@ -89,7 +102,148 @@ impl WebSalesRowGenerator {
             order_info: OrderInfo::default(),
             item_index: 0,
             web_returns_generator: WebReturnsRowGenerator::new(),
+            selection,
         }
+    }
+
+    /// Advance the random streams an unreturned item's sales inputs would
+    /// have consumed, without calculating them.
+    ///
+    /// Used in [`SalesReturnsSelection::Returns`] mode to skip the pricing and
+    /// join-key calculations.
+    fn skip_item_sales_draws(&mut self) {
+        use WebSalesGeneratorColumn::*;
+
+        let sold_date_sk = self.order_info.ws_sold_date_sk;
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsNulls);
+        skip_null_bit_map(stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsShipDateSk);
+        stream.next_random();
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWebPageSk);
+        skip_scd_join_key(sold_date_sk, stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWebSiteSk);
+        skip_scd_join_key(sold_date_sk, stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsShipModeSk);
+        skip_join_key(crate::config::Table::ShipMode, stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWarehouseSk);
+        skip_join_key(crate::config::Table::Warehouse, stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
+        skip_join_key(crate::config::Table::Promotion, stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
+        skip_pricing_for_sales_table(stream);
+    }
+
+    /// Generate the sales row for the current item.
+    fn generate_sales_row(&mut self, ws_item_sk: i64, scaling: &Scaling) -> Result<WebSalesRow> {
+        use WebSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsNulls);
+        let null_bit_map = create_null_bit_map(Table::WebSales, stream);
+
+        // Orders are shipped some number of days after they are ordered (1-120 days)
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsShipDateSk);
+        let ship_lag = RandomValueGenerator::generate_uniform_random_int(1, 120, stream);
+        let ws_ship_date_sk = self.order_info.ws_sold_date_sk + ship_lag as i64;
+
+        // The web page needs to be valid for the sale date
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWebPageSk);
+        let ws_web_page_sk = generate_join_key(
+            &WsWebPageSk,
+            stream,
+            crate::config::Table::WebPage,
+            self.order_info.ws_sold_date_sk,
+            scaling,
+        )?;
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWebSiteSk);
+        let ws_web_site_sk = generate_join_key(
+            &WsWebSiteSk,
+            stream,
+            crate::config::Table::WebSite,
+            self.order_info.ws_sold_date_sk,
+            scaling,
+        )?;
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsShipModeSk);
+        let ws_ship_mode_sk = generate_join_key(
+            &WsShipModeSk,
+            stream,
+            crate::config::Table::ShipMode,
+            1,
+            scaling,
+        )?;
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWarehouseSk);
+        let ws_warehouse_sk = generate_join_key(
+            &WsWarehouseSk,
+            stream,
+            crate::config::Table::Warehouse,
+            1,
+            scaling,
+        )?;
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
+        let ws_promo_sk = generate_join_key(
+            &WsPromoSk,
+            stream,
+            crate::config::Table::Promotion,
+            1,
+            scaling,
+        )?;
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
+        let ws_pricing = generate_pricing_for_sales_table(&get_web_sales_pricing_limits(), stream);
+
+        Ok(WebSalesRow::new(
+            null_bit_map,
+            self.order_info.ws_sold_date_sk,
+            self.order_info.ws_sold_time_sk,
+            ws_ship_date_sk,
+            ws_item_sk,
+            self.order_info.ws_bill_customer_sk,
+            self.order_info.ws_bill_cdemo_sk,
+            self.order_info.ws_bill_hdemo_sk,
+            self.order_info.ws_bill_addr_sk,
+            self.order_info.ws_ship_customer_sk,
+            self.order_info.ws_ship_cdemo_sk,
+            self.order_info.ws_ship_hdemo_sk,
+            self.order_info.ws_ship_addr_sk,
+            ws_web_page_sk,
+            ws_web_site_sk,
+            ws_ship_mode_sk,
+            ws_warehouse_sk,
+            ws_promo_sk,
+            self.order_info.ws_order_number,
+            ws_pricing,
+        ))
     }
 
     fn generate_order_info(&mut self, row_number: u64, session: &Session) -> Result<OrderInfo> {
@@ -244,12 +398,6 @@ impl WebSalesRowGenerator {
     }
 }
 
-impl Default for WebSalesRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl SalesRowGenerator for WebSalesRowGenerator {
     type Sales = WebSalesRow;
     type Returns = WebReturnsRow;
@@ -288,17 +436,6 @@ impl SalesRowGenerator for WebSalesRowGenerator {
                 RandomValueGenerator::generate_uniform_random_int(8, 16, stream);
         }
 
-        // Generate null bit map
-        let stream = self.abstract_generator.get_random_number_stream(&WsNulls);
-        let null_bit_map = create_null_bit_map(Table::WebSales, stream);
-
-        // Orders are shipped some number of days after they are ordered (1-120 days)
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&WsShipDateSk);
-        let ship_lag = RandomValueGenerator::generate_uniform_random_int(1, 120, stream);
-        let ws_ship_date_sk = self.order_info.ws_sold_date_sk + ship_lag as i64;
-
         // Items need to be unique within an order
         self.item_index += 1;
         if self.item_index > item_count as i32 {
@@ -315,113 +452,37 @@ impl SalesRowGenerator for WebSalesRowGenerator {
             scaling,
         );
 
-        // The web page needs to be valid for the sale date
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&WsWebPageSk);
-        let ws_web_page_sk = generate_join_key(
-            &WsWebPageSk,
-            stream,
-            crate::config::Table::WebPage,
-            self.order_info.ws_sold_date_sk,
-            scaling,
-        )?;
-
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&WsWebSiteSk);
-        let ws_web_site_sk = generate_join_key(
-            &WsWebSiteSk,
-            stream,
-            crate::config::Table::WebSite,
-            self.order_info.ws_sold_date_sk,
-            scaling,
-        )?;
-
-        // Generate ship mode
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&WsShipModeSk);
-        let ws_ship_mode_sk = generate_join_key(
-            &WsShipModeSk,
-            stream,
-            crate::config::Table::ShipMode,
-            1,
-            scaling,
-        )?;
-
-        // Generate warehouse
-        let stream = self
-            .abstract_generator
-            .get_random_number_stream(&WsWarehouseSk);
-        let ws_warehouse_sk = generate_join_key(
-            &WsWarehouseSk,
-            stream,
-            crate::config::Table::Warehouse,
-            1,
-            scaling,
-        )?;
-
-        // Generate promo sk
-        let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
-        let ws_promo_sk = generate_join_key(
-            &WsPromoSk,
-            stream,
-            crate::config::Table::Promotion,
-            1,
-            scaling,
-        )?;
-
-        // Generate pricing
-        let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
-        let ws_pricing = generate_pricing_for_sales_table(&get_web_sales_pricing_limits(), stream);
-
-        let web_sales_row = WebSalesRow::new(
-            null_bit_map,
-            self.order_info.ws_sold_date_sk,
-            self.order_info.ws_sold_time_sk,
-            ws_ship_date_sk,
-            ws_item_sk,
-            self.order_info.ws_bill_customer_sk,
-            self.order_info.ws_bill_cdemo_sk,
-            self.order_info.ws_bill_hdemo_sk,
-            self.order_info.ws_bill_addr_sk,
-            self.order_info.ws_ship_customer_sk,
-            self.order_info.ws_ship_cdemo_sk,
-            self.order_info.ws_ship_hdemo_sk,
-            self.order_info.ws_ship_addr_sk,
-            ws_web_page_sk,
-            ws_web_site_sk,
-            ws_ship_mode_sk,
-            ws_warehouse_sk,
-            ws_promo_sk,
-            self.order_info.ws_order_number,
-            ws_pricing,
-        );
-
         // Check if this sale gets returned (10% return rate)
-        // We check and generate the return BEFORE moving the sales row to avoid cloning
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
 
-        // Generate return row if applicable (using reference before we move sales_row)
-        let return_row = if random_int < RETURN_PERCENTAGE {
-            Some(
-                self.web_returns_generator
-                    .generate_row(session, &web_sales_row)?,
-            )
-        } else {
-            None
+        let rows = match self.selection {
+            SalesReturnsSelection::Sales => SalesRows {
+                sales: Some(self.generate_sales_row(ws_item_sk, scaling)?),
+                returns: None,
+            },
+            // Row is returned if random_int < RETURN_PERCENTAGE
+            SalesReturnsSelection::Returns if random_int < RETURN_PERCENTAGE => {
+                let row = self.generate_sales_row(ws_item_sk, scaling)?;
+                SalesRows {
+                    sales: None,
+                    returns: Some(self.web_returns_generator.generate_row(session, &row)?),
+                }
+            }
+            SalesReturnsSelection::Returns => {
+                self.skip_item_sales_draws();
+                SalesRows {
+                    sales: None,
+                    returns: None,
+                }
+            }
         };
 
         self.remaining_line_items -= 1;
 
-        Ok(SalesRows {
-            sales: Some(web_sales_row),
-            returns: return_row,
-        })
+        Ok(rows)
     }
 
     fn is_last_row_in_order(&self) -> bool {
@@ -429,15 +490,30 @@ impl SalesRowGenerator for WebSalesRowGenerator {
     }
 
     fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.web_returns_generator.consume_remaining_seeds_for_row();
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator.consume_remaining_seeds_for_row();
+                self.web_returns_generator.consume_remaining_seeds_for_row();
+            }
+        }
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        self.web_returns_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+        match self.selection {
+            SalesReturnsSelection::Sales => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+            SalesReturnsSelection::Returns => {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+                self.web_returns_generator
+                    .skip_rows_until_starting_row_number(starting_row_number);
+            }
+        }
     }
 }
 

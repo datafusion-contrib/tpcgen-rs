@@ -89,7 +89,8 @@ pub fn generate_join_key(
 }
 
 /// Advances `random_number_stream` past the values [`generate_join_key`]
-/// would draw for a key to `to_table`, without computing the key.
+/// would draw for a key to a table that does not keep history (e.g.
+/// `promotion`, `ship_mode`, `warehouse`), without computing the key.
 ///
 /// Must be kept in sync with [`generate_join_key`].
 pub fn skip_join_key(to_table: Table, random_number_stream: &mut RandomNumberStream) {
@@ -102,6 +103,29 @@ pub fn skip_join_key(to_table: Table, random_number_stream: &mut RandomNumberStr
         "skip_join_key does not support {to_table:?}"
     );
     random_number_stream.next_random();
+}
+
+/// Advances `random_number_stream` past the values [`generate_join_key`]
+/// would draw for a key to `catalog_page`, without computing the key.
+///
+/// Must be kept in sync with [`generate_catalog_page_join_key`].
+#[allow(rustdoc::private_intra_doc_links)]
+pub fn skip_catalog_page_join_key(random_number_stream: &mut RandomNumberStream) {
+    // catalog page type, then page within catalog
+    random_number_stream.next_random();
+    random_number_stream.next_random();
+}
+
+/// Advances `random_number_stream` past the values [`generate_join_key`]
+/// would draw for a key to a table that keeps history (e.g. `web_page`,
+/// `web_site`), without computing the key.
+///
+/// Must be kept in sync with [`generate_scd_join_key`].
+#[allow(rustdoc::private_intra_doc_links)]
+pub fn skip_scd_join_key(julian_date: i64, random_number_stream: &mut RandomNumberStream) {
+    if julian_date <= Date::JULIAN_DATA_END_DATE {
+        random_number_stream.next_random();
+    }
 }
 
 /// Generates a join key to the catalog_page table.
@@ -470,12 +494,20 @@ mod tests {
     //     assert!(lag >= (CS_MIN_SHIP_DELAY * 2) as i64 && lag <= (CS_MAX_SHIP_DELAY * 2) as i64);
     // }
 
+    /// Two identical streams, one for `generate_join_key` and one for its
+    /// `skip_*` counterpart.
+    fn paired_streams() -> (RandomNumberStream, RandomNumberStream) {
+        (
+            RandomNumberStream::new(1).unwrap(),
+            RandomNumberStream::new(1).unwrap(),
+        )
+    }
+
     #[test]
     fn test_skip_join_key_matches_generate() {
         use crate::generator::StoreSalesGeneratorColumn;
         let scaling = Scaling::new(1.0);
-        let mut generated = RandomNumberStream::new(1).unwrap();
-        let mut skipped = RandomNumberStream::new(1).unwrap();
+        let (mut generated, mut skipped) = paired_streams();
         generate_join_key(
             &StoreSalesGeneratorColumn::SsSoldPromoSk,
             &mut generated,
@@ -486,5 +518,29 @@ mod tests {
         .unwrap();
         skip_join_key(Table::Promotion, &mut skipped);
         assert_eq!(generated.next_random(), skipped.next_random());
+    }
+
+    #[test]
+    fn test_skip_catalog_page_join_key_matches_generate() {
+        let scaling = Scaling::new(1.0);
+        let date = Date::JULIAN_DATA_START_DATE + 100;
+        let (mut generated, mut skipped) = paired_streams();
+        generate_catalog_page_join_key(&mut generated, date, &scaling).unwrap();
+        skip_catalog_page_join_key(&mut skipped);
+        assert_eq!(generated.next_random(), skipped.next_random());
+    }
+
+    #[test]
+    fn test_skip_scd_join_key_matches_generate() {
+        let scaling = Scaling::new(1.0);
+        for date in [
+            Date::JULIAN_DATA_START_DATE + 100,
+            Date::JULIAN_DATA_END_DATE + 1,
+        ] {
+            let (mut generated, mut skipped) = paired_streams();
+            generate_scd_join_key(Table::WebPage, &mut generated, date, &scaling).unwrap();
+            skip_scd_join_key(date, &mut skipped);
+            assert_eq!(generated.next_random(), skipped.next_random(), "{date}");
+        }
     }
 }

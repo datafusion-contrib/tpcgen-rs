@@ -164,10 +164,10 @@ pub(super) async fn generate_table<F: AllRowFormats>(
         // Sales tables and the returns tables their generator also emits
         Table::StoreSales => sales!(StoreSalesRowGenerator::sales(), |r| r.sales),
         Table::StoreReturns => sales!(StoreSalesRowGenerator::returns(), |r| r.returns),
-        Table::CatalogSales => sales!(CatalogSalesRowGenerator::new(), |r| r.sales),
-        Table::CatalogReturns => sales!(CatalogSalesRowGenerator::new(), |r| r.returns),
-        Table::WebSales => sales!(WebSalesRowGenerator::new(), |r| r.sales),
-        Table::WebReturns => sales!(WebSalesRowGenerator::new(), |r| r.returns),
+        Table::CatalogSales => sales!(CatalogSalesRowGenerator::sales(), |r| r.sales),
+        Table::CatalogReturns => sales!(CatalogSalesRowGenerator::returns(), |r| r.returns),
+        Table::WebSales => sales!(WebSalesRowGenerator::sales(), |r| r.sales),
+        Table::WebReturns => sales!(WebSalesRowGenerator::returns(), |r| r.returns),
 
         // Source tables - skip
         _ => Ok(()),
