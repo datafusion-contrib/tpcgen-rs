@@ -471,16 +471,9 @@ mod tests {
         let mut generator = CallCenterRowGenerator::new();
         let session = Session::default();
 
-        let result = generator
-            .generate_row_and_child_rows(1, &session, None, None)
-            .unwrap();
-        let rows = result.get_rows();
+        let row = generator.generate_row(1, &session).unwrap();
 
-        assert_eq!(rows.len(), 1);
-        assert!(result.should_end_row());
-
-        // Check that we can get values (CSV serialization works)
-        let values = dat_values(&rows[0]);
+        let values = dat_values(&row);
         assert_eq!(values[0], "1"); // cc_call_center_sk should be row number
     }
 }
