@@ -8,8 +8,8 @@
 //! original generators.
 //!
 //! Strategy:
-//! - drive the tpcdsgen RowGenerator to produce rows for each table
-//! - write rows via their `fmt::Display` impls just like the CLI does
+//! - drive the tpcdsgen row generators to produce rows for each table
+//! - write rows via their `fmt::Display` and [`CsvRow`] impls just like the CLI does
 //! - re-parse the output with the Arrow CSV reader using the same schema
 //! - assert that the reparsed and direct Arrow RecordBatches are equal
 
@@ -17,19 +17,12 @@ use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
+use std::fmt::Display;
 use std::io::Write as _;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
-use tpcdsgen::row::{
-    CallCenterRowGenerator, CatalogPageRowGenerator, CatalogReturnsRowGenerator,
-    CatalogSalesRowGenerator, CustomerAddressRowGenerator, CustomerDemographicsRowGenerator,
-    CustomerRowGenerator, DateDimRowGenerator, GeneratedRow, HouseholdDemographicsRowGenerator,
-    IncomeBandRowGenerator, InventoryRowGenerator, ItemRowGenerator, PromotionRowGenerator,
-    ReasonRowGenerator, RowGenerator, ShipModeRowGenerator, StoreReturnsRowGenerator,
-    StoreRowGenerator, StoreSalesRowGenerator, TimeDimRowGenerator, WarehouseRowGenerator,
-    WebPageRowGenerator, WebReturnsRowGenerator, WebSalesRowGenerator, WebSiteRowGenerator,
-};
+use tpcdsgen::csv::*;
+use tpcdsgen::row::*;
 use tpcdsgen_arrow::arrow;
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
@@ -76,19 +69,17 @@ enum Format {
 }
 
 impl Format {
-    /// Writes the header line for `table`, if the format has one.
-    fn write_header(&self, table: Table, data: &mut Vec<u8>) {
+    /// Writes the header line, if the format has one.
+    fn write_header(&self, csv_header: &str, data: &mut Vec<u8>) {
         match self {
             Format::Dat => {}
-            Format::Csv => {
-                let header = csv_header(table, CSV_SEPARATOR).expect("csv header for table");
-                writeln!(data, "{header}").unwrap();
-            }
+            Format::Csv => writeln!(data, "{csv_header}").unwrap(),
         }
     }
 
-    /// Writes `row` as a single line, including the trailing newline.
-    fn write_row(&self, row: &GeneratedRow, data: &mut Vec<u8>) {
+    /// Writes `row` as a single line, including the trailing newline: its
+    /// `Display` for DAT, or `csv_line(row)` for CSV.
+    fn write_row<R: Display>(&self, row: &R, csv_line: impl Fn(&R) -> String, data: &mut Vec<u8>) {
         match self {
             Format::Dat => {
                 write!(data, "{row}").unwrap();
@@ -97,7 +88,7 @@ impl Format {
                 let end_offset = data.len() - 1;
                 data[end_offset] = b'\n';
             }
-            Format::Csv => writeln!(data, "{}", GeneratedRowCsv::new(row)).unwrap(),
+            Format::Csv => writeln!(data, "{}", csv_line(row)).unwrap(),
         }
     }
 
@@ -126,77 +117,29 @@ impl Format {
     }
 }
 
-/// Yields Arrow RecordBatches by creating `format` output for the specified
-/// table generator `gen`, and parsing the result back to Arrow.
+/// Yields Arrow RecordBatches by writing `rows` in `format`, and parsing the
+/// result back to Arrow.
 ///
-/// Returns only rows for which `select` returns true.
-fn reparsed_batches<G, F>(
-    mut gen: G,
-    format: Format,
-    table: Table,
-    schema: &SchemaRef,
-    select: F,
-    starting_row_number: u64,
-    source_row_count: u64,
-) -> impl Iterator<Item = RecordBatch>
-where
-    G: RowGenerator,
-    F: Fn(&GeneratedRow) -> bool,
-{
-    let schema = Arc::clone(schema);
-
-    const REPARSE_BUFFER_TARGET_BYTES: usize = 256 * 1024;
-    let mut source_row = starting_row_number;
-    std::iter::from_fn(move || {
-        let mut data = Vec::new();
-        format.write_header(table, &mut data);
-        let header_len = data.len();
-
-        while data.len() < REPARSE_BUFFER_TARGET_BYTES && source_row <= source_row_count {
-            let result = gen
-                .generate_row_and_child_rows(source_row, &SESSION, None, None)
-                .expect("row gen");
-            let (rows, should_end_row) = result.into_parts();
-            for row in &rows {
-                if select(row) {
-                    format.write_row(row, &mut data);
-                }
-            }
-            if should_end_row {
-                gen.consume_remaining_seeds_for_row();
-                source_row += 1;
-            }
-        }
-
-        if data.len() == header_len {
-            None
-        } else {
-            let batches = format.parse(&data, &schema).collect::<Vec<_>>();
-            Some(batches)
-        }
-    })
-    .flatten()
-}
-
-/// Yields Arrow RecordBatches by writing `rows` (of `table`) in `format`, and
-/// parsing the result back to Arrow.
-fn reparsed_rows<R: Into<GeneratedRow>>(
+/// `csv_header` and `csv_line` give the CSV header and a row's CSV line; a
+/// row's DAT line is its `Display`.
+fn reparsed_rows<R: Display>(
     mut rows: impl Iterator<Item = R>,
     format: Format,
-    table: Table,
     schema: &SchemaRef,
+    csv_header: String,
+    csv_line: impl Fn(&R) -> String,
 ) -> impl Iterator<Item = RecordBatch> {
     let schema = Arc::clone(schema);
 
     const REPARSE_BUFFER_TARGET_BYTES: usize = 256 * 1024;
     std::iter::from_fn(move || {
         let mut data = Vec::new();
-        format.write_header(table, &mut data);
+        format.write_header(&csv_header, &mut data);
         let header_len = data.len();
 
         while data.len() < REPARSE_BUFFER_TARGET_BYTES {
             let Some(row) = rows.next() else { break };
-            format.write_row(&row.into(), &mut data);
+            format.write_row(&row, &csv_line, &mut data);
         }
 
         if data.len() == header_len {
@@ -246,98 +189,23 @@ where
 
 macro_rules! table_test {
     // $name: module name
-    // $gen: TPC-DS row generator used to produce canonical `.dat` rows.
+    // $gen: the table's row generator type. A sales or returns generator
+    //       iterates over its source rows directly, named as `$gen: Iterator`.
+    // $csv: the [`CsvRow`] wrapper for the table's rows.
     // $arrow_gen: constructor for the matching Arrow RecordBatch generator.
-    // $table: TPC-DS table enum value used for row counts and skip planning.
-    // $variant: GeneratedRow enum variant to select rows for this table.
-    ($name:ident, $gen:expr, $arrow_gen:expr, $table:expr, $variant:ident) => {
-        mod $name {
-            use super::*;
-
-            #[test]
-            fn from_start_dat() {
-                from_start(Format::Dat);
-            }
-
-            #[test]
-            fn from_start_csv() {
-                from_start(Format::Csv);
-            }
-
-            #[test]
-            fn skip_dat() {
-                skip(Format::Dat);
-            }
-
-            #[test]
-            fn skip_csv() {
-                skip(Format::Csv);
-            }
-
-            /// Parse from the start of the table
-            fn from_start(format: Format) {
-                let source_row_count = SESSION.get_scaling().get_row_count($table);
-                let row_limit = test_row_count($table) as usize;
-                let arrow_gen = $arrow_gen(SESSION.clone());
-                let schema = arrow_gen.schema();
-                let reparsed = reparsed_batches(
-                    $gen,
-                    format,
-                    Table::$variant,
-                    &schema,
-                    |g| match g {
-                        GeneratedRow::$variant(_) => true,
-                        _ => false,
-                    },
-                    1,
-                    source_row_count,
-                );
-
-                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
-            }
-
-            /// Parse after skipping some rows.
-            fn skip(format: Format) {
-                let source_row_count = SESSION.get_scaling().get_row_count($table);
-                let starting_row_number = source_row_count.min(100);
-                let remaining_source_rows = source_row_count - starting_row_number + 1;
-                let row_limit =
-                    test_row_count($table).min(remaining_source_rows).min(1024) as usize;
-
-                let mut gen = $gen;
-                gen.skip_rows_until_starting_row_number(starting_row_number);
-
-                let mut arrow_gen = $arrow_gen(SESSION.clone());
-                arrow_gen.skip_rows_until_starting_row_number(starting_row_number);
-
-                let schema = arrow_gen.schema();
-                let reparsed = reparsed_batches(
-                    gen,
-                    format,
-                    Table::$variant,
-                    &schema,
-                    |g| match g {
-                        GeneratedRow::$variant(_) => true,
-                        _ => false,
-                    },
-                    starting_row_number,
-                    source_row_count,
-                );
-
-                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
-            }
-        }
+    // $table: TPC-DS table whose row count is the number of source rows.
+    ($name:ident, $gen:ident, $csv:ident, $arrow_gen:expr, $table:expr) => {
+        table_test!(@rows $name,
+            |source_rows| SingleRowIter::new(<$gen>::new(), SESSION.clone(), source_rows),
+            $csv, $arrow_gen, $table);
     };
-}
-
-macro_rules! sales_table_test {
-    // $name: module name
-    // $gen: row generator type: an `Iterator` over the table's rows, created
-    //       with `new(session, source_row_count)`.
-    // $arrow_gen: constructor for the matching Arrow RecordBatch generator.
-    // $table: TPC-DS table enum value used for row counts and skip planning.
-    // $output: TPC-DS table enum value of the generated table.
-    ($name:ident, $gen:ty, $arrow_gen:expr, $table:expr, $output:expr) => {
+    ($name:ident, $gen:ident: Iterator, $csv:ident, $arrow_gen:expr, $table:expr) => {
+        table_test!(@rows $name,
+            |source_rows| <$gen>::new(SESSION.clone(), source_rows),
+            $csv, $arrow_gen, $table);
+    };
+    // `$rows(source_rows)` iterates the table's rows
+    (@rows $name:ident, $rows:expr, $csv:ident, $arrow_gen:expr, $table:expr) => {
         mod $name {
             use super::*;
 
@@ -367,8 +235,14 @@ macro_rules! sales_table_test {
                 let row_limit = test_row_count($table) as usize;
                 let arrow_gen = $arrow_gen(SESSION.clone());
                 let schema = arrow_gen.schema();
-                let rows = <$gen>::new(SESSION.clone(), source_row_count);
-                let reparsed = reparsed_rows(rows, format, $output, &schema);
+                let rows = $rows(source_row_count);
+                let reparsed = reparsed_rows(
+                    rows,
+                    format,
+                    &schema,
+                    <$csv>::header_with_delimiter(CSV_SEPARATOR),
+                    |row| <$csv>::with_delimiter(row, CSV_SEPARATOR).to_string(),
+                );
 
                 assert_record_batch_streams(arrow_gen, reparsed, row_limit);
             }
@@ -381,14 +255,20 @@ macro_rules! sales_table_test {
                 let row_limit =
                     test_row_count($table).min(remaining_source_rows).min(1024) as usize;
 
-                let mut rows = <$gen>::new(SESSION.clone(), source_row_count);
+                let mut rows = $rows(source_row_count);
                 rows.skip_rows_until_starting_row_number(starting_row_number);
 
                 let mut arrow_gen = $arrow_gen(SESSION.clone());
                 arrow_gen.skip_rows_until_starting_row_number(starting_row_number);
 
                 let schema = arrow_gen.schema();
-                let reparsed = reparsed_rows(rows, format, $output, &schema);
+                let reparsed = reparsed_rows(
+                    rows,
+                    format,
+                    &schema,
+                    <$csv>::header_with_delimiter(CSV_SEPARATOR),
+                    |row| <$csv>::with_delimiter(row, CSV_SEPARATOR).to_string(),
+                );
 
                 assert_record_batch_streams(arrow_gen, reparsed, row_limit);
             }
@@ -398,172 +278,166 @@ macro_rules! sales_table_test {
 
 table_test!(
     income_band,
-    IncomeBandRowGenerator::new(),
+    IncomeBandRowGenerator,
+    IncomeBandCsv,
     IncomeBandArrow::new,
-    Table::IncomeBand,
-    IncomeBand
+    Table::IncomeBand
 );
 table_test!(
     reason,
-    ReasonRowGenerator::new(),
+    ReasonRowGenerator,
+    ReasonCsv,
     ReasonArrow::new,
-    Table::Reason,
-    Reason
+    Table::Reason
 );
 table_test!(
     ship_mode,
-    ShipModeRowGenerator::new(),
+    ShipModeRowGenerator,
+    ShipModeCsv,
     ShipModeArrow::new,
-    Table::ShipMode,
-    ShipMode
+    Table::ShipMode
 );
 table_test!(
     inventory,
-    InventoryRowGenerator::new(),
+    InventoryRowGenerator,
+    InventoryCsv,
     InventoryArrow::new,
-    Table::Inventory,
-    Inventory
+    Table::Inventory
 );
 table_test!(
     household_demographics,
-    HouseholdDemographicsRowGenerator::new(),
+    HouseholdDemographicsRowGenerator,
+    HouseholdDemographicsCsv,
     HouseholdDemographicsArrow::new,
-    Table::HouseholdDemographics,
-    HouseholdDemographics
+    Table::HouseholdDemographics
 );
 table_test!(
     customer_demographics,
-    CustomerDemographicsRowGenerator::new(),
+    CustomerDemographicsRowGenerator,
+    CustomerDemographicsCsv,
     CustomerDemographicsArrow::new,
-    Table::CustomerDemographics,
-    CustomerDemographics
+    Table::CustomerDemographics
 );
 table_test!(
     customer_address,
-    CustomerAddressRowGenerator::new(),
+    CustomerAddressRowGenerator,
+    CustomerAddressCsv,
     CustomerAddressArrow::new,
-    Table::CustomerAddress,
-    CustomerAddress
+    Table::CustomerAddress
 );
 table_test!(
     customer,
-    CustomerRowGenerator::new(),
+    CustomerRowGenerator,
+    CustomerCsv,
     CustomerArrow::new,
-    Table::Customer,
-    Customer
+    Table::Customer
 );
 table_test!(
     catalog_page,
-    CatalogPageRowGenerator::new(),
+    CatalogPageRowGenerator,
+    CatalogPageCsv,
     CatalogPageArrow::new,
-    Table::CatalogPage,
-    CatalogPage
+    Table::CatalogPage
 );
 table_test!(
     time_dim,
-    TimeDimRowGenerator::new(),
+    TimeDimRowGenerator,
+    TimeDimCsv,
     TimeDimArrow::new,
-    Table::TimeDim,
-    TimeDim
+    Table::TimeDim
 );
 table_test!(
     date_dim,
-    DateDimRowGenerator::new(),
+    DateDimRowGenerator,
+    DateDimCsv,
     DateDimArrow::new,
-    Table::DateDim,
-    DateDim
+    Table::DateDim
 );
 table_test!(
     warehouse,
-    WarehouseRowGenerator::new(),
+    WarehouseRowGenerator,
+    WarehouseCsv,
     WarehouseArrow::new,
-    Table::Warehouse,
-    Warehouse
+    Table::Warehouse
 );
-table_test!(
-    item,
-    ItemRowGenerator::new(),
-    ItemArrow::new,
-    Table::Item,
-    Item
-);
+table_test!(item, ItemRowGenerator, ItemCsv, ItemArrow::new, Table::Item);
 table_test!(
     promotion,
-    PromotionRowGenerator::new(),
+    PromotionRowGenerator,
+    PromotionCsv,
     PromotionArrow::new,
-    Table::Promotion,
-    Promotion
+    Table::Promotion
 );
 table_test!(
     store,
-    StoreRowGenerator::new(),
+    StoreRowGenerator,
+    StoreCsv,
     StoreArrow::new,
-    Table::Store,
-    Store
+    Table::Store
 );
 table_test!(
     web_page,
-    WebPageRowGenerator::new(),
+    WebPageRowGenerator,
+    WebPageCsv,
     WebPageArrow::new,
-    Table::WebPage,
-    WebPage
+    Table::WebPage
 );
 table_test!(
     web_site,
-    WebSiteRowGenerator::new(),
+    WebSiteRowGenerator,
+    WebSiteCsv,
     WebSiteArrow::new,
-    Table::WebSite,
-    WebSite
+    Table::WebSite
 );
 table_test!(
     call_center,
-    CallCenterRowGenerator::new(),
+    CallCenterRowGenerator,
+    CallCenterCsv,
     CallCenterArrow::new,
-    Table::CallCenter,
-    CallCenter
+    Table::CallCenter
 );
 
-sales_table_test!(
+table_test!(
     catalog_sales,
-    CatalogSalesRowGenerator,
+    CatalogSalesRowGenerator: Iterator,
+    CatalogSalesCsv,
     CatalogSalesArrow::new,
-    Table::CatalogSales,
     Table::CatalogSales
 );
-sales_table_test!(
+table_test!(
     catalog_returns,
-    CatalogReturnsRowGenerator,
+    CatalogReturnsRowGenerator: Iterator,
+    CatalogReturnsCsv,
     CatalogReturnsArrow::new,
-    Table::CatalogSales,
-    Table::CatalogReturns
+    Table::CatalogSales
 );
-sales_table_test!(
+table_test!(
     store_sales,
-    StoreSalesRowGenerator,
+    StoreSalesRowGenerator: Iterator,
+    StoreSalesCsv,
     StoreSalesArrow::new,
-    Table::StoreSales,
     Table::StoreSales
 );
-sales_table_test!(
+table_test!(
     store_returns,
-    StoreReturnsRowGenerator,
+    StoreReturnsRowGenerator: Iterator,
+    StoreReturnsCsv,
     StoreReturnsArrow::new,
-    Table::StoreSales,
-    Table::StoreReturns
+    Table::StoreSales
 );
-sales_table_test!(
+table_test!(
     web_sales,
-    WebSalesRowGenerator,
+    WebSalesRowGenerator: Iterator,
+    WebSalesCsv,
     WebSalesArrow::new,
-    Table::WebSales,
     Table::WebSales
 );
-sales_table_test!(
+table_test!(
     web_returns,
-    WebReturnsRowGenerator,
+    WebReturnsRowGenerator: Iterator,
+    WebReturnsCsv,
     WebReturnsArrow::new,
-    Table::WebSales,
-    Table::WebReturns
+    Table::WebSales
 );
 
 /// Adapts an iterator of RecordBatches to emit batches with a fixed row count.
