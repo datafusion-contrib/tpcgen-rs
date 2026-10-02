@@ -91,8 +91,8 @@ impl OutputLocation {
             return Ok(false);
         }
 
-        let in_progress = InProgressFile::new(path);
-        output.write_to(in_progress.create()?).await?;
+        let (in_progress, file) = InProgressFile::new(path)?;
+        output.write_to(file).await?;
         in_progress.finish()?;
         Ok(true)
     }
@@ -109,22 +109,16 @@ struct InProgressFile<'a> {
 }
 
 impl<'a> InProgressFile<'a> {
-    fn new(path: &'a Path) -> Self {
+    /// Create `<path>.inprogress` and return it with the open file.
+    fn new(path: &'a Path) -> io::Result<(Self, File)> {
         // Append to the full file name (unlike `with_extension`), so
         // `lineitem.1.tbl` and `lineitem.2.tbl` stay distinct
         let mut temp_path = path.as_os_str().to_owned();
         temp_path.push(".inprogress");
-        Self {
-            path,
-            temp_path: temp_path.into(),
-        }
-    }
-
-    /// Create `<path>.inprogress` for writing.
-    fn create(&self) -> io::Result<File> {
-        File::create(&self.temp_path).map_err(|err| {
-            io::Error::other(format!("Failed to create {:?}: {err}", self.temp_path))
-        })
+        let temp_path = PathBuf::from(temp_path);
+        let file = File::create(&temp_path)
+            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
+        Ok((Self { path, temp_path }, file))
     }
 
     /// Rename `<path>.inprogress` to `<path>`.
@@ -190,10 +184,15 @@ mod tests {
             path: dir.path().join("region.tbl"),
             overwrite: false,
         };
+        let temp_path = dir.path().join("region.tbl.inprogress");
 
-        // Start the write, then drop it before it finishes
-        assert!(location.write(NeverFinishes).now_or_never().is_none());
+        // Start the write: it creates the temp file, then never finishes
+        let mut write = Box::pin(location.write(NeverFinishes));
+        assert!((&mut write).now_or_never().is_none());
+        assert!(temp_path.exists());
 
-        assert!(!dir.path().join("region.tbl.inprogress").exists());
+        // Cancel the write
+        drop(write);
+        assert!(!temp_path.exists());
     }
 }
