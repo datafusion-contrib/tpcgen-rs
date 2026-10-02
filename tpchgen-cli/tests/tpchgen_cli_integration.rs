@@ -19,6 +19,22 @@ fn test_tpchgen_cli_help_uses_binary_name() {
     assert!(!help.contains("tpcgen-cli"), "{help}");
 }
 
+/// `-V`/`--version` reports this package's name and version, not `tpcgen-cli`'s.
+#[test]
+fn test_tpchgen_cli_version() {
+    let expected = format!("tpchgen-cli {}\n", env!("CARGO_PKG_VERSION"));
+    for flag in ["-V", "--version"] {
+        let output = cargo_bin_cmd!("tpchgen-cli")
+            .arg(flag)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        assert_eq!(String::from_utf8(output).unwrap(), expected);
+    }
+}
+
 #[test]
 fn test_tpchgen_cli_invalid_inputs_before_output() {
     let temp = tempdir().unwrap();
