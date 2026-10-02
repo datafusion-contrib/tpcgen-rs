@@ -256,6 +256,7 @@ fn test_tpcgen_cli_tpch_parquet_column_encoding_typo_fails_before_any_output() {
 #[test]
 fn test_tpcgen_cli_tpch_parquet_dictionary_encoding_fails_before_any_output() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let output_dir = temp_dir.path().join("out");
 
     // l_comment only exists on lineitem. This must still fail up front,
     // before either table is scheduled.
@@ -266,7 +267,7 @@ fn test_tpcgen_cli_tpch_parquet_dictionary_encoding_fails_before_any_output() {
         .arg("--tables")
         .arg("lineitem,orders")
         .arg("--output-dir")
-        .arg(temp_dir.path())
+        .arg(&output_dir)
         .arg("--no-progress")
         .arg("--column-encoding")
         .arg("l_comment=PLAIN_DICTIONARY")
@@ -278,12 +279,9 @@ fn test_tpcgen_cli_tpch_parquet_dictionary_encoding_fails_before_any_output() {
         stderr.contains("cannot be set with --column-encoding"),
         "unexpected stderr: {stderr}"
     );
-    assert_eq!(
-        fs::read_dir(temp_dir.path())
-            .expect("Failed to read output directory")
-            .count(),
-        0,
-        "expected no output files when validation fails before generation starts"
+    assert!(
+        !output_dir.exists(),
+        "expected no output directory when validation fails"
     );
 }
 

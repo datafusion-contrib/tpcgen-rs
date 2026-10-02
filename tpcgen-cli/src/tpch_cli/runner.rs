@@ -1,8 +1,7 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
 use crate::generate::{Source, TextOutput};
-use crate::parquet::column_encodings_for_table;
-use crate::parquet::ParquetOutput;
+use crate::parquet::{column_encodings_for_table, ParquetOutput};
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::tpch_cli::csv::*;

@@ -268,9 +268,9 @@ impl TpchGenerator {
         );
 
         // Reject a --column-encoding column that matches no selected table
-        // (a typo) before any work starts. column_encodings_for_table
-        // (below) skips a column that only matches some tables, so that
-        // case is not an error.
+        // (a typo) before any work starts. column_encodings_for_table skips
+        // a column that only matches some tables, so that case is not an
+        // error.
         if let Some(encodings) = &config.parquet_column_encodings {
             crate::parquet::validate_column_encodings(
                 tables.iter().map(|table| table_schema(*table)),
