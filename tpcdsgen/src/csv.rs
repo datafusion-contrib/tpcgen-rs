@@ -14,8 +14,8 @@
 
 //! CSV formatting support for TPC-DS
 //!
-//! Each table row type gets a `<Table>Csv` wrapper whose `Display` impl emits
-//! one CSV line
+//! Each table row type gets a `<Table>Csv` wrapper implementing [`CsvRow`],
+//! whose `Display` impl emits one CSV line
 //!
 //! # Character encoding
 //!
@@ -40,12 +40,34 @@ use crate::row::{
 };
 use std::fmt::{self, Display};
 
+/// A [`Display`] wrapper that formats one table's rows as CSV lines.
+pub trait CsvRow<'a>: Display + Sized {
+    /// The row type this wrapper formats
+    type Row: 'a;
+
+    /// Create a wrapper that formats `inner` with the default `,` delimiter
+    fn new(inner: &'a Self::Row) -> Self {
+        Self::with_delimiter(inner, ',')
+    }
+
+    /// Create a wrapper that formats `inner` with a custom delimiter
+    fn with_delimiter(inner: &'a Self::Row, delimiter: char) -> Self;
+
+    /// Returns the comma-separated CSV header for this table
+    fn header() -> &'static str;
+
+    /// Returns the CSV header with a custom delimiter
+    fn header_with_delimiter(delimiter: char) -> String {
+        join_header(Self::header(), delimiter)
+    }
+}
+
 /// Writes [`CallCenterRow`]s in CSV format.
 ///
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CallCenterCsv;
+/// # use tpcdsgen::csv::{CallCenterCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CallCenterRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -75,28 +97,15 @@ pub struct CallCenterCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CallCenterCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CallCenterRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CallCenterCsv<'a> {
+    type Row = CallCenterRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CallCenterRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CallCenterRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the call_center table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "cc_call_center_sk,cc_call_center_id,cc_rec_start_date,cc_rec_end_date,cc_closed_date_sk,cc_open_date_sk,cc_name,cc_class,cc_employees,cc_sq_ft,cc_hours,cc_manager,cc_mkt_id,cc_mkt_class,cc_mkt_desc,cc_market_manager,cc_division,cc_division_name,cc_company,cc_company_name,cc_street_number,cc_street_name,cc_street_type,cc_suite_number,cc_city,cc_county,cc_state,cc_zip,cc_country,cc_gmt_offset,cc_tax_percentage"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -148,7 +157,7 @@ impl Display for CallCenterCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CatalogPageCsv;
+/// # use tpcdsgen::csv::{CatalogPageCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogPageRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -178,28 +187,15 @@ pub struct CatalogPageCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CatalogPageCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CatalogPageRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CatalogPageCsv<'a> {
+    type Row = CatalogPageRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CatalogPageRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CatalogPageRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the catalog_page table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "cp_catalog_page_sk,cp_catalog_page_id,cp_start_date_sk,cp_end_date_sk,cp_department,cp_catalog_number,cp_catalog_page_number,cp_description,cp_type"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -233,7 +229,7 @@ impl Display for CatalogPageCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CatalogReturnsCsv;
+/// # use tpcdsgen::csv::{CatalogReturnsCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -265,28 +261,15 @@ pub struct CatalogReturnsCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CatalogReturnsCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CatalogReturnsRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CatalogReturnsCsv<'a> {
+    type Row = CatalogReturnsRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CatalogReturnsRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CatalogReturnsRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the catalog_returns table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amt_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -341,7 +324,7 @@ impl Display for CatalogReturnsCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CatalogSalesCsv;
+/// # use tpcdsgen::csv::{CatalogSalesCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CatalogSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -373,28 +356,15 @@ pub struct CatalogSalesCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CatalogSalesCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CatalogSalesRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CatalogSalesCsv<'a> {
+    type Row = CatalogSalesRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CatalogSalesRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CatalogSalesRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the catalog_sales table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "cs_sold_date_sk,cs_sold_time_sk,cs_ship_date_sk,cs_bill_customer_sk,cs_bill_cdemo_sk,cs_bill_hdemo_sk,cs_bill_addr_sk,cs_ship_customer_sk,cs_ship_cdemo_sk,cs_ship_hdemo_sk,cs_ship_addr_sk,cs_call_center_sk,cs_catalog_page_sk,cs_ship_mode_sk,cs_warehouse_sk,cs_item_sk,cs_promo_sk,cs_order_number,cs_quantity,cs_wholesale_cost,cs_list_price,cs_sales_price,cs_ext_discount_amt,cs_ext_sales_price,cs_ext_wholesale_cost,cs_ext_list_price,cs_ext_tax,cs_coupon_amt,cs_ext_ship_cost,cs_net_paid,cs_net_paid_inc_tax,cs_net_paid_inc_ship,cs_net_paid_inc_ship_tax,cs_net_profit"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -474,7 +444,7 @@ impl Display for CatalogSalesCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CustomerCsv;
+/// # use tpcdsgen::csv::{CustomerCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CustomerRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -504,28 +474,15 @@ pub struct CustomerCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CustomerCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CustomerRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CustomerCsv<'a> {
+    type Row = CustomerRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CustomerRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CustomerRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the customer table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "c_customer_sk,c_customer_id,c_current_cdemo_sk,c_current_hdemo_sk,c_current_addr_sk,c_first_shipto_date_sk,c_first_sales_date_sk,c_salutation,c_first_name,c_last_name,c_preferred_cust_flag,c_birth_day,c_birth_month,c_birth_year,c_birth_country,c_login,c_email_address,c_last_review_date_sk"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -566,7 +523,7 @@ impl Display for CustomerCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CustomerAddressCsv;
+/// # use tpcdsgen::csv::{CustomerAddressCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, CustomerAddressRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -596,28 +553,15 @@ pub struct CustomerAddressCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CustomerAddressCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CustomerAddressRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CustomerAddressCsv<'a> {
+    type Row = CustomerAddressRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CustomerAddressRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CustomerAddressRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the customer_address table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "ca_address_sk,ca_address_id,ca_street_number,ca_street_name,ca_street_type,ca_suite_number,ca_city,ca_county,ca_state,ca_zip,ca_country,ca_gmt_offset,ca_location_type"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -649,7 +593,7 @@ impl Display for CustomerAddressCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::CustomerDemographicsCsv;
+/// # use tpcdsgen::csv::{CustomerDemographicsCsv, CsvRow};
 /// # use tpcdsgen::row::{CustomerDemographicsRowGenerator, GeneratedRow, RowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -679,28 +623,15 @@ pub struct CustomerDemographicsCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> CustomerDemographicsCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a CustomerDemographicsRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for CustomerDemographicsCsv<'a> {
+    type Row = CustomerDemographicsRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a CustomerDemographicsRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a CustomerDemographicsRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the customer_demographics table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "cd_demo_sk,cd_gender,cd_marital_status,cd_education_status,cd_purchase_estimate,cd_credit_rating,cd_dep_count,cd_dep_employed_count,cd_dep_college_count"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -728,7 +659,7 @@ impl Display for CustomerDemographicsCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::DateDimCsv;
+/// # use tpcdsgen::csv::{DateDimCsv, CsvRow};
 /// # use tpcdsgen::row::{DateDimRowGenerator, GeneratedRow, RowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -758,28 +689,15 @@ pub struct DateDimCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> DateDimCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a DateDimRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for DateDimCsv<'a> {
+    type Row = DateDimRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a DateDimRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a DateDimRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the date_dim table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "d_date_sk,d_date_id,d_date,d_month_seq,d_week_seq,d_quarter_seq,d_year,d_dow,d_moy,d_dom,d_qoy,d_fy_year,d_fy_quarter_seq,d_fy_week_seq,d_day_name,d_quarter_name,d_holiday,d_weekend,d_following_holiday,d_first_dom,d_last_dom,d_same_day_ly,d_same_day_lq,d_current_day,d_current_week,d_current_month,d_current_quarter,d_current_year"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -830,7 +748,7 @@ impl Display for DateDimCsv<'_> {
 /// checks only the stable parts of the line.
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::DbgenVersionCsv;
+/// # use tpcdsgen::csv::{DbgenVersionCsv, CsvRow};
 /// # use tpcdsgen::row::{DbgenVersionRowGenerator, GeneratedRow, RowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -863,28 +781,15 @@ pub struct DbgenVersionCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> DbgenVersionCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a DbgenVersionRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for DbgenVersionCsv<'a> {
+    type Row = DbgenVersionRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a DbgenVersionRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a DbgenVersionRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the dbgen_version table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "dv_version,dv_create_date,dv_create_time,dv_cmdline_args"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -907,7 +812,7 @@ impl Display for DbgenVersionCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::HouseholdDemographicsCsv;
+/// # use tpcdsgen::csv::{HouseholdDemographicsCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, HouseholdDemographicsRowGenerator, RowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -937,28 +842,15 @@ pub struct HouseholdDemographicsCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> HouseholdDemographicsCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a HouseholdDemographicsRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for HouseholdDemographicsCsv<'a> {
+    type Row = HouseholdDemographicsRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a HouseholdDemographicsRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a HouseholdDemographicsRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the household_demographics table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "hd_demo_sk,hd_income_band_sk,hd_buy_potential,hd_dep_count,hd_vehicle_count"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -982,7 +874,7 @@ impl Display for HouseholdDemographicsCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::IncomeBandCsv;
+/// # use tpcdsgen::csv::{IncomeBandCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, IncomeBandRowGenerator, RowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1012,28 +904,15 @@ pub struct IncomeBandCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> IncomeBandCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a IncomeBandRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for IncomeBandCsv<'a> {
+    type Row = IncomeBandRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a IncomeBandRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a IncomeBandRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the income_band table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "ib_income_band_sk,ib_lower_bound,ib_upper_bound"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1055,7 +934,7 @@ impl Display for IncomeBandCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::InventoryCsv;
+/// # use tpcdsgen::csv::{InventoryCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, InventoryRowGenerator, RowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1085,28 +964,15 @@ pub struct InventoryCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> InventoryCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a InventoryRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for InventoryCsv<'a> {
+    type Row = InventoryRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a InventoryRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a InventoryRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the inventory table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "inv_date_sk,inv_item_sk,inv_warehouse_sk,inv_quantity_on_hand"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1131,7 +997,7 @@ impl Display for InventoryCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::ItemCsv;
+/// # use tpcdsgen::csv::{ItemCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, ItemRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1161,28 +1027,15 @@ pub struct ItemCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> ItemCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a ItemRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for ItemCsv<'a> {
+    type Row = ItemRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a ItemRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a ItemRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the item table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "i_item_sk,i_item_id,i_rec_start_date,i_rec_end_date,i_item_desc,i_current_price,i_wholesale_cost,i_brand_id,i_brand,i_class_id,i_class,i_category_id,i_category,i_manufact_id,i_manufact,i_size,i_formulation,i_color,i_units,i_container,i_manager_id,i_product_name"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1225,7 +1078,7 @@ impl Display for ItemCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::PromotionCsv;
+/// # use tpcdsgen::csv::{PromotionCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, PromotionRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1255,28 +1108,15 @@ pub struct PromotionCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> PromotionCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a PromotionRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for PromotionCsv<'a> {
+    type Row = PromotionRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a PromotionRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a PromotionRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the promotion table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "p_promo_sk,p_promo_id,p_start_date_sk,p_end_date_sk,p_item_sk,p_cost,p_response_target,p_promo_name,p_channel_dmail,p_channel_email,p_channel_catalog,p_channel_tv,p_channel_radio,p_channel_press,p_channel_event,p_channel_demo,p_channel_details,p_purpose,p_discount_active"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1316,7 +1156,7 @@ impl Display for PromotionCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::ReasonCsv;
+/// # use tpcdsgen::csv::{ReasonCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, ReasonRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1346,28 +1186,15 @@ pub struct ReasonCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> ReasonCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a ReasonRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for ReasonCsv<'a> {
+    type Row = ReasonRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a ReasonRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a ReasonRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the reason table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "r_reason_sk,r_reason_id,r_reason_desc"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1389,7 +1216,7 @@ impl Display for ReasonCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::ShipModeCsv;
+/// # use tpcdsgen::csv::{ShipModeCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, ShipModeRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1419,28 +1246,15 @@ pub struct ShipModeCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> ShipModeCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a ShipModeRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for ShipModeCsv<'a> {
+    type Row = ShipModeRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a ShipModeRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a ShipModeRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the ship_mode table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "sm_ship_mode_sk,sm_ship_mode_id,sm_type,sm_code,sm_carrier,sm_contract"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1465,7 +1279,7 @@ impl Display for ShipModeCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::StoreCsv;
+/// # use tpcdsgen::csv::{StoreCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1495,28 +1309,15 @@ pub struct StoreCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> StoreCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a StoreRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for StoreCsv<'a> {
+    type Row = StoreRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a StoreRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a StoreRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the store table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "s_store_sk,s_store_id,s_rec_start_date,s_rec_end_date,s_closed_date_sk,s_store_name,s_number_employees,s_floor_space,s_hours,s_manager,s_market_id,s_geography_class,s_market_desc,s_market_manager,s_division_id,s_division_name,s_company_id,s_company_name,s_street_number,s_street_name,s_street_type,s_suite_number,s_city,s_county,s_state,s_zip,s_country,s_gmt_offset,s_tax_precentage"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1566,7 +1367,7 @@ impl Display for StoreCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::StoreReturnsCsv;
+/// # use tpcdsgen::csv::{StoreReturnsCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1601,28 +1402,15 @@ pub struct StoreReturnsCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> StoreReturnsCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a StoreReturnsRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for StoreReturnsCsv<'a> {
+    type Row = StoreReturnsRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a StoreReturnsRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a StoreReturnsRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the store_returns table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "sr_returned_date_sk,sr_return_time_sk,sr_item_sk,sr_customer_sk,sr_cdemo_sk,sr_hdemo_sk,sr_addr_sk,sr_store_sk,sr_reason_sk,sr_ticket_number,sr_return_quantity,sr_return_amt,sr_return_tax,sr_return_amt_inc_tax,sr_fee,sr_return_ship_cost,sr_refunded_cash,sr_reversed_charge,sr_store_credit,sr_net_loss"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1690,7 +1478,7 @@ impl Display for StoreReturnsCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::StoreSalesCsv;
+/// # use tpcdsgen::csv::{StoreSalesCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1722,28 +1510,15 @@ pub struct StoreSalesCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> StoreSalesCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a StoreSalesRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for StoreSalesCsv<'a> {
+    type Row = StoreSalesRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a StoreSalesRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a StoreSalesRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the store_sales table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "ss_sold_date_sk,ss_sold_time_sk,ss_item_sk,ss_customer_sk,ss_cdemo_sk,ss_hdemo_sk,ss_addr_sk,ss_store_sk,ss_promo_sk,ss_ticket_number,ss_quantity,ss_wholesale_cost,ss_list_price,ss_sales_price,ss_ext_discount_amt,ss_ext_sales_price,ss_ext_wholesale_cost,ss_ext_list_price,ss_ext_tax,ss_coupon_amt,ss_net_paid,ss_net_paid_inc_tax,ss_net_profit"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1830,7 +1605,7 @@ impl Display for StoreSalesCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::TimeDimCsv;
+/// # use tpcdsgen::csv::{TimeDimCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, TimeDimRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1860,28 +1635,15 @@ pub struct TimeDimCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> TimeDimCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a TimeDimRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for TimeDimCsv<'a> {
+    type Row = TimeDimRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a TimeDimRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a TimeDimRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the time_dim table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "t_time_sk,t_time_id,t_time,t_hour,t_minute,t_second,t_am_pm,t_shift,t_sub_shift,t_meal_time"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1910,7 +1672,7 @@ impl Display for TimeDimCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::WarehouseCsv;
+/// # use tpcdsgen::csv::{WarehouseCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WarehouseRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -1940,28 +1702,15 @@ pub struct WarehouseCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> WarehouseCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a WarehouseRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for WarehouseCsv<'a> {
+    type Row = WarehouseRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a WarehouseRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a WarehouseRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the warehouse table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "w_warehouse_sk,w_warehouse_id,w_warehouse_name,w_warehouse_sq_ft,w_street_number,w_street_name,w_street_type,w_suite_number,w_city,w_county,w_state,w_zip,w_country,w_gmt_offset"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -1996,7 +1745,7 @@ impl Display for WarehouseCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::WebPageCsv;
+/// # use tpcdsgen::csv::{WebPageCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebPageRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -2026,28 +1775,15 @@ pub struct WebPageCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> WebPageCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a WebPageRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for WebPageCsv<'a> {
+    type Row = WebPageRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a WebPageRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a WebPageRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the web_page table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "wp_web_page_sk,wp_web_page_id,wp_rec_start_date,wp_rec_end_date,wp_creation_date_sk,wp_access_date_sk,wp_autogen_flag,wp_customer_sk,wp_url,wp_type,wp_char_count,wp_link_count,wp_image_count,wp_max_ad_count"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -2082,7 +1818,7 @@ impl Display for WebPageCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::WebReturnsCsv;
+/// # use tpcdsgen::csv::{WebReturnsCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -2114,28 +1850,15 @@ pub struct WebReturnsCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> WebReturnsCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a WebReturnsRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for WebReturnsCsv<'a> {
+    type Row = WebReturnsRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a WebReturnsRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a WebReturnsRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the web_returns table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_account_credit,wr_net_loss"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -2187,7 +1910,7 @@ impl Display for WebReturnsCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::WebSalesCsv;
+/// # use tpcdsgen::csv::{WebSalesCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSalesRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -2219,28 +1942,15 @@ pub struct WebSalesCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> WebSalesCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a WebSalesRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for WebSalesCsv<'a> {
+    type Row = WebSalesRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a WebSalesRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a WebSalesRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the web_sales table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "ws_sold_date_sk,ws_sold_time_sk,ws_ship_date_sk,ws_item_sk,ws_bill_customer_sk,ws_bill_cdemo_sk,ws_bill_hdemo_sk,ws_bill_addr_sk,ws_ship_customer_sk,ws_ship_cdemo_sk,ws_ship_hdemo_sk,ws_ship_addr_sk,ws_web_page_sk,ws_web_site_sk,ws_ship_mode_sk,ws_warehouse_sk,ws_promo_sk,ws_order_number,ws_quantity,ws_wholesale_cost,ws_list_price,ws_sales_price,ws_ext_discount_amt,ws_ext_sales_price,ws_ext_wholesale_cost,ws_ext_list_price,ws_ext_tax,ws_coupon_amt,ws_ext_ship_cost,ws_net_paid,ws_net_paid_inc_tax,ws_net_paid_inc_ship,ws_net_paid_inc_ship_tax,ws_net_profit"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 
@@ -2296,7 +2006,7 @@ impl Display for WebSalesCsv<'_> {
 /// # Example
 /// ```
 /// # use tpcdsgen::config::Session;
-/// # use tpcdsgen::csv::WebSiteCsv;
+/// # use tpcdsgen::csv::{WebSiteCsv, CsvRow};
 /// # use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSiteRowGenerator};
 /// # use std::fmt::Write;
 /// # let session = Session::default();
@@ -2326,28 +2036,15 @@ pub struct WebSiteCsv<'a> {
     delimiter: char,
 }
 
-impl<'a> WebSiteCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a WebSiteRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
+impl<'a> CsvRow<'a> for WebSiteCsv<'a> {
+    type Row = WebSiteRow;
 
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a WebSiteRow, delimiter: char) -> Self {
+    fn with_delimiter(inner: &'a WebSiteRow, delimiter: char) -> Self {
         Self { inner, delimiter }
     }
 
-    /// Returns the CSV header for the web_site table
-    pub fn header() -> &'static str {
+    fn header() -> &'static str {
         "web_site_sk,web_site_id,web_rec_start_date,web_rec_end_date,web_name,web_open_date_sk,web_close_date_sk,web_class,web_manager,web_mkt_id,web_mkt_class,web_mkt_desc,web_market_manager,web_company_id,web_company_name,web_street_number,web_street_name,web_street_type,web_suite_number,web_city,web_county,web_state,web_zip,web_country,web_gmt_offset,web_tax_percentage"
-    }
-
-    /// Returns the CSV header with a custom delimiter
-    pub fn header_with_delimiter(delimiter: char) -> String {
-        join_header(Self::header(), delimiter)
     }
 }
 

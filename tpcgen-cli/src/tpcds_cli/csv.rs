@@ -20,7 +20,6 @@ use crate::progress::ProgressTracker;
 use crate::tpcds_cli::generate::{generate_table, RowFormat};
 use crate::tpcds_cli::plan::ChunkFormat;
 use crate::tpcds_cli::runner::{plan_tables, run_plans};
-use std::fmt::Display;
 use std::io::{self, Write};
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
@@ -84,30 +83,35 @@ impl Csv {
     }
 }
 
-/// A row type with a CSV rendering.
-pub(super) trait CsvRow {
-    type Csv<'a>: Display
-    where
-        Self: 'a;
-
-    fn csv(&self, delimiter: char) -> Self::Csv<'_>;
-}
-
-macro_rules! impl_csv_row {
+/// Implement [`RowFormat`] for each row type via its [`CsvRow`] wrapper.
+macro_rules! impl_csv_format {
     ($($row:ident => $csv:ident),* $(,)?) => {
         $(
-            impl CsvRow for $row {
-                type Csv<'a> = $csv<'a>;
+            impl RowFormat<$row> for Csv {
+                const EXTENSION: &'static str = "csv";
 
-                fn csv(&self, delimiter: char) -> $csv<'_> {
-                    $csv::with_delimiter(self, delimiter)
+                fn write_header(&self, _table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
+                    writeln!(buffer, "{}", $csv::header_with_delimiter(self.delimiter))
+                        .expect("writing to memory cannot fail");
+                    buffer
+                }
+
+                fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
+                where
+                    I: Iterator<Item = $row>,
+                {
+                    for row in rows {
+                        writeln!(buffer, "{}", $csv::with_delimiter(&row, self.delimiter))
+                            .expect("writing to memory cannot fail");
+                    }
+                    buffer
                 }
             }
         )*
     };
 }
 
-impl_csv_row!(
+impl_csv_format!(
     CallCenterRow => CallCenterCsv,
     CatalogPageRow => CatalogPageCsv,
     CatalogReturnsRow => CatalogReturnsCsv,
@@ -134,25 +138,3 @@ impl_csv_row!(
     WebSalesRow => WebSalesCsv,
     WebSiteRow => WebSiteCsv,
 );
-
-impl<R: CsvRow> RowFormat<R> for Csv {
-    const EXTENSION: &'static str = "csv";
-
-    fn write_header(&self, table: Table, mut buffer: Vec<u8>) -> Vec<u8> {
-        // Checked by `generate_tables` before any generation starts.
-        let header = csv_header(table, self.delimiter)
-            .unwrap_or_else(|| panic!("table {} has no CSV output", table.get_name()));
-        writeln!(buffer, "{header}").expect("writing to memory cannot fail");
-        buffer
-    }
-
-    fn write_rows<I>(&self, _table: Table, rows: I, mut buffer: Vec<u8>) -> Vec<u8>
-    where
-        I: Iterator<Item = R>,
-    {
-        for row in rows {
-            writeln!(buffer, "{}", row.csv(self.delimiter)).expect("writing to memory cannot fail");
-        }
-        buffer
-    }
-}
