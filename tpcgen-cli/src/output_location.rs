@@ -1,6 +1,5 @@
 //! [`OutputLocation`]: where generated data is written.
 
-use crate::temp_path::inprogress_path;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{self, Write};
@@ -76,7 +75,8 @@ impl OutputLocation {
 
     /// Write `output` to this location.
     ///
-    /// Files are written to `<path>.inprogress` and renamed on success. Existing
+    /// Files are written to `<path>.inprogress` and renamed on success. The
+    /// temporary file is removed if writing fails or is cancelled. Existing
     /// files are skipped unless `overwrite` is set, returning `Ok(false)`.
     pub(crate) async fn write<O: WriteOutput>(&self, output: O) -> io::Result<bool> {
         let (path, overwrite) = match self {
@@ -91,16 +91,57 @@ impl OutputLocation {
             return Ok(false);
         }
 
-        let temp_path = inprogress_path(path);
-        let file = File::create(&temp_path)
-            .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        output.write_to(file).await?;
-        std::fs::rename(&temp_path, path).map_err(|err| {
-            io::Error::other(format!(
-                "Failed to rename {temp_path:?} to {path:?} file: {err}"
-            ))
-        })?;
+        let in_progress = InProgressFile::new(path);
+        output.write_to(in_progress.create()?).await?;
+        in_progress.finish()?;
         Ok(true)
+    }
+}
+
+/// The `<path>.inprogress` file that output is written to before it is
+/// renamed to `<path>`.
+///
+/// If this is dropped before [`Self::finish`] (because writing failed or was
+/// cancelled), the `.inprogress` file is deleted.
+struct InProgressFile<'a> {
+    path: &'a Path,
+    temp_path: PathBuf,
+}
+
+impl<'a> InProgressFile<'a> {
+    fn new(path: &'a Path) -> Self {
+        // Append to the full file name (unlike `with_extension`), so
+        // `lineitem.1.tbl` and `lineitem.2.tbl` stay distinct
+        let mut temp_path = path.as_os_str().to_owned();
+        temp_path.push(".inprogress");
+        Self {
+            path,
+            temp_path: temp_path.into(),
+        }
+    }
+
+    /// Create `<path>.inprogress` for writing.
+    fn create(&self) -> io::Result<File> {
+        File::create(&self.temp_path).map_err(|err| {
+            io::Error::other(format!("Failed to create {:?}: {err}", self.temp_path))
+        })
+    }
+
+    /// Rename `<path>.inprogress` to `<path>`.
+    fn finish(self) -> io::Result<()> {
+        std::fs::rename(&self.temp_path, self.path).map_err(|err| {
+            io::Error::other(format!(
+                "Failed to rename {:?} to {:?} file: {err}",
+                self.temp_path, self.path
+            ))
+        })
+    }
+}
+
+impl Drop for InProgressFile<'_> {
+    fn drop(&mut self) {
+        // After a successful `finish` there is nothing left to delete
+        let _ = std::fs::remove_file(&self.temp_path);
     }
 }
 
@@ -126,5 +167,33 @@ impl Display for OutputLocation {
             }
             OutputLocation::Stdout => write!(f, "Stdout"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::FutureExt;
+
+    struct NeverFinishes;
+
+    impl WriteOutput for NeverFinishes {
+        async fn write_to<W: Write + Send + 'static>(self, _writer: W) -> io::Result<()> {
+            std::future::pending().await
+        }
+    }
+
+    #[test]
+    fn cancelled_write_removes_inprogress_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let location = OutputLocation::File {
+            path: dir.path().join("region.tbl"),
+            overwrite: false,
+        };
+
+        // Start the write, then drop it before it finishes
+        assert!(location.write(NeverFinishes).now_or_never().is_none());
+
+        assert!(!dir.path().join("region.tbl.inprogress").exists());
     }
 }

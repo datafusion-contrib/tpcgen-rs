@@ -7,7 +7,6 @@ mod parquet;
 pub mod progress;
 pub mod sink;
 pub mod statistics;
-mod temp_path;
 pub mod tpcds_cli;
 pub mod tpch_cli;
 mod worker_queue;
