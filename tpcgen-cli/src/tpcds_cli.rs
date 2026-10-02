@@ -58,7 +58,6 @@ impl OutputFormat {
 }
 
 #[derive(Args)]
-#[command(version)]
 #[command(
     // -h output
     about = "TPC-DS Data Generator",

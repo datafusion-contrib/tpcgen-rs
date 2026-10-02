@@ -21,7 +21,6 @@ use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
-#[command(version)]
 #[command(
     // -h output
     about = "TPC-H Data Generator",
