@@ -55,11 +55,7 @@ impl Default for PromotionRowGenerator {
 impl SingleRowGenerator for PromotionRowGenerator {
     type Row = PromotionRow;
 
-    fn generate_row(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-    ) -> crate::error::Result<PromotionRow> {
+    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<PromotionRow> {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         let scaling = session.get_scaling();

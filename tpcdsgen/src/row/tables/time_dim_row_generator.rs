@@ -28,11 +28,7 @@ impl TimeDimRowGenerator {
 impl SingleRowGenerator for TimeDimRowGenerator {
     type Row = TimeDimRow;
 
-    fn generate_row(
-        &mut self,
-        row_number: u64,
-        _session: &Session,
-    ) -> crate::error::Result<TimeDimRow> {
+    fn generate_row(&mut self, row_number: u64, _session: &Session) -> Result<TimeDimRow> {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bitmap - TimeDim has very few nulls

@@ -52,11 +52,7 @@ impl WebSiteRowGenerator {
 impl SingleRowGenerator for WebSiteRowGenerator {
     type Row = WebSiteRow;
 
-    fn generate_row(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-    ) -> crate::error::Result<WebSiteRow> {
+    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<WebSiteRow> {
         // Replay the missing slowly changing dimension (SCD) state this row
         // inherits from, which `skip_rows_until_starting_row_number` cleared.
         // This gives it the same values to copy from as an uninterrupted run.

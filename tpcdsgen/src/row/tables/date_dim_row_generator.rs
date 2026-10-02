@@ -44,11 +44,7 @@ impl DateDimRowGenerator {
 impl SingleRowGenerator for DateDimRowGenerator {
     type Row = DateDimRow;
 
-    fn generate_row(
-        &mut self,
-        row_number: u64,
-        _session: &Session,
-    ) -> crate::error::Result<DateDimRow> {
+    fn generate_row(&mut self, row_number: u64, _session: &Session) -> Result<DateDimRow> {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bitmap - DateDim has very few nulls
