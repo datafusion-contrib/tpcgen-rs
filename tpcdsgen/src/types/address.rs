@@ -138,15 +138,10 @@ impl Address {
         use crate::random::RandomValueGenerator;
 
         let street_number = RandomValueGenerator::generate_uniform_random_int(1, 1000, stream);
-        let street_name1 = pick_random_street_name(StreetNamesWeights::Default, stream)
-            .unwrap_or("Main")
-            .to_string();
-        let street_name2 = pick_random_street_name(StreetNamesWeights::HalfEmpty, stream)
-            .unwrap_or("")
-            .to_string();
-        let street_type = pick_random_street_type(stream)
-            .unwrap_or("Street")
-            .to_string();
+        let street_name1 = pick_random_street_name(StreetNamesWeights::Default, stream).to_string();
+        let street_name2 =
+            pick_random_street_name(StreetNamesWeights::HalfEmpty, stream).to_string();
+        let street_type = pick_random_street_type(stream).to_string();
 
         let random_int = RandomValueGenerator::generate_uniform_random_int(1, 100, stream);
         let suite_number = if random_int % 2 == 1 {
@@ -185,13 +180,9 @@ impl Address {
                 },
                 stream,
             );
-            get_city_at_index(random_int as usize)
-                .unwrap_or("Midway")
-                .to_string()
+            get_city_at_index(random_int as usize).to_string()
         } else {
-            pick_random_city(CitiesWeights::UnifiedStepFunction, stream)
-                .unwrap_or("Midway")
-                .to_string()
+            pick_random_city(CitiesWeights::UnifiedStepFunction, stream).to_string()
         };
 
         // county is picked from a distribution, based on population and keys the rest
@@ -209,11 +200,10 @@ impl Address {
                 stream,
             ) as usize
         } else {
-            FipsCountyDistribution::pick_random_index(FipsWeights::Uniform, stream).unwrap_or(0)
+            FipsCountyDistribution::pick_random_index(FipsWeights::Uniform, stream)
         };
 
-        let county = FipsCountyDistribution::get_county_at_index(region_number)
-            .unwrap_or("Williamson County");
+        let county = FipsCountyDistribution::get_county_at_index(region_number);
         // let county = if table.is_small() {
         //     FipsCountyDistribution::get_county_at_index(region_number)
         //         .unwrap_or("Williamson County")
@@ -224,22 +214,19 @@ impl Address {
         // };
 
         // match state with the selected region/county
-        let state =
-            FipsCountyDistribution::get_state_abbreviation_at_index(region_number).unwrap_or("TN");
+        let state = FipsCountyDistribution::get_state_abbreviation_at_index(region_number);
 
         // match the zip prefix with the selected region/county
         let mut zip = Self::compute_city_hash(&city);
 
         // 00000 - 00600 are unused. Avoid them
-        let zip_prefix =
-            FipsCountyDistribution::get_zip_prefix_at_index(region_number).unwrap_or(0);
+        let zip_prefix = FipsCountyDistribution::get_zip_prefix_at_index(region_number);
         if zip_prefix == 0 && zip < 9400 {
             zip += 600;
         }
         zip += zip_prefix * 10000;
 
-        let gmt_offset =
-            FipsCountyDistribution::get_gmt_offset_at_index(region_number).unwrap_or(-5);
+        let gmt_offset = FipsCountyDistribution::get_gmt_offset_at_index(region_number);
         let country = "United States";
 
         Address::new(

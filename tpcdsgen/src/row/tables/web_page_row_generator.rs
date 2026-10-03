@@ -153,7 +153,7 @@ impl WebPageRowGenerator {
         let wp_type = WebPageUseDistribution::pick_random_web_page_use_type(
             self.abstract_generator
                 .get_random_number_stream(&WebPageGeneratorColumn::WpType),
-        )?;
+        );
         field_change_flags >>= 1;
 
         // wp_link_count

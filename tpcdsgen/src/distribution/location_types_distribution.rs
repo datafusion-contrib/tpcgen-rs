@@ -125,7 +125,7 @@ impl LocationTypesDistribution {
     pub fn pick_random_location_type(
         weights: LocationTypeWeights,
         stream: &mut RandomNumberStream,
-    ) -> Result<String> {
+    ) -> String {
         let dist = Self::get_instance();
 
         let weights_list = match weights {
@@ -133,8 +133,7 @@ impl LocationTypesDistribution {
             LocationTypeWeights::DistributionFrequency => &dist.weights_list2,
         };
 
-        let value_ref = pick_random_value(&dist.values, weights_list, stream)?;
-        Ok(value_ref.clone())
+        pick_random_value(&dist.values, weights_list, stream).clone()
     }
 }
 
@@ -159,8 +158,7 @@ mod tests {
         let location_type = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::DistributionFrequency,
             &mut stream,
-        )
-        .unwrap();
+        );
 
         // Should be one of the valid types
         assert!(
@@ -181,13 +179,11 @@ mod tests {
         let type1 = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::Uniform,
             &mut stream1,
-        )
-        .unwrap();
+        );
         let type2 = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::Uniform,
             &mut stream2,
-        )
-        .unwrap();
+        );
 
         assert_eq!(type1, type2, "Same seed should produce same location type");
     }
@@ -213,13 +209,11 @@ mod tests {
         let type_uniform = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::Uniform,
             &mut stream,
-        )
-        .unwrap();
+        );
         let type_dist = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::DistributionFrequency,
             &mut stream,
-        )
-        .unwrap();
+        );
 
         // Both should be valid
         assert!(

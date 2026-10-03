@@ -101,49 +101,24 @@ impl FipsCountyDistribution {
         })
     }
 
-    pub fn pick_random_index(
-        weights: FipsWeights,
-        stream: &mut RandomNumberStream,
-    ) -> Result<usize> {
+    pub fn pick_random_index(weights: FipsWeights, stream: &mut RandomNumberStream) -> usize {
         let instance = Self::get_instance();
         pick_random_index(&instance.weights_lists[weights as usize], stream)
     }
 
-    pub fn get_county_at_index(index: usize) -> Result<&'static str> {
-        let instance = Self::get_instance();
-        instance
-            .counties
-            .get(index)
-            .map(|s| s.as_str())
-            .ok_or_else(|| TpcdsError::new(&format!("County index {} out of range", index)))
+    pub fn get_county_at_index(index: usize) -> &'static str {
+        &Self::get_instance().counties[index]
     }
 
-    pub fn get_state_abbreviation_at_index(index: usize) -> Result<&'static str> {
-        let instance = Self::get_instance();
-        instance
-            .state_abbreviations
-            .get(index)
-            .map(|s| s.as_str())
-            .ok_or_else(|| {
-                TpcdsError::new(&format!("State abbreviation index {} out of range", index))
-            })
+    pub fn get_state_abbreviation_at_index(index: usize) -> &'static str {
+        &Self::get_instance().state_abbreviations[index]
     }
 
-    pub fn get_zip_prefix_at_index(index: usize) -> Result<i32> {
-        let instance = Self::get_instance();
-        instance
-            .zip_prefixes
-            .get(index)
-            .copied()
-            .ok_or_else(|| TpcdsError::new(&format!("Zip prefix index {} out of range", index)))
+    pub fn get_zip_prefix_at_index(index: usize) -> i32 {
+        Self::get_instance().zip_prefixes[index]
     }
 
-    pub fn get_gmt_offset_at_index(index: usize) -> Result<i32> {
-        let instance = Self::get_instance();
-        instance
-            .gmt_offsets
-            .get(index)
-            .copied()
-            .ok_or_else(|| TpcdsError::new(&format!("GMT offset index {} out of range", index)))
+    pub fn get_gmt_offset_at_index(index: usize) -> i32 {
+        Self::get_instance().gmt_offsets[index]
     }
 }
