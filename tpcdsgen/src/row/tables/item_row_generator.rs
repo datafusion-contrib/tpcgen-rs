@@ -21,7 +21,6 @@ use crate::distribution::{
     pick_random_current_price_range, pick_random_manager_id_range, pick_random_manufact_id_range,
     pick_random_size, pick_random_unit, ColorsWeights, IdWeights, SizeWeights,
 };
-use crate::error::Result;
 use crate::generator::ItemGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -64,7 +63,7 @@ impl ItemRowGenerator {
         }
     }
 
-    fn generate_item_row(&mut self, row_number: u64) -> Result<ItemRow> {
+    fn generate_item_row(&mut self, row_number: u64) -> ItemRow {
         use ItemGeneratorColumn::*;
 
         let session = &self.session;
@@ -338,7 +337,7 @@ impl ItemRowGenerator {
         );
 
         self.previous_row = Some(row.clone());
-        Ok(row)
+        row
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -371,7 +370,7 @@ impl ScdRowGenerator for ItemRowGenerator {
         self.previous_row.as_ref()
     }
 
-    fn generate_row(&mut self, row_number: u64) -> Result<ItemRow> {
+    fn generate_row(&mut self, row_number: u64) -> ItemRow {
         self.generate_item_row(row_number)
     }
 }

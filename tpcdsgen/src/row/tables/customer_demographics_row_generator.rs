@@ -1,6 +1,5 @@
 use crate::config::Session;
 use crate::distribution::DemographicsDistributions;
-use crate::error::Result;
 use crate::generator::CustomerDemographicsGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, CustomerDemographicsRow};
@@ -25,10 +24,7 @@ impl CustomerDemographicsRowGenerator {
     }
 
     /// Generate a CustomerDemographicsRow with realistic data following Java implementation
-    fn generate_customer_demographics_row(
-        &mut self,
-        row_number: u64,
-    ) -> Result<CustomerDemographicsRow> {
+    fn generate_customer_demographics_row(&mut self, row_number: u64) -> CustomerDemographicsRow {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bit map (createNullBitMap call)
@@ -83,7 +79,7 @@ impl CustomerDemographicsRowGenerator {
 
         let cd_dep_college_count = (index % Self::MAX_COLLEGE) as i32;
 
-        Ok(CustomerDemographicsRow::new(
+        CustomerDemographicsRow::new(
             null_bit_map,
             cd_demo_sk,
             cd_gender.to_string(),
@@ -94,7 +90,7 @@ impl CustomerDemographicsRowGenerator {
             cd_dep_count,
             cd_dep_employed_count,
             cd_dep_college_count,
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -119,9 +115,7 @@ impl Iterator for CustomerDemographicsRowGenerator {
 
     fn next(&mut self) -> Option<CustomerDemographicsRow> {
         let row_number = self.abstract_generator.next_row_number()?;
-        let row = self
-            .generate_customer_demographics_row(row_number)
-            .expect("row gen");
+        let row = self.generate_customer_demographics_row(row_number);
         self.abstract_generator.finish_row();
         Some(row)
     }

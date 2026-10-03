@@ -16,7 +16,6 @@
 
 use crate::config::Session;
 use crate::distribution::{CallCenterDistributions, FirstNamesWeights, NamesDistributions};
-use crate::error::Result;
 use crate::generator::StoreGeneratorColumn;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
@@ -56,7 +55,7 @@ impl StoreRowGenerator {
         }
     }
 
-    fn generate_store_row(&mut self, row_number: u64) -> Result<StoreRow> {
+    fn generate_store_row(&mut self, row_number: u64) -> StoreRow {
         use StoreGeneratorColumn::*;
 
         let session = &self.session;
@@ -281,7 +280,7 @@ impl StoreRowGenerator {
             .abstract_generator
             .get_random_number_stream(&WStoreAddress);
         let mut address =
-            Address::make_address_for_column(Table::Store, stream, session.get_scaling())?;
+            Address::make_address_for_column(Table::Store, stream, session.get_scaling());
         field_change_flags >>= 1; // city
         field_change_flags >>= 1; // county
 
@@ -335,7 +334,7 @@ impl StoreRowGenerator {
             address.get_country().to_string(),
             zip,
             gmt_offset,
-        )?;
+        );
 
         let row = StoreRow::new(
             null_bit_map,
@@ -362,7 +361,7 @@ impl StoreRowGenerator {
         );
 
         self.previous_row = Some(row.clone());
-        Ok(row)
+        row
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -395,7 +394,7 @@ impl ScdRowGenerator for StoreRowGenerator {
         self.previous_row.as_ref()
     }
 
-    fn generate_row(&mut self, row_number: u64) -> Result<StoreRow> {
+    fn generate_row(&mut self, row_number: u64) -> StoreRow {
         self.generate_store_row(row_number)
     }
 }

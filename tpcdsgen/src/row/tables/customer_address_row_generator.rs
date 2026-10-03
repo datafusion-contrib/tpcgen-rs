@@ -19,7 +19,6 @@ use crate::config::Session;
 use crate::distribution::location_types_distribution::{
     LocationTypeWeights, LocationTypesDistribution,
 };
-use crate::error::Result;
 use crate::generator::CustomerAddressGeneratorColumn;
 use crate::nulls::create_null_bit_map;
 use crate::row::{AbstractRowGenerator, CustomerAddressRow};
@@ -42,7 +41,7 @@ impl CustomerAddressRowGenerator {
     }
 
     /// Generate a CustomerAddressRow with realistic data following Java implementation
-    fn generate_customer_address_row(&mut self, row_number: u64) -> Result<CustomerAddressRow> {
+    fn generate_customer_address_row(&mut self, row_number: u64) -> CustomerAddressRow {
         let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -61,7 +60,7 @@ impl CustomerAddressRowGenerator {
             .abstract_generator
             .get_random_number_stream(&CustomerAddressGeneratorColumn::CaAddress);
         let ca_address =
-            Address::make_address_for_column(Table::CustomerAddress, address_stream, scaling)?;
+            Address::make_address_for_column(Table::CustomerAddress, address_stream, scaling);
 
         // Generate location type using UNIFORM weights (matches Java)
         let location_type_stream = self
@@ -72,13 +71,13 @@ impl CustomerAddressRowGenerator {
             location_type_stream,
         );
 
-        Ok(CustomerAddressRow::new(
+        CustomerAddressRow::new(
             null_bit_map,
             ca_addr_sk,
             ca_addr_id,
             ca_address,
             ca_location_type,
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -103,9 +102,7 @@ impl Iterator for CustomerAddressRowGenerator {
 
     fn next(&mut self) -> Option<CustomerAddressRow> {
         let row_number = self.abstract_generator.next_row_number()?;
-        let row = self
-            .generate_customer_address_row(row_number)
-            .expect("row gen");
+        let row = self.generate_customer_address_row(row_number);
         self.abstract_generator.finish_row();
         Some(row)
     }

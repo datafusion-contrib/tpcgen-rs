@@ -15,7 +15,6 @@
 //! Web returns row generator
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::WebReturnsGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -67,7 +66,7 @@ impl WebReturnsRowGenerator {
     }
 
     /// Generate the return row for `sales_row`.
-    fn generate_row(&mut self, sales_row: &WebSalesRow) -> Result<WebReturnsRow> {
+    fn generate_row(&mut self, sales_row: &WebSalesRow) -> WebReturnsRow {
         use WebReturnsGeneratorColumn::*;
 
         let scaling = self.sales.session().get_scaling();
@@ -191,7 +190,7 @@ impl WebReturnsRowGenerator {
         let wr_pricing =
             generate_pricing_for_returns_table(stream, quantity, sales_row.get_ws_pricing());
 
-        Ok(WebReturnsRow::new(
+        WebReturnsRow::new(
             null_bit_map,
             wr_returned_date_sk,
             wr_returned_time_sk,
@@ -208,7 +207,7 @@ impl WebReturnsRowGenerator {
             wr_reason_sk,
             wr_order_number,
             wr_pricing,
-        ))
+        )
     }
 }
 
@@ -217,13 +216,10 @@ impl Iterator for WebReturnsRowGenerator {
 
     fn next(&mut self) -> Option<WebReturnsRow> {
         loop {
-            let item = self.sales.next_line_item().expect("row gen")?;
+            let item = self.sales.next_line_item()?;
             let row = if item.is_returned {
-                let sales_row = self
-                    .sales
-                    .generate_sales_row(item.item_sk)
-                    .expect("row gen");
-                Some(self.generate_row(&sales_row).expect("row gen"))
+                let sales_row = self.sales.generate_sales_row(item.item_sk);
+                Some(self.generate_row(&sales_row))
             } else {
                 self.sales.skip_item_sales_draws();
                 None

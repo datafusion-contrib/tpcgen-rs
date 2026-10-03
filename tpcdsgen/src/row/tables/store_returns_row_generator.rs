@@ -15,7 +15,6 @@
 //! Store returns row generator
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::StoreReturnsGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -70,7 +69,7 @@ impl StoreReturnsRowGenerator {
     }
 
     /// Generate the return row for `sales_row`.
-    fn generate_row(&mut self, sales_row: &StoreSalesRow) -> Result<StoreReturnsRow> {
+    fn generate_row(&mut self, sales_row: &StoreSalesRow) -> StoreReturnsRow {
         use StoreReturnsGeneratorColumn::*;
 
         let scaling = self.sales.session().get_scaling();
@@ -177,7 +176,7 @@ impl StoreReturnsRowGenerator {
         let stream = self.abstract_generator.get_random_number_stream(&SrPricing);
         let sr_pricing = generate_pricing_for_returns_table(stream, quantity, sales_pricing);
 
-        Ok(StoreReturnsRow::new(
+        StoreReturnsRow::new(
             null_bit_map,
             sr_returned_date_sk,
             sr_returned_time_sk,
@@ -190,7 +189,7 @@ impl StoreReturnsRowGenerator {
             sr_reason_sk,
             sr_ticket_number,
             sr_pricing,
-        ))
+        )
     }
 }
 
@@ -199,13 +198,10 @@ impl Iterator for StoreReturnsRowGenerator {
 
     fn next(&mut self) -> Option<StoreReturnsRow> {
         loop {
-            let item = self.sales.next_line_item().expect("row gen")?;
+            let item = self.sales.next_line_item()?;
             let row = if item.is_returned {
-                let sales_row = self
-                    .sales
-                    .generate_sales_row(item.item_sk)
-                    .expect("row gen");
-                Some(self.generate_row(&sales_row).expect("row gen"))
+                let sales_row = self.sales.generate_sales_row(item.item_sk);
+                Some(self.generate_row(&sales_row))
             } else {
                 self.sales.skip_item_sales_draws();
                 None

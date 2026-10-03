@@ -1,7 +1,6 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::distribution::HoursDistribution;
-use crate::error::Result;
 use crate::row::{AbstractRowGenerator, TimeDimRow};
 use crate::table::Table;
 
@@ -33,7 +32,7 @@ impl TimeDimRowGenerator {
             .set_source_row_range(starting_row_number, ending_row_number);
     }
 
-    fn generate_time_dim_row(&mut self, row_number: u64) -> Result<TimeDimRow> {
+    fn generate_time_dim_row(&mut self, row_number: u64) -> TimeDimRow {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bitmap - TimeDim has very few nulls
@@ -60,7 +59,7 @@ impl TimeDimRowGenerator {
         let t_meal_time = hour_info.get_meal().to_string();
 
         // Create the row
-        let row = TimeDimRow::new(
+        TimeDimRow::new(
             null_bit_map,
             t_time_sk,
             t_time_id,
@@ -72,9 +71,7 @@ impl TimeDimRowGenerator {
             t_shift,
             t_sub_shift,
             t_meal_time,
-        );
-
-        Ok(row)
+        )
     }
 }
 
@@ -83,7 +80,7 @@ impl Iterator for TimeDimRowGenerator {
 
     fn next(&mut self) -> Option<TimeDimRow> {
         let row_number = self.base.next_row_number()?;
-        let row = self.generate_time_dim_row(row_number).expect("row gen");
+        let row = self.generate_time_dim_row(row_number);
         self.base.finish_row();
         Some(row)
     }
