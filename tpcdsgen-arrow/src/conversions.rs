@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_decimal_to_i128() {
-        let d = Decimal::new(12345, 2).unwrap();
+        let d = Decimal::new(12345, 2);
         assert_eq!(decimal_to_i128(d), 12345);
     }
 

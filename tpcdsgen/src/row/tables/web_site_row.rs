@@ -272,7 +272,7 @@ mod tests {
             1,
             "Company A".to_string(),
             address,
-            Decimal::new(650, 2).unwrap(),
+            Decimal::new(650, 2),
         );
 
         let values = dat_values(&row);
