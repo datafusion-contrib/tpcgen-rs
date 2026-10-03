@@ -43,10 +43,10 @@ impl IncomeBandRowGenerator {
         let ib_income_band_sk = row_number as i32;
         let ib_lower_bound = DemographicsDistributions::get_income_band_lower_bound_at_index(
             (row_number - 1) as usize,
-        )?;
+        );
         let ib_upper_bound = DemographicsDistributions::get_income_band_upper_bound_at_index(
             (row_number - 1) as usize,
-        )?;
+        );
 
         Ok(IncomeBandRow::new(
             null_bit_map,

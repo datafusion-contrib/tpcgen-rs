@@ -76,13 +76,11 @@ impl CallCenterRowGenerator {
                 RandomValueGenerator::generate_uniform_random_int(-365, 0, open_date_stream);
             let open_date_id = JULIAN_DATE_START - open_date_random as i64;
 
-            let number_of_call_centers =
-                CallCenterDistributions::get_number_of_call_centers().unwrap_or(12);
+            let number_of_call_centers = CallCenterDistributions::get_number_of_call_centers();
             let suffix = (row_number_i64 / number_of_call_centers as i64) as i32;
             let cc_name = CallCenterDistributions::get_call_center_at_index(
                 (row_number_i64 % number_of_call_centers as i64) as usize,
-            )
-            .unwrap_or("Unknown");
+            );
 
             let final_cc_name = if suffix > 0 {
                 format!("{}_{}", cc_name, suffix)
@@ -129,8 +127,7 @@ impl CallCenterRowGenerator {
         let class_stream = self
             .abstract_generator
             .get_random_number_stream(&CallCenterGeneratorColumn::CcClass);
-        let cc_class =
-            CallCenterDistributions::pick_random_call_center_class(class_stream).unwrap_or("large");
+        let cc_class = CallCenterDistributions::pick_random_call_center_class(class_stream);
         field_change_flag >>= 1;
 
         let employees_stream = self
@@ -173,8 +170,7 @@ impl CallCenterRowGenerator {
         let hours_stream = self
             .abstract_generator
             .get_random_number_stream(&CallCenterGeneratorColumn::CcHours);
-        let cc_hours = CallCenterDistributions::pick_random_call_center_hours(hours_stream)
-            .unwrap_or("8AM-8PM");
+        let cc_hours = CallCenterDistributions::pick_random_call_center_hours(hours_stream);
         field_change_flag >>= 1;
 
         let manager_stream = self
@@ -187,10 +183,8 @@ impl CallCenterRowGenerator {
                 FirstNamesWeights::GeneralFrequency
             },
             manager_stream,
-        )
-        .unwrap_or("John");
-        let manager_last_name =
-            NamesDistributions::pick_random_last_name(manager_stream).unwrap_or("Smith");
+        );
+        let manager_last_name = NamesDistributions::pick_random_last_name(manager_stream);
         let mut cc_manager = format!("{} {}", manager_first_name, manager_last_name);
         if let Some(ref prev_row) = self.previous_row {
             cc_manager = get_value_for_slowly_changing_dimension(
@@ -263,10 +257,9 @@ impl CallCenterRowGenerator {
                 FirstNamesWeights::GeneralFrequency
             },
             market_manager_stream,
-        )
-        .unwrap_or("Jane");
+        );
         let market_manager_last_name =
-            NamesDistributions::pick_random_last_name(market_manager_stream).unwrap_or("Doe");
+            NamesDistributions::pick_random_last_name(market_manager_stream);
         let mut cc_market_manager =
             format!("{} {}", market_manager_first_name, market_manager_last_name);
         if let Some(ref prev_row) = self.previous_row {

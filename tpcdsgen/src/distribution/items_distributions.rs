@@ -18,7 +18,6 @@ use crate::distribution::file_loader::DistributionFileLoader;
 use crate::distribution::int_values::IntValuesDistribution;
 use crate::distribution::string_values_distribution::StringValuesDistribution;
 use crate::distribution::utils::{Distribution, WeightsBuilder};
-use crate::error::{Result, TpcdsError};
 use crate::random::RandomNumberStream;
 use crate::types::Decimal;
 use std::sync::OnceLock;
@@ -119,52 +118,47 @@ pub fn get_brand_syllables_distribution() -> &'static StringValuesDistribution {
 pub fn pick_random_manager_id_range(
     id_weights: IdWeights,
     stream: &mut RandomNumberStream,
-) -> Result<(i32, i32)> {
+) -> (i32, i32) {
     let dist = get_item_manager_id_distribution();
-    let index = dist.pick_random_index(id_weights as usize, stream)?;
-    let min = dist.get_value_at_index(1, index)?;
-    let max = dist.get_value_at_index(2, index)?;
-    Ok((min, max))
+    let index = dist.pick_random_index(id_weights as usize, stream);
+    (
+        dist.get_value_at_index(1, index),
+        dist.get_value_at_index(2, index),
+    )
 }
 
 /// Pick random manufact ID range
 pub fn pick_random_manufact_id_range(
     id_weights: IdWeights,
     stream: &mut RandomNumberStream,
-) -> Result<(i32, i32)> {
+) -> (i32, i32) {
     let dist = get_item_manufact_id_distribution();
-    let index = dist.pick_random_index(id_weights as usize, stream)?;
-    let min = dist.get_value_at_index(1, index)?;
-    let max = dist.get_value_at_index(2, index)?;
-    Ok((min, max))
+    let index = dist.pick_random_index(id_weights as usize, stream);
+    (
+        dist.get_value_at_index(1, index),
+        dist.get_value_at_index(2, index),
+    )
 }
 
 /// Pick random size
-pub fn pick_random_size(
-    size_weights: SizeWeights,
-    stream: &mut RandomNumberStream,
-) -> Result<String> {
-    let dist = get_sizes_distribution();
-    Ok(dist
-        .pick_random_value(0, size_weights as usize, stream)?
-        .to_string())
+pub fn pick_random_size(size_weights: SizeWeights, stream: &mut RandomNumberStream) -> String {
+    get_sizes_distribution()
+        .pick_random_value(0, size_weights as usize, stream)
+        .to_string()
 }
 
 /// Pick random color
-pub fn pick_random_color(
-    colors_weights: ColorsWeights,
-    stream: &mut RandomNumberStream,
-) -> Result<String> {
-    let dist = get_colors_distribution();
-    Ok(dist
-        .pick_random_value(0, colors_weights as usize, stream)?
-        .to_string())
+pub fn pick_random_color(colors_weights: ColorsWeights, stream: &mut RandomNumberStream) -> String {
+    get_colors_distribution()
+        .pick_random_value(0, colors_weights as usize, stream)
+        .to_string()
 }
 
 /// Pick random unit
-pub fn pick_random_unit(stream: &mut RandomNumberStream) -> Result<String> {
-    let dist = get_units_distribution();
-    Ok(dist.pick_random_value(0, 0, stream)?.to_string())
+pub fn pick_random_unit(stream: &mut RandomNumberStream) -> String {
+    get_units_distribution()
+        .pick_random_value(0, 0, stream)
+        .to_string()
 }
 
 // ============================================================================
@@ -223,7 +217,7 @@ fn get_categories_distribution() -> &'static CategoriesDistributionData {
 }
 
 /// Pick random category index
-pub fn pick_random_category_index(stream: &mut RandomNumberStream) -> Result<usize> {
+pub fn pick_random_category_index(stream: &mut RandomNumberStream) -> usize {
     let dist = get_categories_distribution();
     crate::distribution::utils::pick_random_index(&dist.weights, stream)
 }
@@ -312,13 +306,13 @@ impl CategoryClassDistribution {
         }
     }
 
-    fn pick_random_category_class(&self, stream: &mut RandomNumberStream) -> Result<CategoryClass> {
-        let index = crate::distribution::utils::pick_random_index(&self.weights, stream)?;
-        Ok(CategoryClass {
+    fn pick_random_category_class(&self, stream: &mut RandomNumberStream) -> CategoryClass {
+        let index = crate::distribution::utils::pick_random_index(&self.weights, stream);
+        CategoryClass {
             id: (index + 1) as i64,
             name: self.names[index].clone(),
             brand_count: self.brand_counts[index],
-        })
+        }
     }
 }
 
@@ -345,16 +339,8 @@ fn get_category_class_distributions() -> &'static Vec<CategoryClassDistribution>
 pub fn pick_random_category_class(
     category_id: usize,
     stream: &mut RandomNumberStream,
-) -> Result<CategoryClass> {
-    let distributions = get_category_class_distributions();
-    if category_id >= distributions.len() {
-        return Err(TpcdsError::new(&format!(
-            "categoryId {} is not less than {}",
-            category_id,
-            distributions.len()
-        )));
-    }
-    distributions[category_id].pick_random_category_class(stream)
+) -> CategoryClass {
+    get_category_class_distributions()[category_id].pick_random_category_class(stream)
 }
 
 // ============================================================================
@@ -420,12 +406,10 @@ fn get_item_current_price_distribution() -> &'static ItemCurrentPriceDistributio
 }
 
 /// Pick random current price range (returns min and max)
-pub fn pick_random_current_price_range(
-    stream: &mut RandomNumberStream,
-) -> Result<(Decimal, Decimal)> {
+pub fn pick_random_current_price_range(stream: &mut RandomNumberStream) -> (Decimal, Decimal) {
     let dist = get_item_current_price_distribution();
-    let index = crate::distribution::utils::pick_random_index(&dist.weights_lists[0], stream)?;
-    Ok((dist.mins[index], dist.maxes[index]))
+    let index = crate::distribution::utils::pick_random_index(&dist.weights_lists[0], stream);
+    (dist.mins[index], dist.maxes[index])
 }
 
 #[cfg(test)]
@@ -436,28 +420,28 @@ mod tests {
     #[test]
     fn test_pick_random_size() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let size = pick_random_size(SizeWeights::Sized, &mut stream).unwrap();
+        let size = pick_random_size(SizeWeights::Sized, &mut stream);
         assert!(!size.is_empty());
     }
 
     #[test]
     fn test_pick_random_color() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let color = pick_random_color(ColorsWeights::Skewed, &mut stream).unwrap();
+        let color = pick_random_color(ColorsWeights::Skewed, &mut stream);
         assert!(!color.is_empty());
     }
 
     #[test]
     fn test_pick_random_unit() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let unit = pick_random_unit(&mut stream).unwrap();
+        let unit = pick_random_unit(&mut stream);
         assert!(!unit.is_empty());
     }
 
     #[test]
     fn test_pick_random_category_index() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let index = pick_random_category_index(&mut stream).unwrap();
+        let index = pick_random_category_index(&mut stream);
         assert!(index < 10); // Should be less than number of categories
     }
 
@@ -470,7 +454,7 @@ mod tests {
     #[test]
     fn test_pick_random_category_class() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let class = pick_random_category_class(0, &mut stream).unwrap();
+        let class = pick_random_category_class(0, &mut stream);
         assert!(!class.get_name().is_empty());
         assert!(class.get_brand_count() > 0);
     }
@@ -478,21 +462,21 @@ mod tests {
     #[test]
     fn test_pick_random_current_price_range() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let (min, max) = pick_random_current_price_range(&mut stream).unwrap();
+        let (min, max) = pick_random_current_price_range(&mut stream);
         assert!(min.get_number() <= max.get_number());
     }
 
     #[test]
     fn test_pick_random_manager_id_range() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let (min, max) = pick_random_manager_id_range(IdWeights::Unified, &mut stream).unwrap();
+        let (min, max) = pick_random_manager_id_range(IdWeights::Unified, &mut stream);
         assert!(min <= max);
     }
 
     #[test]
     fn test_pick_random_manufact_id_range() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let (min, max) = pick_random_manufact_id_range(IdWeights::Unified, &mut stream).unwrap();
+        let (min, max) = pick_random_manufact_id_range(IdWeights::Unified, &mut stream);
         assert!(min <= max);
     }
 

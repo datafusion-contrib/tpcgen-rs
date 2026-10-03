@@ -106,17 +106,17 @@ impl CustomerRowGenerator {
             .abstract_generator
             .get_random_number_stream(&CFirstName);
         let name_index =
-            NamesDistributions::pick_random_index(FirstNamesWeights::GeneralFrequency, stream)?;
-        let c_first_name = NamesDistributions::get_first_name_from_index(name_index)?.to_string();
+            NamesDistributions::pick_random_index(FirstNamesWeights::GeneralFrequency, stream);
+        let c_first_name = NamesDistributions::get_first_name_from_index(name_index).to_string();
 
         let stream = self.abstract_generator.get_random_number_stream(&CLastName);
-        let c_last_name = NamesDistributions::pick_random_last_name(stream)?.to_string();
+        let c_last_name = NamesDistributions::pick_random_last_name(stream).to_string();
 
         // Salutation based on gender frequency
         let female_name_weight = NamesDistributions::get_weight_for_index(
             name_index,
             FirstNamesWeights::FemaleFrequency,
-        )?;
+        );
         let salutation_weight = if female_name_weight == 0 {
             SalutationsWeights::Male
         } else {
@@ -126,7 +126,7 @@ impl CustomerRowGenerator {
             .abstract_generator
             .get_random_number_stream(&CSalutation);
         let c_salutation =
-            NamesDistributions::pick_random_salutation(salutation_weight, stream)?.to_string();
+            NamesDistributions::pick_random_salutation(salutation_weight, stream).to_string();
 
         // Birthday generation (matches Java order lines 87-95)
         let max_birthday = Date::new(1992, 12, 31);
@@ -170,7 +170,7 @@ impl CustomerRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CBirthCountry);
-        let c_birth_country = pick_random_country(stream)?.to_string();
+        let c_birth_country = pick_random_country(stream).to_string();
 
         // Generate null bit map (matches Java order line 123)
         let stream = self.abstract_generator.get_random_number_stream(&CNulls);
