@@ -191,7 +191,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::WebPage,
             self.order_info.ws_sold_date_sk,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -202,7 +202,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::WebSite,
             self.order_info.ws_sold_date_sk,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -213,7 +213,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::ShipMode,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -224,7 +224,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::Warehouse,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
         let ws_promo_sk = generate_join_key(
@@ -233,7 +233,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::Promotion,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
         let ws_pricing = generate_pricing_for_sales_table(&get_web_sales_pricing_limits(), stream);
@@ -279,7 +279,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::DateDim,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -290,7 +290,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::TimeDim,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -301,7 +301,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::Customer,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -312,7 +312,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::CustomerDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -323,7 +323,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::HouseholdDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -334,7 +334,7 @@ impl WebSalesRowGenerator {
             crate::config::Table::CustomerAddress,
             1,
             scaling,
-        )?;
+        );
 
         // Usually the billing info and shipping info are the same.
         // If it's a "gift", they'll be different.
@@ -360,7 +360,7 @@ impl WebSalesRowGenerator {
                 crate::config::Table::Customer,
                 2,
                 scaling,
-            )?;
+            );
 
             let stream = self
                 .abstract_generator
@@ -371,7 +371,7 @@ impl WebSalesRowGenerator {
                 crate::config::Table::CustomerDemographics,
                 2,
                 scaling,
-            )?;
+            );
 
             let stream = self
                 .abstract_generator
@@ -382,7 +382,7 @@ impl WebSalesRowGenerator {
                 crate::config::Table::HouseholdDemographics,
                 2,
                 scaling,
-            )?;
+            );
 
             let stream = self
                 .abstract_generator
@@ -393,7 +393,7 @@ impl WebSalesRowGenerator {
                 crate::config::Table::CustomerAddress,
                 2,
                 scaling,
-            )?;
+            );
         }
 
         let ws_order_number = row_number_i64;

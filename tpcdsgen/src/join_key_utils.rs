@@ -20,7 +20,6 @@ use crate::config::{Scaling, Table};
 use crate::distribution::calendar_distribution::{CalendarDistribution, CalendarWeights};
 use crate::distribution::catalog_page_distributions::CatalogPageTypesDistribution;
 use crate::distribution::hours_distribution::{HoursDistribution, HoursWeights};
-use crate::error::{Result, TpcdsError};
 use crate::generator::GeneratorColumn;
 use crate::pseudo_table_scaling_infos::PseudoTableScalingInfos;
 use crate::random::{RandomNumberStream, RandomValueGenerator};
@@ -57,7 +56,7 @@ pub fn generate_join_key(
     to_table: Table,
     join_count: i64,
     scaling: &Scaling,
-) -> Result<i64> {
+) -> i64 {
     // NOTE: to_table is config::Table (for CLI), from_column.get_table() returns
     // column::Table (now same as table::Table). Different enums for different purposes.
 
@@ -78,11 +77,11 @@ pub fn generate_join_key(
             if to_table.keeps_history() {
                 generate_scd_join_key(to_table, random_number_stream, join_count, scaling)
             } else {
-                Ok(RandomValueGenerator::generate_uniform_random_key(
+                RandomValueGenerator::generate_uniform_random_key(
                     1,
                     i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64"),
                     random_number_stream,
-                ))
+                )
             }
         }
     }
@@ -138,7 +137,7 @@ fn generate_catalog_page_join_key(
     random_number_stream: &mut RandomNumberStream,
     julian_date: i64,
     scaling: &Scaling,
-) -> Result<i64> {
+) -> i64 {
     let pages_per_catalog = ((scaling.get_row_count(Table::CatalogPage) / CATALOGS_PER_YEAR as u64)
         / (Date::DATE_MAXIMUM.year() - Date::DATE_MINIMUM.year() + 2) as u64)
         as i32;
@@ -168,15 +167,10 @@ fn generate_catalog_page_join_key(
         "monthly" => {
             count += offset / 31;
         }
-        _ => {
-            return Err(TpcdsError::new(&format!(
-                "Invalid catalog_page_type: {}",
-                catalog_type
-            )));
-        }
+        other => panic!("Invalid catalog_page_type: {other}"),
     }
 
-    Ok((count * pages_per_catalog + page) as i64)
+    (count * pages_per_catalog + page) as i64
 }
 
 /// Generates a join key to the date_dim table.
@@ -194,7 +188,7 @@ fn generate_date_join_key(
     join_count: i64,
     year: i32,
     scaling: &Scaling,
-) -> Result<i64> {
+) -> i64 {
     use crate::column::Table as ColumnTable;
 
     let from_table = from_column.get_table();
@@ -223,11 +217,11 @@ fn generate_date_join_key(
 
     let day_number = CalendarDistribution::pick_random_day_of_year(weights, random_number_stream);
     let result = Date::to_julian_days(&Date::new(year, 1, 1)) as i64 + day_number as i64;
-    Ok(if result > Date::JULIAN_TODAYS_DATE as i64 {
+    if result > Date::JULIAN_TODAYS_DATE as i64 {
         -1
     } else {
         result
-    })
+    }
 }
 
 /// Generates a date join key for returns tables.
@@ -240,7 +234,7 @@ fn generate_date_returns_join_key(
     from_table: crate::column::Table,
     random_number_stream: &mut RandomNumberStream,
     join_count: i64, // This is the sale date (julian days)
-) -> Result<i64> {
+) -> i64 {
     use crate::column::Table as ColumnTable;
 
     let (min, max) = match from_table {
@@ -248,17 +242,12 @@ fn generate_date_returns_join_key(
             (CS_MIN_SHIP_DELAY, CS_MAX_SHIP_DELAY)
         }
         ColumnTable::WebReturns => (1, 120), // Web returns have 1-120 day ship lag
-        _ => {
-            return Err(TpcdsError::new(&format!(
-                "Invalid table for date returns join: {:?}",
-                from_table
-            )))
-        }
+        other => unreachable!("Invalid table for date returns join: {other:?}"),
     };
 
     let lag =
         RandomValueGenerator::generate_uniform_random_int(min * 2, max * 2, random_number_stream);
-    Ok(join_count + lag as i64)
+    join_count + lag as i64
 }
 
 /// Generates a join key to the time_dim table.
@@ -274,7 +263,7 @@ fn generate_date_returns_join_key(
 fn generate_time_join_key(
     from_column: &dyn GeneratorColumn,
     random_number_stream: &mut RandomNumberStream,
-) -> Result<i64> {
+) -> i64 {
     use crate::column::Table as ColumnTable;
 
     let from_table = from_column.get_table();
@@ -291,7 +280,7 @@ fn generate_time_join_key(
     let hour = HoursDistribution::pick_random_hour(weights, random_number_stream);
     let seconds = RandomValueGenerator::generate_uniform_random_int(0, 3599, random_number_stream);
 
-    Ok((hour as i64 * 3600) + seconds as i64)
+    (hour as i64 * 3600) + seconds as i64
 }
 
 /// Generates a join key to a slowly changing dimension (SCD) table.
@@ -304,10 +293,10 @@ fn generate_scd_join_key(
     random_number_stream: &mut RandomNumberStream,
     julian_date: i64,
     scaling: &Scaling,
-) -> Result<i64> {
+) -> i64 {
     // Can't have a revision in the future
     if julian_date > Date::JULIAN_DATA_END_DATE {
-        return Ok(-1);
+        return -1;
     }
 
     let id_count = i64::try_from(scaling.get_id_count(to_table)).expect("ID count fits in i64");
@@ -322,13 +311,11 @@ fn generate_scd_join_key(
         scaling,
     );
 
-    Ok(
-        if key > i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64") {
-            -1
-        } else {
-            key
-        },
-    )
+    if key > i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64") {
+        -1
+    } else {
+        key
+    }
 }
 
 /// Generates a join key for web-related tables (web_site, web_page).
@@ -340,7 +327,7 @@ fn generate_web_join_key(
     random_number_stream: &mut RandomNumberStream,
     join_key: i64,
     scaling: &Scaling,
-) -> Result<i64> {
+) -> i64 {
     let global_column_number = from_column.get_global_column_number();
 
     // WP_CREATION_DATE_SK (global column 371)
@@ -352,18 +339,18 @@ fn generate_web_join_key(
         let web_site_duration = get_web_site_duration(scaling);
         let min_result = Date::JULIAN_DATE_MINIMUM as i64
             - ((site as i64 * WEB_DATE_STAGGER) % web_site_duration / 2);
-        return Ok(RandomValueGenerator::generate_uniform_random_int(
+        return RandomValueGenerator::generate_uniform_random_int(
             min_result as i32,
             Date::JULIAN_DATE_MINIMUM,
             random_number_stream,
-        ) as i64);
+        ) as i64;
     }
 
     // WEB_OPEN_DATE for WebPage (global column 340) or WebSite (global column 452)
     if global_column_number == 340 || global_column_number == 452 {
         let web_site_duration = get_web_site_duration(scaling);
-        return Ok(Date::JULIAN_DATE_MINIMUM as i64
-            - ((join_key * WEB_DATE_STAGGER) % web_site_duration / 2));
+        return Date::JULIAN_DATE_MINIMUM as i64
+            - ((join_key * WEB_DATE_STAGGER) % web_site_duration / 2);
     }
 
     // WEB_CLOSE_DATE for WebPage (global column 341) or WebSite (global column 453)
@@ -378,13 +365,10 @@ fn generate_web_join_key(
             // the close date of the first site needs to align on a revision boundary
             result -= -web_site_duration / 2;
         }
-        return Ok(result);
+        return result;
     }
 
-    Err(TpcdsError::new(&format!(
-        "Invalid column for web join: global column {}",
-        global_column_number
-    )))
+    panic!("Invalid column for web join: global column {global_column_number}")
 }
 
 /// Calculates the duration of a web site based on concurrent sites.
@@ -438,7 +422,7 @@ mod tests {
         use crate::generator::StoreSalesGeneratorColumn;
         let mut stream = RandomNumberStream::new(1).unwrap();
         let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
-        let result = generate_time_join_key(&column, &mut stream).unwrap();
+        let result = generate_time_join_key(&column, &mut stream);
 
         // Time keys should be in range [0, 86400) seconds in a day
         assert!(
@@ -454,8 +438,8 @@ mod tests {
         let mut stream2 = RandomNumberStream::new(1).unwrap();
         let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
 
-        let result1 = generate_time_join_key(&column, &mut stream1).unwrap();
-        let result2 = generate_time_join_key(&column, &mut stream2).unwrap();
+        let result1 = generate_time_join_key(&column, &mut stream1);
+        let result2 = generate_time_join_key(&column, &mut stream2);
 
         assert_eq!(result1, result2, "Same seed should produce same time key");
     }
@@ -465,11 +449,7 @@ mod tests {
         let mut stream = RandomNumberStream::new(1).unwrap();
         let scaling = Scaling::new(1.0);
 
-        // Catalog page join key is now implemented (CatalogPageTypesDistribution ported)
-        let result = generate_catalog_page_join_key(&mut stream, 2451545, &scaling);
-        assert!(result.is_ok(), "Catalog page join should work now");
-
-        let key = result.unwrap();
+        let key = generate_catalog_page_join_key(&mut stream, 2451545, &scaling);
         assert!(key > 0, "Key should be positive");
     }
 
@@ -514,8 +494,7 @@ mod tests {
             Table::Promotion,
             1,
             &scaling,
-        )
-        .unwrap();
+        );
         skip_join_key(Table::Promotion, &mut skipped);
         assert_eq!(generated.next_random(), skipped.next_random());
     }
@@ -525,7 +504,7 @@ mod tests {
         let scaling = Scaling::new(1.0);
         let date = Date::JULIAN_DATA_START_DATE + 100;
         let (mut generated, mut skipped) = paired_streams();
-        generate_catalog_page_join_key(&mut generated, date, &scaling).unwrap();
+        generate_catalog_page_join_key(&mut generated, date, &scaling);
         skip_catalog_page_join_key(&mut skipped);
         assert_eq!(generated.next_random(), skipped.next_random());
     }
@@ -538,7 +517,7 @@ mod tests {
             Date::JULIAN_DATA_END_DATE + 1,
         ] {
             let (mut generated, mut skipped) = paired_streams();
-            generate_scd_join_key(Table::WebPage, &mut generated, date, &scaling).unwrap();
+            generate_scd_join_key(Table::WebPage, &mut generated, date, &scaling);
             skip_scd_join_key(date, &mut skipped);
             assert_eq!(generated.next_random(), skipped.next_random(), "{date}");
         }
