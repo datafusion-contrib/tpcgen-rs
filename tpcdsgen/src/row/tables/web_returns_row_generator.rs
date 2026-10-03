@@ -91,7 +91,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::DateDim,
             sales_row.get_ws_ship_date_sk(),
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -102,7 +102,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::TimeDim,
             1,
             scaling,
-        )?;
+        );
 
         // Items are usually returned to the people they were shipped to, but sometimes not
         // Generate new values first
@@ -115,7 +115,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::Customer,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -126,7 +126,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::CustomerDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -137,7 +137,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::HouseholdDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -148,7 +148,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::CustomerAddress,
             1,
             scaling,
-        )?;
+        );
 
         // If below GIFT_PERCENTAGE, use ship info from sales row instead
         let stream = self
@@ -177,7 +177,7 @@ impl WebReturnsRowGenerator {
             crate::config::Table::Reason,
             1,
             scaling,
-        )?;
+        );
 
         // Generate pricing for returns
         let stream = self.abstract_generator.get_random_number_stream(&WrPricing);

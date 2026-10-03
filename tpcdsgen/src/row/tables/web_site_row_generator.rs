@@ -98,7 +98,7 @@ impl WebSiteRowGenerator {
                 ConfigTable::DateDim,
                 row_number_i64,
                 scaling,
-            )?;
+            );
 
             let close_date = generate_join_key(
                 &WebSiteGeneratorColumn::WebCloseDate,
@@ -107,7 +107,7 @@ impl WebSiteRowGenerator {
                 ConfigTable::DateDim,
                 row_number_i64,
                 scaling,
-            )?;
+            );
 
             let close_date = if close_date > web_rec_end_date_id {
                 -1

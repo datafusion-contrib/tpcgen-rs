@@ -206,7 +206,7 @@ impl CatalogSalesRowGenerator {
                 crate::config::Table::CatalogPage,
                 self.order_info.cs_sold_date_sk,
                 scaling,
-            )?
+            )
         };
 
         let stream = self
@@ -218,7 +218,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::ShipMode,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -229,7 +229,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::Warehouse,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self.abstract_generator.get_random_number_stream(&CsPromoSk);
         let cs_promo_sk = generate_join_key(
@@ -238,7 +238,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::Promotion,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self.abstract_generator.get_random_number_stream(&CsPricing);
         let cs_pricing =
@@ -294,7 +294,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::TimeDim,
             self.order_info.cs_call_center_sk,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -308,7 +308,7 @@ impl CatalogSalesRowGenerator {
                 crate::config::Table::CallCenter,
                 cs_sold_date_sk,
                 scaling,
-            )?
+            )
         };
 
         let stream = self
@@ -320,7 +320,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::Customer,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -331,7 +331,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::CustomerDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -342,7 +342,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::HouseholdDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -353,7 +353,7 @@ impl CatalogSalesRowGenerator {
             crate::config::Table::CustomerAddress,
             1,
             scaling,
-        )?;
+        );
 
         // Most orders are for the ordering customer, some are gifts (10%)
         let stream = self
@@ -373,7 +373,7 @@ impl CatalogSalesRowGenerator {
                     crate::config::Table::Customer,
                     2,
                     scaling,
-                )?;
+                );
 
                 let stream = self
                     .abstract_generator
@@ -384,7 +384,7 @@ impl CatalogSalesRowGenerator {
                     crate::config::Table::CustomerDemographics,
                     2,
                     scaling,
-                )?;
+                );
 
                 let stream = self
                     .abstract_generator
@@ -395,7 +395,7 @@ impl CatalogSalesRowGenerator {
                     crate::config::Table::HouseholdDemographics,
                     2,
                     scaling,
-                )?;
+                );
 
                 let stream = self
                     .abstract_generator
@@ -406,7 +406,7 @@ impl CatalogSalesRowGenerator {
                     crate::config::Table::CustomerAddress,
                     2,
                     scaling,
-                )?;
+                );
 
                 (ship_customer, ship_cdemo, ship_hdemo, ship_addr)
             } else {
