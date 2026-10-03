@@ -19,7 +19,6 @@ use crate::config::Session;
 use crate::distribution::{
     pick_random_country, FirstNamesWeights, NamesDistributions, SalutationsWeights,
 };
-use crate::error::Result;
 use crate::generator::CustomerGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -48,7 +47,7 @@ impl CustomerRowGenerator {
         }
     }
 
-    fn generate_customer_row(&mut self, row_number: u64) -> Result<CustomerRow> {
+    fn generate_customer_row(&mut self, row_number: u64) -> CustomerRow {
         use CustomerGeneratorColumn::*;
 
         let session = &self.session;
@@ -137,7 +136,7 @@ impl CustomerRowGenerator {
 
         let stream = self.abstract_generator.get_random_number_stream(&CBirthDay);
         let birthday =
-            RandomValueGenerator::generate_uniform_random_date(min_birthday, max_birthday, stream)?;
+            RandomValueGenerator::generate_uniform_random_date(min_birthday, max_birthday, stream);
         let c_birth_day = birthday.day();
         let c_birth_month = birthday.month();
         let c_birth_year = birthday.year();
@@ -154,7 +153,7 @@ impl CustomerRowGenerator {
             .abstract_generator
             .get_random_number_stream(&CLastReviewDate);
         let last_review_date =
-            RandomValueGenerator::generate_uniform_random_date(one_year_ago, today, stream)?;
+            RandomValueGenerator::generate_uniform_random_date(one_year_ago, today, stream);
         let c_last_review_date = last_review_date.to_julian_days();
 
         // First sales date (matches Java order lines 100-102)
@@ -162,7 +161,7 @@ impl CustomerRowGenerator {
             .abstract_generator
             .get_random_number_stream(&CFirstSalesDateId);
         let first_sales_date =
-            RandomValueGenerator::generate_uniform_random_date(ten_years_ago, today, stream)?;
+            RandomValueGenerator::generate_uniform_random_date(ten_years_ago, today, stream);
         let c_first_sales_date_id = first_sales_date.to_julian_days();
         let c_first_shipto_date_id = c_first_sales_date_id + 30;
 
@@ -176,7 +175,7 @@ impl CustomerRowGenerator {
         let stream = self.abstract_generator.get_random_number_stream(&CNulls);
         let null_bit_map = create_null_bit_map(Table::Customer, stream);
 
-        Ok(CustomerRow::new(
+        CustomerRow::new(
             c_customer_sk,
             c_customer_id,
             c_current_cdemo_sk,
@@ -195,7 +194,7 @@ impl CustomerRowGenerator {
             c_email_address,
             c_last_review_date,
             null_bit_map,
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -223,9 +222,7 @@ impl Iterator for CustomerRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_customer_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_customer_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

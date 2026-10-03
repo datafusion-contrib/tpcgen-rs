@@ -14,7 +14,6 @@
 
 use crate::config::Session;
 use crate::distribution::DemographicsDistributions;
-use crate::error::Result;
 use crate::generator::HouseholdDemographicsGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, HouseholdDemographicsRow};
@@ -38,10 +37,7 @@ impl HouseholdDemographicsRowGenerator {
     }
 
     /// Generate a HouseholdDemographicsRow with realistic data following Java implementation
-    fn generate_household_demographics_row(
-        &mut self,
-        row_number: u64,
-    ) -> Result<HouseholdDemographicsRow> {
+    fn generate_household_demographics_row(&mut self, row_number: u64) -> HouseholdDemographicsRow {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bit map (createNullBitMap call)
@@ -81,14 +77,14 @@ impl HouseholdDemographicsRowGenerator {
         let hd_vehicle_count =
             DemographicsDistributions::get_vehicle_count_for_index_mod_size(index);
 
-        Ok(HouseholdDemographicsRow::builder()
+        HouseholdDemographicsRow::builder()
             .set_hd_demo_sk(hd_demo_sk)
             .set_hd_income_band_sk(hd_income_band_sk)
             .set_hd_buy_potential(hd_buy_potential.to_string())
             .set_hd_dep_count(hd_dep_count)
             .set_hd_vehicle_count(hd_vehicle_count)
             .set_null_bit_map(null_bit_map)
-            .build())
+            .build()
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -116,9 +112,7 @@ impl Iterator for HouseholdDemographicsRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_household_demographics_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_household_demographics_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

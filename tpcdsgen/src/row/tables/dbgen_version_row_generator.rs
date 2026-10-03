@@ -13,7 +13,6 @@
  */
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::row::{AbstractRowGenerator, DbgenVersionRow};
 use crate::table::Table;
 use crate::types::Date;
@@ -42,7 +41,7 @@ impl DbgenVersionRowGenerator {
     }
 
     /// Generate a DbgenVersionRow with current timestamp and version info
-    fn generate_dbgen_version_row(&mut self, _row_number: u64) -> Result<DbgenVersionRow> {
+    fn generate_dbgen_version_row(&mut self, _row_number: u64) -> DbgenVersionRow {
         let session = &self.session;
         let (create_date, create_time) = current_utc_date_time();
 
@@ -51,13 +50,13 @@ impl DbgenVersionRowGenerator {
             .unwrap_or_default()
             .to_string();
 
-        Ok(DbgenVersionRow::new(
+        DbgenVersionRow::new(
             0, // nullBitMap is always 0 for this table
             DBGEN_VERSION.to_string(),
             create_date,
             create_time,
             cmdline_args,
-        ))
+        )
     }
 }
 
@@ -134,9 +133,7 @@ impl Iterator for DbgenVersionRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_dbgen_version_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_dbgen_version_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

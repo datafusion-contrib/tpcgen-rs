@@ -15,7 +15,6 @@
 //! Web sales row generator
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::WebSalesGeneratorColumn;
 use crate::join_key_utils::{generate_join_key, skip_join_key, skip_scd_join_key};
 use crate::nulls::{create_null_bit_map, skip_null_bit_map};
@@ -166,7 +165,7 @@ impl WebSalesRowGenerator {
     }
 
     /// Generate the sales row for the current line item.
-    pub(crate) fn generate_sales_row(&mut self, ws_item_sk: i64) -> Result<WebSalesRow> {
+    pub(crate) fn generate_sales_row(&mut self, ws_item_sk: i64) -> WebSalesRow {
         use WebSalesGeneratorColumn::*;
 
         let scaling = self.session.get_scaling();
@@ -238,7 +237,7 @@ impl WebSalesRowGenerator {
         let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
         let ws_pricing = generate_pricing_for_sales_table(&get_web_sales_pricing_limits(), stream);
 
-        Ok(WebSalesRow::new(
+        WebSalesRow::new(
             null_bit_map,
             self.order_info.ws_sold_date_sk,
             self.order_info.ws_sold_time_sk,
@@ -259,10 +258,10 @@ impl WebSalesRowGenerator {
             ws_promo_sk,
             self.order_info.ws_order_number,
             ws_pricing,
-        ))
+        )
     }
 
-    fn generate_order_info(&mut self, row_number: u64) -> Result<OrderInfo> {
+    fn generate_order_info(&mut self, row_number: u64) -> OrderInfo {
         use WebSalesGeneratorColumn::*;
 
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
@@ -398,7 +397,7 @@ impl WebSalesRowGenerator {
 
         let ws_order_number = row_number_i64;
 
-        Ok(OrderInfo {
+        OrderInfo {
             ws_sold_date_sk,
             ws_sold_time_sk,
             ws_bill_customer_sk,
@@ -410,18 +409,18 @@ impl WebSalesRowGenerator {
             ws_ship_hdemo_sk,
             ws_ship_addr_sk,
             ws_order_number,
-        })
+        }
     }
 
     /// Advance to the next line item, starting a new order when the
     /// previous one is complete.
     ///
     /// Returns `None` once every source row has been generated.
-    pub(crate) fn next_line_item(&mut self) -> Result<Option<LineItem>> {
+    pub(crate) fn next_line_item(&mut self) -> Option<LineItem> {
         use WebSalesGeneratorColumn::*;
 
         if self.current_row > self.row_count {
-            return Ok(None);
+            return None;
         }
 
         let item_count = self
@@ -439,7 +438,7 @@ impl WebSalesRowGenerator {
 
         // Start a new order if we've finished the previous one
         if self.remaining_line_items == 0 {
-            self.order_info = self.generate_order_info(self.current_row)?;
+            self.order_info = self.generate_order_info(self.current_row);
 
             let stream = self.abstract_generator.get_random_number_stream(&WsItemSk);
             self.item_index =
@@ -475,10 +474,10 @@ impl WebSalesRowGenerator {
             .get_random_number_stream(&WrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
 
-        Ok(Some(LineItem {
+        Some(LineItem {
             item_sk,
             is_returned: random_int < RETURN_PERCENTAGE,
-        }))
+        })
     }
 
     /// Finish the current line item, after its sales row was generated or
@@ -502,8 +501,8 @@ impl Iterator for WebSalesRowGenerator {
     type Item = WebSalesRow;
 
     fn next(&mut self) -> Option<WebSalesRow> {
-        let item = self.next_line_item().expect("row gen")?;
-        let row = self.generate_sales_row(item.item_sk).expect("row gen");
+        let item = self.next_line_item()?;
+        let row = self.generate_sales_row(item.item_sk);
         self.finish_line_item();
         Some(row)
     }

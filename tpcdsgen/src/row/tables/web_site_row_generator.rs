@@ -15,7 +15,6 @@
 use crate::config::Session;
 use crate::config::Table as ConfigTable;
 use crate::distribution::{FirstNamesWeights, NamesDistributions};
-use crate::error::Result;
 use crate::generator::WebSiteGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -68,7 +67,7 @@ impl WebSiteRowGenerator {
         self.row_count = self.row_count.min(ending_row_number);
     }
 
-    fn generate_web_site_row(&mut self, row_number: u64) -> Result<WebSiteRow> {
+    fn generate_web_site_row(&mut self, row_number: u64) -> WebSiteRow {
         let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -278,7 +277,7 @@ impl WebSiteRowGenerator {
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebAddress),
             scaling,
-        )?;
+        );
 
         // Some address fields always use new value due to bug in C code, but we still update flags
         field_change_flags >>= 1; // city
@@ -338,7 +337,7 @@ impl WebSiteRowGenerator {
             web_address.get_country().to_string(),
             zip,
             gmt_offset,
-        )?;
+        );
 
         // Generate web_tax_percentage
         let mut web_tax_percentage = RandomValueGenerator::generate_uniform_random_decimal(
@@ -378,7 +377,7 @@ impl WebSiteRowGenerator {
         );
 
         self.previous_row = Some(row.clone());
-        Ok(row)
+        row
     }
 }
 
@@ -398,14 +397,12 @@ impl Iterator for WebSiteRowGenerator {
                 self.abstract_generator
                     .skip_rows_until_starting_row_number(history.start);
                 for row_number in history {
-                    self.generate_web_site_row(row_number).expect("row gen");
+                    self.generate_web_site_row(row_number);
                     self.abstract_generator.consume_remaining_seeds_for_row();
                 }
             }
         }
-        let row = self
-            .generate_web_site_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_web_site_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

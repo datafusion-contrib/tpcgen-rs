@@ -1,7 +1,6 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::distribution::CalendarDistribution;
-use crate::error::Result;
 use crate::row::{AbstractRowGenerator, DateDimRow};
 use crate::table::Table;
 use crate::types::Date;
@@ -54,7 +53,7 @@ impl DateDimRowGenerator {
         self.row_count = self.row_count.min(ending_row_number);
     }
 
-    fn generate_date_dim_row(&mut self, row_number: u64) -> Result<DateDimRow> {
+    fn generate_date_dim_row(&mut self, row_number: u64) -> DateDimRow {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bitmap - DateDim has very few nulls
@@ -136,7 +135,7 @@ impl DateDimRowGenerator {
         let d_current_week = d_current_year && d_week_seq == CURRENT_WEEK;
 
         // Create the row
-        let row = DateDimRow::new(
+        DateDimRow::new(
             null_bit_map,
             d_date_sk,
             d_date_id,
@@ -166,9 +165,7 @@ impl DateDimRowGenerator {
             d_current_month,
             d_current_quarter,
             d_current_year,
-        );
-
-        Ok(row)
+        )
     }
 }
 
@@ -179,9 +176,7 @@ impl Iterator for DateDimRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_date_dim_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_date_dim_row(self.current_row);
         self.base.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

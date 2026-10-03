@@ -15,7 +15,6 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::config::Table as ConfigTable;
-use crate::error::Result;
 use crate::generator::PromotionGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -67,7 +66,7 @@ impl PromotionRowGenerator {
         self.row_count = self.row_count.min(ending_row_number);
     }
 
-    fn generate_promotion_row(&mut self, row_number: u64) -> Result<PromotionRow> {
+    fn generate_promotion_row(&mut self, row_number: u64) -> PromotionRow {
         let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -164,7 +163,7 @@ impl PromotionRowGenerator {
 
         let p_purpose = "Unknown".to_string();
 
-        Ok(PromotionRow::new(
+        PromotionRow::new(
             null_bit_map,
             p_promo_sk,
             p_promo_id,
@@ -185,7 +184,7 @@ impl PromotionRowGenerator {
             p_channel_details,
             p_purpose,
             p_discount_active,
-        ))
+        )
     }
 }
 
@@ -196,9 +195,7 @@ impl Iterator for PromotionRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_promotion_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_promotion_row(self.current_row);
         self.abstract_row_generator
             .consume_remaining_seeds_for_row();
         self.current_row += 1;
