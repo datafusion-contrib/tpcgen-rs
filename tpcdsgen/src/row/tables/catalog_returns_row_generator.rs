@@ -93,7 +93,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::Customer,
             2,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -104,7 +104,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::CustomerDemographics,
             2,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -115,7 +115,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::HouseholdDemographics,
             2,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -126,7 +126,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::CustomerAddress,
             2,
             scaling,
-        )?;
+        );
 
         // If the order was a gift (10%), the ship customer is doing the return
         let stream = self
@@ -167,7 +167,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::DateDim,
             sales_row.get_cs_ship_date_sk(),
             scaling,
-        )?;
+        );
 
         // Generate returned time
         let stream = self
@@ -179,7 +179,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::TimeDim,
             1,
             scaling,
-        )?;
+        );
 
         // Generate ship mode
         let stream = self
@@ -191,7 +191,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::ShipMode,
             1,
             scaling,
-        )?;
+        );
 
         // Generate warehouse
         let stream = self
@@ -203,7 +203,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::Warehouse,
             1,
             scaling,
-        )?;
+        );
 
         // Generate reason
         let stream = self
@@ -215,7 +215,7 @@ impl CatalogReturnsRowGenerator {
             crate::config::Table::Reason,
             1,
             scaling,
-        )?;
+        );
 
         Ok(CatalogReturnsRow::new(
             null_bit_map,

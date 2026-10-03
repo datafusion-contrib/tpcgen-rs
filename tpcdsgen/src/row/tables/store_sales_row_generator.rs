@@ -172,7 +172,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::Promotion,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
         let ss_pricing =
@@ -210,7 +210,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::Store,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -221,7 +221,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::TimeDim,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -232,7 +232,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::DateDim,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -243,7 +243,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::Customer,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -254,7 +254,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::CustomerDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -265,7 +265,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::HouseholdDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -276,7 +276,7 @@ impl StoreSalesRowGenerator {
             crate::config::Table::CustomerAddress,
             1,
             scaling,
-        )?;
+        );
 
         let ss_ticket_number = row_number_i64;
 
