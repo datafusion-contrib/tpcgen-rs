@@ -15,7 +15,6 @@
 //! Catalog page row generator
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::CatalogPageGeneratorColumn;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
@@ -45,7 +44,7 @@ impl CatalogPageRowGenerator {
         }
     }
 
-    fn generate_catalog_page_row(&mut self, row_number: u64) -> Result<CatalogPageRow> {
+    fn generate_catalog_page_row(&mut self, row_number: u64) -> CatalogPageRow {
         use CatalogPageGeneratorColumn::*;
 
         let session = &self.session;
@@ -109,7 +108,7 @@ impl CatalogPageRowGenerator {
             stream,
         );
 
-        let row = CatalogPageRow::new(
+        CatalogPageRow::new(
             null_bit_map,
             cp_catalog_page_sk,
             cp_catalog_page_id,
@@ -120,9 +119,7 @@ impl CatalogPageRowGenerator {
             cp_catalog_page_number,
             cp_description,
             cp_type.to_string(),
-        );
-
-        Ok(row)
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -150,9 +147,7 @@ impl Iterator for CatalogPageRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_catalog_page_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_catalog_page_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

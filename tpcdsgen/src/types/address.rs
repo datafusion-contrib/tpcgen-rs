@@ -1,5 +1,3 @@
-use crate::{check_argument, error::Result, TpcdsError};
-
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Address {
     suite_number: String,
@@ -29,14 +27,14 @@ impl Address {
         country: String,
         zip: i32,
         gmt_offset: i32,
-    ) -> Result<Self> {
-        check_argument!(
+    ) -> Self {
+        assert!(
             (1..=1000).contains(&street_number),
             "streetNumber is not between 1 and 1000"
         );
-        check_argument!((0..=99999).contains(&zip), "zip is not between 0 and 99999");
+        assert!((0..=99999).contains(&zip), "zip is not between 0 and 99999");
 
-        Ok(Address {
+        Address {
             suite_number,
             street_number,
             street_name1,
@@ -48,7 +46,7 @@ impl Address {
             country,
             zip,
             gmt_offset,
-        })
+        }
     }
 
     pub fn get_street_number(&self) -> i32 {
@@ -129,7 +127,7 @@ impl Address {
         table: crate::table::Table,
         stream: &mut crate::random::stream::RandomNumberStream,
         scaling: &crate::config::Scaling,
-    ) -> Result<Self> {
+    ) -> Self {
         use crate::distribution::{
             get_city_at_index, pick_random_city, pick_random_street_name, pick_random_street_type,
             CitiesWeights, FipsCountyDistribution, FipsWeights, StreetNamesWeights,
@@ -361,8 +359,7 @@ mod tests {
             "United States".to_string(),
             12345,
             -8,
-        )
-        .unwrap();
+        );
 
         assert_eq!(address.get_street_number(), 123);
         assert_eq!(address.get_street_name(), "Main Street");

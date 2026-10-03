@@ -18,7 +18,6 @@
 //! at each warehouse. It's a cross-join of items x warehouses x weeks.
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::InventoryGeneratorColumn;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
@@ -78,7 +77,7 @@ impl InventoryRowGenerator {
         self.row_count = self.row_count.min(ending_row_number);
     }
 
-    fn generate_inventory_row(&mut self, row_number: u64) -> Result<InventoryRow> {
+    fn generate_inventory_row(&mut self, row_number: u64) -> InventoryRow {
         use InventoryGeneratorColumn::*;
 
         let session = &self.session;
@@ -127,13 +126,13 @@ impl InventoryRowGenerator {
         let inv_quantity_on_hand =
             RandomValueGenerator::generate_uniform_random_int(0, 1000, stream);
 
-        Ok(InventoryRow::new(
+        InventoryRow::new(
             null_bit_map,
             inv_date_sk,
             inv_item_sk,
             i64::try_from(inv_warehouse_sk).expect("warehouse key fits in i64"),
             inv_quantity_on_hand,
-        ))
+        )
     }
 }
 
@@ -144,9 +143,7 @@ impl Iterator for InventoryRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_inventory_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_inventory_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)

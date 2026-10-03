@@ -60,11 +60,11 @@ impl RandomValueGenerator {
         min: Date,
         max: Date,
         random_number_stream: &mut RandomNumberStream,
-    ) -> crate::error::Result<Date> {
+    ) -> Date {
         let range = max.to_julian_days() - min.to_julian_days();
         let julian_days = min.to_julian_days()
             + Self::generate_uniform_random_int(0, range, random_number_stream);
-        Ok(Date::from_julian_days(julian_days))
+        Date::from_julian_days(julian_days)
     }
 
     // Generate random string from a byte slice (optimized for ASCII character sets)
@@ -362,8 +362,7 @@ mod tests {
         let mut stream = RandomNumberStream::new(1).unwrap();
         let min = Date::new(2020, 1, 1);
         let max = Date::new(2020, 12, 31);
-        let result =
-            RandomValueGenerator::generate_uniform_random_date(min, max, &mut stream).unwrap();
+        let result = RandomValueGenerator::generate_uniform_random_date(min, max, &mut stream);
 
         assert!(result.to_julian_days() >= min.to_julian_days());
         assert!(result.to_julian_days() <= max.to_julian_days());

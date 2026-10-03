@@ -15,7 +15,6 @@
 //! Catalog returns row generator
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::CatalogReturnsGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
@@ -73,7 +72,7 @@ impl CatalogReturnsRowGenerator {
     }
 
     /// Generate the return row for `sales_row`.
-    fn generate_row(&mut self, sales_row: &CatalogSalesRow) -> Result<CatalogReturnsRow> {
+    fn generate_row(&mut self, sales_row: &CatalogSalesRow) -> CatalogReturnsRow {
         use CatalogReturnsGeneratorColumn::*;
 
         let scaling = self.sales.session().get_scaling();
@@ -217,7 +216,7 @@ impl CatalogReturnsRowGenerator {
             scaling,
         );
 
-        Ok(CatalogReturnsRow::new(
+        CatalogReturnsRow::new(
             null_bit_map,
             cr_returned_date_sk,
             cr_returned_time_sk,
@@ -237,7 +236,7 @@ impl CatalogReturnsRowGenerator {
             cr_reason_sk,
             sales_row.get_cs_order_number(), // cr_order_number from sales
             cr_pricing,
-        ))
+        )
     }
 }
 
@@ -246,13 +245,10 @@ impl Iterator for CatalogReturnsRowGenerator {
 
     fn next(&mut self) -> Option<CatalogReturnsRow> {
         loop {
-            let item = self.sales.next_line_item().expect("row gen")?;
+            let item = self.sales.next_line_item()?;
             let row = if item.is_returned {
-                let sales_row = self
-                    .sales
-                    .generate_sales_row(item.item_sk)
-                    .expect("row gen");
-                Some(self.generate_row(&sales_row).expect("row gen"))
+                let sales_row = self.sales.generate_sales_row(item.item_sk);
+                Some(self.generate_row(&sales_row))
             } else {
                 self.sales.skip_item_sales_draws();
                 None

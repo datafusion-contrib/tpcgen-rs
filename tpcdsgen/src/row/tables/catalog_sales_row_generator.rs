@@ -15,7 +15,6 @@
 //! Catalog sales row generator
 
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::CatalogSalesGeneratorColumn;
 use crate::join_key_utils::{generate_join_key, skip_catalog_page_join_key, skip_join_key};
 use crate::nulls::{create_null_bit_map, skip_null_bit_map};
@@ -170,7 +169,7 @@ impl CatalogSalesRowGenerator {
     }
 
     /// Generate the sales row for the current line item.
-    pub(crate) fn generate_sales_row(&mut self, cs_sold_item_sk: i64) -> Result<CatalogSalesRow> {
+    pub(crate) fn generate_sales_row(&mut self, cs_sold_item_sk: i64) -> CatalogSalesRow {
         use CatalogSalesGeneratorColumn::*;
 
         let scaling = self.session.get_scaling();
@@ -244,7 +243,7 @@ impl CatalogSalesRowGenerator {
         let cs_pricing =
             generate_pricing_for_sales_table(&get_catalog_sales_pricing_limits(), stream);
 
-        Ok(CatalogSalesRow::new(
+        CatalogSalesRow::new(
             null_bit_map,
             self.order_info.cs_sold_date_sk,
             self.order_info.cs_sold_time_sk,
@@ -265,10 +264,10 @@ impl CatalogSalesRowGenerator {
             cs_promo_sk,
             self.order_info.cs_order_number,
             cs_pricing,
-        ))
+        )
     }
 
-    fn generate_order_info(&mut self, row_number: u64) -> Result<OrderInfo> {
+    fn generate_order_info(&mut self, row_number: u64) -> OrderInfo {
         use CatalogSalesGeneratorColumn::*;
 
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
@@ -421,7 +420,7 @@ impl CatalogSalesRowGenerator {
 
         let cs_order_number = row_number_i64;
 
-        Ok(OrderInfo {
+        OrderInfo {
             cs_sold_date_sk,
             cs_sold_time_sk,
             cs_call_center_sk,
@@ -434,18 +433,18 @@ impl CatalogSalesRowGenerator {
             cs_ship_hdemo_sk,
             cs_ship_addr_sk,
             cs_order_number,
-        })
+        }
     }
 
     /// Advance to the next line item, starting a new order when the
     /// previous one is complete.
     ///
     /// Returns `None` once every source row has been generated.
-    pub(crate) fn next_line_item(&mut self) -> Result<Option<LineItem>> {
+    pub(crate) fn next_line_item(&mut self) -> Option<LineItem> {
         use CatalogSalesGeneratorColumn::*;
 
         if self.current_row > self.row_count {
-            return Ok(None);
+            return None;
         }
 
         let scaling = self.session.get_scaling();
@@ -465,7 +464,7 @@ impl CatalogSalesRowGenerator {
 
         // Start a new order if we've finished the previous one
         if self.remaining_line_items == 0 {
-            self.order_info = self.generate_order_info(self.current_row)?;
+            self.order_info = self.generate_order_info(self.current_row);
 
             let stream = self
                 .abstract_generator
@@ -503,10 +502,10 @@ impl CatalogSalesRowGenerator {
             .get_random_number_stream(&CrIsReturned);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
 
-        Ok(Some(LineItem {
+        Some(LineItem {
             item_sk,
             is_returned: random_int < RETURN_PERCENT,
-        }))
+        })
     }
 
     /// Finish the current line item, after its sales row was generated or
@@ -530,8 +529,8 @@ impl Iterator for CatalogSalesRowGenerator {
     type Item = CatalogSalesRow;
 
     fn next(&mut self) -> Option<CatalogSalesRow> {
-        let item = self.next_line_item().expect("row gen")?;
-        let row = self.generate_sales_row(item.item_sk).expect("row gen");
+        let item = self.next_line_item()?;
+        let row = self.generate_sales_row(item.item_sk);
         self.finish_line_item();
         Some(row)
     }

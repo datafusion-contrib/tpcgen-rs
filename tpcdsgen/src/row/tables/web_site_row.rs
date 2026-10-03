@@ -251,8 +251,7 @@ mod tests {
             "United States".to_string(),
             62701,
             -600,
-        )
-        .unwrap();
+        );
 
         let row = WebSiteRow::new(
             0,

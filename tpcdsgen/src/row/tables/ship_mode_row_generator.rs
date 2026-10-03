@@ -1,7 +1,6 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::distribution::ShipModeDistributions;
-use crate::error::Result;
 use crate::generator::ShipModeGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, ShipModeRow};
@@ -25,7 +24,7 @@ impl ShipModeRowGenerator {
     }
 
     /// Generate a ShipModeRow with realistic data following Java implementation
-    fn generate_ship_mode_row(&mut self, row_number: u64) -> Result<ShipModeRow> {
+    fn generate_ship_mode_row(&mut self, row_number: u64) -> ShipModeRow {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bit map (createNullBitMap call)
@@ -66,7 +65,7 @@ impl ShipModeRowGenerator {
             contract_stream,
         );
 
-        Ok(ShipModeRow::new(
+        ShipModeRow::new(
             null_bit_map,
             sm_ship_mode_sk,
             sm_ship_mode_id.to_string(),
@@ -74,7 +73,7 @@ impl ShipModeRowGenerator {
             sm_code.to_string(),
             sm_carrier.to_string(),
             sm_contract,
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -102,9 +101,7 @@ impl Iterator for ShipModeRowGenerator {
         if self.current_row > self.row_count {
             return None;
         }
-        let row = self
-            .generate_ship_mode_row(self.current_row)
-            .expect("row gen");
+        let row = self.generate_ship_mode_row(self.current_row);
         self.abstract_generator.consume_remaining_seeds_for_row();
         self.current_row += 1;
         Some(row)
