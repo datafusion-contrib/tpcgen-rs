@@ -262,8 +262,7 @@ impl RandomValueGenerator {
     ) -> String {
         use crate::distribution::TopDomainsDistribution;
 
-        let domain = TopDomainsDistribution::pick_random_top_domain(random_number_stream)
-            .unwrap_or_else(|_| "com".to_string());
+        let domain = TopDomainsDistribution::pick_random_top_domain(random_number_stream);
         let company_length =
             Self::generate_uniform_random_int(10, 20, random_number_stream) as usize;
         let company =
@@ -282,30 +281,18 @@ impl RandomValueGenerator {
         use crate::distribution::*;
 
         let mut verbiage = String::new();
-        let syntax = pick_random_sentence(random_number_stream).unwrap_or("N V.");
+        let syntax = pick_random_sentence(random_number_stream);
 
         for ch in syntax.chars() {
             match ch {
-                'N' => verbiage.push_str(pick_random_noun(random_number_stream).unwrap_or("thing")),
-                'V' => verbiage.push_str(pick_random_verb(random_number_stream).unwrap_or("is")),
-                'J' => {
-                    verbiage.push_str(pick_random_adjective(random_number_stream).unwrap_or("good"))
-                }
-                'D' => {
-                    verbiage.push_str(pick_random_adverb(random_number_stream).unwrap_or("well"))
-                }
-                'X' => {
-                    verbiage.push_str(pick_random_auxiliary(random_number_stream).unwrap_or("can"))
-                }
-                'P' => {
-                    verbiage.push_str(pick_random_preposition(random_number_stream).unwrap_or("to"))
-                }
-                'A' => {
-                    verbiage.push_str(pick_random_article(random_number_stream).unwrap_or("the"))
-                }
-                'T' => {
-                    verbiage.push_str(pick_random_terminator(random_number_stream).unwrap_or("."))
-                }
+                'N' => verbiage.push_str(pick_random_noun(random_number_stream)),
+                'V' => verbiage.push_str(pick_random_verb(random_number_stream)),
+                'J' => verbiage.push_str(pick_random_adjective(random_number_stream)),
+                'D' => verbiage.push_str(pick_random_adverb(random_number_stream)),
+                'X' => verbiage.push_str(pick_random_auxiliary(random_number_stream)),
+                'P' => verbiage.push_str(pick_random_preposition(random_number_stream)),
+                'A' => verbiage.push_str(pick_random_article(random_number_stream)),
+                'T' => verbiage.push_str(pick_random_terminator(random_number_stream)),
                 _ => verbiage.push(ch), // this is for adding punctuation and white space.
             }
         }
@@ -326,9 +313,7 @@ impl RandomValueGenerator {
         let mut seed = seed;
 
         while seed > 0 {
-            let syllable = distribution
-                .get_value_at_index(0, (seed % size) as usize)
-                .unwrap_or("syl");
+            let syllable = distribution.get_value_at_index(0, (seed % size) as usize);
             seed /= size;
 
             if (word.len() + syllable.len()) <= max_chars as usize {

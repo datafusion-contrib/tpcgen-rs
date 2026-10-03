@@ -74,7 +74,7 @@ impl CustomerAddressRowGenerator {
         let ca_location_type = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::Uniform,
             location_type_stream,
-        )?;
+        );
 
         Ok(CustomerAddressRow::new(
             null_bit_map,

@@ -1,5 +1,4 @@
 use crate::distribution::FileBasedStringValuesDistribution;
-use crate::error::Result;
 use std::sync::OnceLock;
 
 /// Ship mode distributions (ShipModeDistributions)
@@ -42,15 +41,15 @@ impl ShipModeDistributions {
         })
     }
 
-    pub fn get_ship_mode_carrier_at_index(index: usize) -> Result<&'static str> {
+    pub fn get_ship_mode_carrier_at_index(index: usize) -> &'static str {
         Self::get_ship_mode_carrier_distribution().get_value_at_index(0, index)
     }
 
-    pub fn get_ship_mode_code_for_index_mod_size(index: i64) -> Result<&'static str> {
+    pub fn get_ship_mode_code_for_index_mod_size(index: i64) -> &'static str {
         Self::get_ship_mode_code_distribution().get_value_for_index_mod_size(index, 0)
     }
 
-    pub fn get_ship_mode_type_for_index_mod_size(index: i64) -> Result<&'static str> {
+    pub fn get_ship_mode_type_for_index_mod_size(index: i64) -> &'static str {
         Self::get_ship_mode_type_distribution().get_value_for_index_mod_size(index, 0)
     }
 

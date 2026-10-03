@@ -144,7 +144,7 @@ fn generate_catalog_page_join_key(
         as i32;
 
     let catalog_type =
-        CatalogPageTypesDistribution::pick_random_catalog_page_type(random_number_stream)?;
+        CatalogPageTypesDistribution::pick_random_catalog_page_type(random_number_stream);
     let page = RandomValueGenerator::generate_uniform_random_int(
         1,
         pages_per_catalog,
@@ -221,7 +221,7 @@ fn generate_date_join_key(
         CalendarWeights::Sales
     };
 
-    let day_number = CalendarDistribution::pick_random_day_of_year(weights, random_number_stream)?;
+    let day_number = CalendarDistribution::pick_random_day_of_year(weights, random_number_stream);
     let result = Date::to_julian_days(&Date::new(year, 1, 1)) as i64 + day_number as i64;
     Ok(if result > Date::JULIAN_TODAYS_DATE as i64 {
         -1
@@ -288,7 +288,7 @@ fn generate_time_join_key(
         _ => HoursWeights::Uniform,
     };
 
-    let hour = HoursDistribution::pick_random_hour(weights, random_number_stream)?;
+    let hour = HoursDistribution::pick_random_hour(weights, random_number_stream);
     let seconds = RandomValueGenerator::generate_uniform_random_int(0, 3599, random_number_stream);
 
     Ok((hour as i64 * 3600) + seconds as i64)

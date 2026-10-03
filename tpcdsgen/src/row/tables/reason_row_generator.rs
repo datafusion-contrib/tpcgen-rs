@@ -50,7 +50,7 @@ impl ReasonRowGenerator {
         let r_reason_desc = ReturnReasonsDistribution::get_return_reason_at_index(
             (row_number - 1) as usize,
             session.get_compat_mode(),
-        )?;
+        );
 
         Ok(ReasonRow::new(
             null_bit_map,

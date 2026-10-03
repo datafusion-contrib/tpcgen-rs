@@ -84,7 +84,7 @@ impl ItemRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&IManagerId);
-        let (manager_min, manager_max) = pick_random_manager_id_range(IdWeights::Unified, stream)?;
+        let (manager_min, manager_max) = pick_random_manager_id_range(IdWeights::Unified, stream);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&IManagerId);
@@ -123,7 +123,7 @@ impl ItemRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&ICurrentPrice);
-        let (price_min, price_max) = pick_random_current_price_range(stream)?;
+        let (price_min, price_max) = pick_random_current_price_range(stream);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&ICurrentPrice);
@@ -153,13 +153,13 @@ impl ItemRowGenerator {
 
         // Generate category
         let stream = self.abstract_generator.get_random_number_stream(&ICategory);
-        let i_category_index = pick_random_category_index(stream)?;
+        let i_category_index = pick_random_category_index(stream);
         let i_category_id = (i_category_index + 1) as i64;
         let i_category = get_category_at_index(i_category_index).to_string();
 
         // Generate class
         let stream = self.abstract_generator.get_random_number_stream(&IClass);
-        let category_class = pick_random_category_class(i_category_index, stream)?;
+        let category_class = pick_random_category_class(i_category_index, stream);
         let i_class = category_class.get_name().to_string();
         let new_class_id = category_class.get_id();
         let mut i_class_id = new_class_id;
@@ -206,7 +206,7 @@ impl ItemRowGenerator {
                 SizeWeights::Sized
             },
             stream,
-        )?;
+        );
         field_change_flags >>= 1;
 
         // Generate manufact ID
@@ -214,7 +214,7 @@ impl ItemRowGenerator {
             .abstract_generator
             .get_random_number_stream(&IManufactId);
         let (manufact_min, manufact_max) =
-            pick_random_manufact_id_range(IdWeights::Unified, stream)?;
+            pick_random_manufact_id_range(IdWeights::Unified, stream);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&IManufactId);
@@ -260,7 +260,7 @@ impl ItemRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&IFormulation);
-        let color = pick_random_color(ColorsWeights::Skewed, stream)?;
+        let color = pick_random_color(ColorsWeights::Skewed, stream);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&IFormulation);
@@ -288,10 +288,10 @@ impl ItemRowGenerator {
 
         // These fields always use new value due to bug in C code
         let stream = self.abstract_generator.get_random_number_stream(&IColor);
-        let i_color = pick_random_color(ColorsWeights::Skewed, stream)?;
+        let i_color = pick_random_color(ColorsWeights::Skewed, stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&IUnits);
-        let i_units = pick_random_unit(stream)?;
+        let i_units = pick_random_unit(stream);
 
         let i_container = "Unknown".to_string();
 
