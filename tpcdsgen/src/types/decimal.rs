@@ -1,4 +1,4 @@
-use crate::{check_argument, error::Result, TpcdsError};
+use crate::error::Result;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Decimal {
@@ -33,12 +33,13 @@ impl Decimal {
         precision: 2,
     };
 
-    pub fn new(number: i64, precision: i32) -> Result<Self> {
-        check_argument!(
+    /// Panics if `precision` is negative.
+    pub fn new(number: i64, precision: i32) -> Self {
+        assert!(
             precision >= 0,
             "precision must be greater than or equal to zero"
         );
-        Ok(Decimal { precision, number })
+        Decimal { precision, number }
     }
 
     pub fn parse_decimal(decimal_string: &str) -> Result<Self> {
@@ -60,7 +61,7 @@ impl Decimal {
             precision = 0;
         }
 
-        Self::new(number, precision)
+        Ok(Self::new(number, precision))
     }
 
     pub fn add2(decimal1: Decimal, decimal2: Decimal) -> Decimal {
@@ -174,7 +175,7 @@ mod tests {
 
     #[test]
     fn test_decimal_creation() {
-        let decimal = Decimal::new(12345, 2).unwrap();
+        let decimal = Decimal::new(12345, 2);
         assert_eq!(decimal.get_number(), 12345);
         assert_eq!(decimal.get_precision(), 2);
     }
@@ -199,8 +200,8 @@ mod tests {
 
     #[test]
     fn test_arithmetic() {
-        let d1 = Decimal::new(100, 2).unwrap(); // 1.00
-        let d2 = Decimal::new(50, 2).unwrap(); // 0.50
+        let d1 = Decimal::new(100, 2); // 1.00
+        let d2 = Decimal::new(50, 2); // 0.50
 
         let sum = Decimal::add2(d1, d2);
         assert_eq!(sum.get_number(), 150); // Buggy behavior: should be 150, not mathematically correct
@@ -211,32 +212,38 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let decimal = Decimal::new(12345, 2).unwrap();
+        let decimal = Decimal::new(12345, 2);
         assert_eq!(format!("{}", decimal), "123.45");
 
-        let decimal = Decimal::new(123, 0).unwrap();
+        let decimal = Decimal::new(123, 0);
         assert_eq!(format!("{}", decimal), "123");
     }
 
     #[test]
     fn test_display_negative() {
-        let decimal = Decimal::new(-12345, 2).unwrap();
+        let decimal = Decimal::new(-12345, 2);
         assert_eq!(format!("{}", decimal), "-123.45");
 
         // sign must survive a zero integer part
-        let decimal = Decimal::new(-5, 2).unwrap();
+        let decimal = Decimal::new(-5, 2);
         assert_eq!(format!("{}", decimal), "-0.05");
     }
 
     #[test]
     fn test_display_zero_padding() {
-        let decimal = Decimal::new(5, 2).unwrap();
+        let decimal = Decimal::new(5, 2);
         assert_eq!(format!("{}", decimal), "0.05");
 
-        let decimal = Decimal::new(10005, 4).unwrap();
+        let decimal = Decimal::new(10005, 4);
         assert_eq!(format!("{}", decimal), "1.0005");
 
-        let decimal = Decimal::new(0, 2).unwrap();
+        let decimal = Decimal::new(0, 2);
         assert_eq!(format!("{}", decimal), "0.00");
+    }
+
+    #[test]
+    #[should_panic(expected = "precision must be greater than or equal to zero")]
+    fn test_negative_precision_panics() {
+        Decimal::new(1, -1);
     }
 }

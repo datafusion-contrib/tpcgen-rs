@@ -23,11 +23,11 @@ pub struct CallCenterRowGenerator {
 // Constants matching Java implementation
 // We'll define these as functions since const Decimal isn't available
 fn min_tax_percentage() -> Decimal {
-    Decimal::new(0, 2).unwrap()
+    Decimal::new(0, 2)
 }
 
 fn max_tax_percentage() -> Decimal {
-    Decimal::new(12, 2).unwrap()
+    Decimal::new(12, 2)
 }
 const WIDTH_CC_DIVISION_NAME: i32 = 50;
 const WIDTH_CC_MARKET_CLASS: i32 = 50;
