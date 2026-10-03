@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CustomerDemographicsRow, CustomerDemographicsRowGenerator, SingleRowIter};
+use tpcdsgen::row::{CustomerDemographicsRow, CustomerDemographicsRowGenerator};
 
 pub struct CustomerDemographicsArrow {
-    inner: SingleRowIter<CustomerDemographicsRowGenerator>,
+    inner: CustomerDemographicsRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<CustomerDemographicsRow>,
@@ -26,7 +26,7 @@ impl CustomerDemographicsArrow {
             .get_scaling()
             .get_row_count(Table::CustomerDemographics);
         Self {
-            inner: SingleRowIter::new(CustomerDemographicsRowGenerator::new(), session, row_count),
+            inner: CustomerDemographicsRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

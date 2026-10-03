@@ -77,14 +77,10 @@ macro_rules! define_csv_source {
 }
 
 // Define .csv sources for all tables
-define_csv_source!(
-    CallCenterCsvSource,
-    SingleRowIter<CallCenterRowGenerator>,
-    CallCenterCsv
-);
+define_csv_source!(CallCenterCsvSource, CallCenterRowGenerator, CallCenterCsv);
 define_csv_source!(
     CatalogPageCsvSource,
-    SingleRowIter<CatalogPageRowGenerator>,
+    CatalogPageRowGenerator,
     CatalogPageCsv
 );
 define_csv_source!(
@@ -97,88 +93,44 @@ define_csv_source!(
     CatalogSalesRowGenerator,
     CatalogSalesCsv
 );
-define_csv_source!(
-    CustomerCsvSource,
-    SingleRowIter<CustomerRowGenerator>,
-    CustomerCsv
-);
+define_csv_source!(CustomerCsvSource, CustomerRowGenerator, CustomerCsv);
 define_csv_source!(
     CustomerAddressCsvSource,
-    SingleRowIter<CustomerAddressRowGenerator>,
+    CustomerAddressRowGenerator,
     CustomerAddressCsv
 );
 define_csv_source!(
     CustomerDemographicsCsvSource,
-    SingleRowIter<CustomerDemographicsRowGenerator>,
+    CustomerDemographicsRowGenerator,
     CustomerDemographicsCsv
 );
-define_csv_source!(
-    DateDimCsvSource,
-    SingleRowIter<DateDimRowGenerator>,
-    DateDimCsv
-);
+define_csv_source!(DateDimCsvSource, DateDimRowGenerator, DateDimCsv);
 define_csv_source!(
     DbgenVersionCsvSource,
-    SingleRowIter<DbgenVersionRowGenerator>,
+    DbgenVersionRowGenerator,
     DbgenVersionCsv
 );
 define_csv_source!(
     HouseholdDemographicsCsvSource,
-    SingleRowIter<HouseholdDemographicsRowGenerator>,
+    HouseholdDemographicsRowGenerator,
     HouseholdDemographicsCsv
 );
-define_csv_source!(
-    IncomeBandCsvSource,
-    SingleRowIter<IncomeBandRowGenerator>,
-    IncomeBandCsv
-);
-define_csv_source!(
-    InventoryCsvSource,
-    SingleRowIter<InventoryRowGenerator>,
-    InventoryCsv
-);
-define_csv_source!(ItemCsvSource, SingleRowIter<ItemRowGenerator>, ItemCsv);
-define_csv_source!(
-    PromotionCsvSource,
-    SingleRowIter<PromotionRowGenerator>,
-    PromotionCsv
-);
-define_csv_source!(
-    ReasonCsvSource,
-    SingleRowIter<ReasonRowGenerator>,
-    ReasonCsv
-);
-define_csv_source!(
-    ShipModeCsvSource,
-    SingleRowIter<ShipModeRowGenerator>,
-    ShipModeCsv
-);
-define_csv_source!(StoreCsvSource, SingleRowIter<StoreRowGenerator>, StoreCsv);
+define_csv_source!(IncomeBandCsvSource, IncomeBandRowGenerator, IncomeBandCsv);
+define_csv_source!(InventoryCsvSource, InventoryRowGenerator, InventoryCsv);
+define_csv_source!(ItemCsvSource, ItemRowGenerator, ItemCsv);
+define_csv_source!(PromotionCsvSource, PromotionRowGenerator, PromotionCsv);
+define_csv_source!(ReasonCsvSource, ReasonRowGenerator, ReasonCsv);
+define_csv_source!(ShipModeCsvSource, ShipModeRowGenerator, ShipModeCsv);
+define_csv_source!(StoreCsvSource, StoreRowGenerator, StoreCsv);
 define_csv_source!(
     StoreReturnsCsvSource,
     StoreReturnsRowGenerator,
     StoreReturnsCsv
 );
 define_csv_source!(StoreSalesCsvSource, StoreSalesRowGenerator, StoreSalesCsv);
-define_csv_source!(
-    TimeDimCsvSource,
-    SingleRowIter<TimeDimRowGenerator>,
-    TimeDimCsv
-);
-define_csv_source!(
-    WarehouseCsvSource,
-    SingleRowIter<WarehouseRowGenerator>,
-    WarehouseCsv
-);
-define_csv_source!(
-    WebPageCsvSource,
-    SingleRowIter<WebPageRowGenerator>,
-    WebPageCsv
-);
+define_csv_source!(TimeDimCsvSource, TimeDimRowGenerator, TimeDimCsv);
+define_csv_source!(WarehouseCsvSource, WarehouseRowGenerator, WarehouseCsv);
+define_csv_source!(WebPageCsvSource, WebPageRowGenerator, WebPageCsv);
 define_csv_source!(WebReturnsCsvSource, WebReturnsRowGenerator, WebReturnsCsv);
 define_csv_source!(WebSalesCsvSource, WebSalesRowGenerator, WebSalesCsv);
-define_csv_source!(
-    WebSiteCsvSource,
-    SingleRowIter<WebSiteRowGenerator>,
-    WebSiteCsv
-);
+define_csv_source!(WebSiteCsvSource, WebSiteRowGenerator, WebSiteCsv);

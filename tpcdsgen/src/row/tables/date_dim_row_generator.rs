@@ -2,9 +2,7 @@ use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::distribution::CalendarDistribution;
 use crate::error::Result;
-use crate::row::{
-    AbstractRowGenerator, DateDimRow, RowGenerator, RowGeneratorResult, SingleRowGenerator,
-};
+use crate::row::{AbstractRowGenerator, DateDimRow};
 use crate::table::Table;
 use crate::types::Date;
 
@@ -25,26 +23,38 @@ const WEEKDAY_NAMES: [&str; 7] = [
 
 pub struct DateDimRowGenerator {
     base: AbstractRowGenerator,
-}
-
-impl Default for DateDimRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
+    current_row: u64,
+    row_count: u64,
 }
 
 impl DateDimRowGenerator {
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(_session: Session, row_count: u64) -> Self {
         DateDimRowGenerator {
             base: AbstractRowGenerator::new(Table::DateDim),
+            current_row: 1,
+            row_count,
         }
     }
-}
 
-impl SingleRowGenerator for DateDimRowGenerator {
-    type Row = DateDimRow;
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        self.base
+            .skip_rows_until_starting_row_number(starting_row_number);
+        self.current_row = starting_row_number;
+    }
 
-    fn generate_row(&mut self, row_number: u64, _session: &Session) -> Result<DateDimRow> {
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
+    }
+
+    fn generate_date_dim_row(&mut self, row_number: u64) -> Result<DateDimRow> {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bitmap - DateDim has very few nulls
@@ -160,38 +170,20 @@ impl SingleRowGenerator for DateDimRowGenerator {
 
         Ok(row)
     }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        self.base.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.base
-            .skip_rows_until_starting_row_number(starting_row_number);
-    }
 }
 
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for DateDimRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
+impl Iterator for DateDimRowGenerator {
+    type Item = DateDimRow;
 
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+    fn next(&mut self) -> Option<DateDimRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
+        let row = self
+            .generate_date_dim_row(self.current_row)
+            .expect("row gen");
+        self.base.consume_remaining_seeds_for_row();
+        self.current_row += 1;
+        Some(row)
     }
 }

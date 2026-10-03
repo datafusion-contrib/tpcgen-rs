@@ -8,10 +8,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{SingleRowIter, WebPageRow, WebPageRowGenerator};
+use tpcdsgen::row::{WebPageRow, WebPageRowGenerator};
 
 pub struct WebPageArrow {
-    inner: SingleRowIter<WebPageRowGenerator>,
+    inner: WebPageRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<WebPageRow>,
@@ -26,7 +26,7 @@ impl WebPageArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebPage);
         Self {
-            inner: SingleRowIter::new(WebPageRowGenerator::new(), session, row_count),
+            inner: WebPageRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

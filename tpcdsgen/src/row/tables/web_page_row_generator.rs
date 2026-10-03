@@ -4,11 +4,9 @@ use crate::error::Result;
 use crate::generator::WebPageGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::random::RandomValueGenerator;
-use crate::row::{
-    AbstractRowGenerator, RowGenerator, RowGeneratorResult, SingleRowGenerator, WebPageRow,
-};
+use crate::row::{AbstractRowGenerator, WebPageRow};
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, generate_scd_history, get_value_for_slowly_changing_dimension,
+    compute_scd_key, get_value_for_slowly_changing_dimension, scd_history,
 };
 use crate::table::Table;
 use crate::types::Date;
@@ -18,27 +16,28 @@ use crate::types::Date;
 pub struct WebPageRowGenerator {
     abstract_generator: AbstractRowGenerator,
     previous_row: Option<WebPageRow>,
-}
-
-impl Default for WebPageRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
+    session: Session,
+    current_row: u64,
+    row_count: u64,
 }
 
 impl WebPageRowGenerator {
     const WP_AUTOGEN_PERCENT: i32 = 30;
 
-    /// Create a new WebPageRowGenerator
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::WebPage),
             previous_row: None,
+            session,
+            current_row: 1,
+            row_count,
         }
     }
 
     /// Generate a WebPageRow with SCD logic following Java implementation
-    fn generate_web_page_row(&mut self, row_number: u64, session: &Session) -> Result<WebPageRow> {
+    fn generate_web_page_row(&mut self, row_number: u64) -> Result<WebPageRow> {
+        let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bit map
@@ -262,56 +261,55 @@ impl WebPageRowGenerator {
             wp_max_ad_count,
         ))
     }
+
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+        // Invalidate the retained slowly changing dimension (SCD) state.
+        // This tells `next` to replay it when needed.
+        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
+        self.previous_row = None;
+        self.current_row = starting_row_number;
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
+    }
 }
 
-impl SingleRowGenerator for WebPageRowGenerator {
-    type Row = WebPageRow;
+impl Iterator for WebPageRowGenerator {
+    type Item = WebPageRow;
 
-    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<WebPageRow> {
+    fn next(&mut self) -> Option<WebPageRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
         // Replay the missing slowly changing dimension (SCD) state this row
         // inherits from, which `skip_rows_until_starting_row_number` cleared.
         // This gives it the same values to copy from as an uninterrupted run.
         if self.previous_row.is_none() {
-            generate_scd_history(self, row_number, session)?;
+            let history = scd_history(self.current_row);
+            if !history.is_empty() {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(history.start);
+                for row_number in history {
+                    self.generate_web_page_row(row_number).expect("row gen");
+                    self.abstract_generator.consume_remaining_seeds_for_row();
+                }
+            }
         }
-        self.generate_web_page_row(row_number, session)
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
+        let row = self
+            .generate_web_page_row(self.current_row)
+            .expect("row gen");
         self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        // Invalidate the retained slowly changing dimension (SCD) state.
-        // This tells `generate_row_and_child_rows` to replay it when needed.
-        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
-        self.previous_row = None;
-    }
-}
-
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for WebPageRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+        self.current_row += 1;
+        Some(row)
     }
 }

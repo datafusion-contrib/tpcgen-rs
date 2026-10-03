@@ -6,10 +6,10 @@ use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{SingleRowIter, TimeDimRow, TimeDimRowGenerator};
+use tpcdsgen::row::{TimeDimRow, TimeDimRowGenerator};
 
 pub struct TimeDimArrow {
-    inner: SingleRowIter<TimeDimRowGenerator>,
+    inner: TimeDimRowGenerator,
     batch_size: usize,
     // reused allocation across batches
     scratch: Vec<TimeDimRow>,
@@ -24,7 +24,7 @@ impl TimeDimArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::TimeDim);
         Self {
-            inner: SingleRowIter::new(TimeDimRowGenerator::new(), session, row_count),
+            inner: TimeDimRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
         }

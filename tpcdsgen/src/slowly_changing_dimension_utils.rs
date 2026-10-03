@@ -23,17 +23,15 @@
 //! Generating a range of source rows fast forwards the random number streams
 //! to the first row of the range. The skipped rows are never generated. A
 //! range that starts on a later revision has no previous revision to copy
-//! from, so `generate_scd_history` replays the earlier ones to restore the
-//! generator state.
+//! from, so the generator replays the earlier ones (see `scd_history`)
+//! to restore its state.
 //!
 //! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
 
 use crate::business_key_generator::make_business_key;
-use crate::config::Session;
-use crate::error::Result;
-use crate::row::RowGenerator;
 use crate::table::Table;
 use crate::types::Date;
+use std::ops::Range;
 
 const ONE_HALF_DATE: i64 =
     Date::JULIAN_DATA_START_DATE + (Date::JULIAN_DATA_END_DATE - Date::JULIAN_DATA_START_DATE) / 2;
@@ -161,35 +159,21 @@ fn previous_rows_needed(row_number: u64) -> u64 {
     }
 }
 
-/// Restores the generator state for `row_number` by rewinding to where its
-/// entity begins and replaying the revisions up to it, according to the
-/// [six-row revision cycle](self).
+/// The revisions to replay before generating `row_number` after a seek, so
+/// the generator state matches an uninterrupted run.
 ///
-/// [`previous_rows_needed`] calculates how many revisions to restore.
-///
-/// Lets a caller skip to any row and generate from there as if the run had
-/// never been interrupted.
-pub(crate) fn generate_scd_history<G: RowGenerator>(
-    generator: &mut G,
-    row_number: u64,
-    session: &Session,
-) -> Result<()> {
-    let previous_rows = previous_rows_needed(row_number);
-    if previous_rows == 0 {
-        return Ok(());
-    }
-    let first_revision = row_number - previous_rows;
+/// Returns `first_revision..row_number` following the
+/// [six-row revision cycle](self); empty when `row_number` starts a new
+/// business key. [`previous_rows_needed`] calculates how many revisions to
+/// restore.
+pub(crate) fn scd_history(row_number: u64) -> Range<u64> {
+    let first_revision = row_number - previous_rows_needed(row_number);
     debug_assert_eq!(
         previous_rows_needed(first_revision),
         0,
-        "replay must start on a new business key or generate_row_and_child_rows recurses"
+        "replay must start on a new business key"
     );
-    generator.skip_rows_until_starting_row_number(first_revision);
-    for previous_row_number in first_revision..row_number {
-        generator.generate_row_and_child_rows(previous_row_number, session, None, None)?;
-        generator.consume_remaining_seeds_for_row();
-    }
-    Ok(())
+    first_revision..row_number
 }
 
 pub fn get_value_for_slowly_changing_dimension<T>(

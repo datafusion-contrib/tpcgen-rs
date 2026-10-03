@@ -25,25 +25,33 @@ use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::customer_row::CustomerRow;
-use crate::row::{AbstractRowGenerator, RowGenerator, RowGeneratorResult, SingleRowGenerator};
+use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::Date;
 
 /// Customer row generator (CustomerRowGenerator)
 pub struct CustomerRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    session: Session,
+    current_row: u64,
+    row_count: u64,
 }
 
 impl CustomerRowGenerator {
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(session: Session, row_count: u64) -> Self {
         CustomerRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::Customer),
+            session,
+            current_row: 1,
+            row_count,
         }
     }
 
-    fn generate_customer_row(&mut self, row_number: u64, session: &Session) -> Result<CustomerRow> {
+    fn generate_customer_row(&mut self, row_number: u64) -> Result<CustomerRow> {
         use CustomerGeneratorColumn::*;
 
+        let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         let c_customer_sk = row_number_i64;
@@ -189,52 +197,37 @@ impl CustomerRowGenerator {
             null_bit_map,
         ))
     }
-}
 
-impl Default for CustomerRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SingleRowGenerator for CustomerRowGenerator {
-    type Row = CustomerRow;
-
-    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<CustomerRow> {
-        self.generate_customer_row(row_number, session)
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+        self.current_row = starting_row_number;
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
     }
 }
 
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for CustomerRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
+impl Iterator for CustomerRowGenerator {
+    type Item = CustomerRow;
 
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+    fn next(&mut self) -> Option<CustomerRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
+        let row = self
+            .generate_customer_row(self.current_row)
+            .expect("row gen");
+        self.abstract_generator.consume_remaining_seeds_for_row();
+        self.current_row += 1;
+        Some(row)
     }
 }

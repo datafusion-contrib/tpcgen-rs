@@ -17,28 +17,23 @@ use crate::distribution::DemographicsDistributions;
 use crate::error::Result;
 use crate::generator::HouseholdDemographicsGeneratorColumn;
 use crate::random::RandomValueGenerator;
-use crate::row::{
-    AbstractRowGenerator, HouseholdDemographicsRow, RowGenerator, RowGeneratorResult,
-    SingleRowGenerator,
-};
+use crate::row::{AbstractRowGenerator, HouseholdDemographicsRow};
 use crate::table::Table;
 
 /// Row generator for the HOUSEHOLD_DEMOGRAPHICS table (HouseholdDemographicsRowGenerator)
 pub struct HouseholdDemographicsRowGenerator {
     abstract_generator: AbstractRowGenerator,
-}
-
-impl Default for HouseholdDemographicsRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
+    current_row: u64,
+    row_count: u64,
 }
 
 impl HouseholdDemographicsRowGenerator {
-    /// Create a new HouseholdDemographicsRowGenerator
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(_session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::HouseholdDemographics),
+            current_row: 1,
+            row_count,
         }
     }
 
@@ -46,7 +41,6 @@ impl HouseholdDemographicsRowGenerator {
     fn generate_household_demographics_row(
         &mut self,
         row_number: u64,
-        _session: &Session,
     ) -> Result<HouseholdDemographicsRow> {
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -96,50 +90,37 @@ impl HouseholdDemographicsRowGenerator {
             .set_null_bit_map(null_bit_map)
             .build())
     }
-}
 
-impl SingleRowGenerator for HouseholdDemographicsRowGenerator {
-    type Row = HouseholdDemographicsRow;
-
-    fn generate_row(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-    ) -> Result<HouseholdDemographicsRow> {
-        self.generate_household_demographics_row(row_number, session)
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+        self.current_row = starting_row_number;
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
     }
 }
 
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for HouseholdDemographicsRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
+impl Iterator for HouseholdDemographicsRowGenerator {
+    type Item = HouseholdDemographicsRow;
 
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+    fn next(&mut self) -> Option<HouseholdDemographicsRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
+        let row = self
+            .generate_household_demographics_row(self.current_row)
+            .expect("row gen");
+        self.abstract_generator.consume_remaining_seeds_for_row();
+        self.current_row += 1;
+        Some(row)
     }
 }

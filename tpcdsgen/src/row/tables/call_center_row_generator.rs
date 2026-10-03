@@ -3,11 +3,9 @@ use crate::distribution::{CallCenterDistributions, FirstNamesWeights, NamesDistr
 use crate::error::Result;
 use crate::generator::CallCenterGeneratorColumn;
 use crate::random::RandomValueGenerator;
-use crate::row::{
-    AbstractRowGenerator, CallCenterRow, RowGenerator, RowGeneratorResult, SingleRowGenerator,
-};
+use crate::row::{AbstractRowGenerator, CallCenterRow};
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, generate_scd_history, get_value_for_slowly_changing_dimension,
+    compute_scd_key, get_value_for_slowly_changing_dimension, scd_history,
     SlowlyChangingDimensionKey,
 };
 use crate::table::Table;
@@ -17,6 +15,9 @@ use crate::types::{Address, Date, Decimal};
 pub struct CallCenterRowGenerator {
     abstract_generator: AbstractRowGenerator,
     previous_row: Option<CallCenterRow>,
+    session: Session,
+    current_row: u64,
+    row_count: u64,
 }
 
 // Constants matching Java implementation
@@ -34,27 +35,21 @@ const WIDTH_CC_MARKET_DESC: i32 = 100;
 const MAX_NUMBER_OF_EMPLOYEES_UNSCALED: i32 = 7;
 const JULIAN_DATE_START: i64 = Date::JULIAN_DATA_START_DATE - 23; // 23 is the ordinal of CALL_CENTER table
 
-impl Default for CallCenterRowGenerator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl CallCenterRowGenerator {
-    /// Create a new CallCenterRowGenerator
-    pub fn new() -> Self {
+    /// Generate source rows `1..=row_count`.
+    pub fn new(session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::CallCenter),
             previous_row: None,
+            session,
+            current_row: 1,
+            row_count,
         }
     }
 
     /// Generate a CallCenterRow with realistic data following Java implementation
-    fn generate_call_center_row(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-    ) -> Result<CallCenterRow> {
+    fn generate_call_center_row(&mut self, row_number: u64) -> Result<CallCenterRow> {
+        let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
         // Create null bit map (createNullBitMap call)
@@ -400,57 +395,56 @@ impl CallCenterRowGenerator {
 
         Ok(new_row)
     }
+
+    /// Start generating at `starting_row_number` (1-based), fast forwarding
+    /// the random number streams to that row.
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+        // Invalidate the retained slowly changing dimension (SCD) state.
+        // This tells `next` to replay it when needed.
+        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
+        self.previous_row = None;
+        self.current_row = starting_row_number;
+    }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
+    }
 }
 
-impl SingleRowGenerator for CallCenterRowGenerator {
-    type Row = CallCenterRow;
+impl Iterator for CallCenterRowGenerator {
+    type Item = CallCenterRow;
 
-    fn generate_row(&mut self, row_number: u64, session: &Session) -> Result<CallCenterRow> {
+    fn next(&mut self) -> Option<CallCenterRow> {
+        if self.current_row > self.row_count {
+            return None;
+        }
         // Replay the missing slowly changing dimension (SCD) state this row
         // inherits from, which `skip_rows_until_starting_row_number` cleared.
         // This gives it the same values to copy from as an uninterrupted run.
         if self.previous_row.is_none() {
-            generate_scd_history(self, row_number, session)?;
+            let history = scd_history(self.current_row);
+            if !history.is_empty() {
+                self.abstract_generator
+                    .skip_rows_until_starting_row_number(history.start);
+                for row_number in history {
+                    self.generate_call_center_row(row_number).expect("row gen");
+                    self.abstract_generator.consume_remaining_seeds_for_row();
+                }
+            }
         }
-        self.generate_call_center_row(row_number, session)
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
+        let row = self
+            .generate_call_center_row(self.current_row)
+            .expect("row gen");
         self.abstract_generator.consume_remaining_seeds_for_row();
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
-        // Invalidate the retained slowly changing dimension (SCD) state.
-        // This tells `generate_row_and_child_rows` to replay it when needed.
-        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
-        self.previous_row = None;
-    }
-}
-
-/// Temporary adapter for creating [`RowGeneratorResult`]
-///
-/// Needed until migration to typed generators is complete
-/// <https://github.com/datafusion-contrib/tpcgen-rs/issues/529>
-impl RowGenerator for CallCenterRowGenerator {
-    fn generate_row_and_child_rows(
-        &mut self,
-        row_number: u64,
-        session: &Session,
-        _parent_row_generator: Option<&mut dyn RowGenerator>,
-        _child_row_generator: Option<&mut dyn RowGenerator>,
-    ) -> Result<RowGeneratorResult> {
-        let row = SingleRowGenerator::generate_row(self, row_number, session)?;
-        Ok(RowGeneratorResult::new(row))
-    }
-
-    fn consume_remaining_seeds_for_row(&mut self) {
-        SingleRowGenerator::consume_remaining_seeds_for_row(self);
-    }
-
-    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
-        SingleRowGenerator::skip_rows_until_starting_row_number(self, starting_row_number);
+        self.current_row += 1;
+        Some(row)
     }
 }
 
@@ -462,17 +456,17 @@ mod tests {
 
     #[test]
     fn test_call_center_row_generator_creation() {
-        let generator = CallCenterRowGenerator::new();
+        let generator = CallCenterRowGenerator::new(Session::default(), 1);
         assert_eq!(generator.abstract_generator.get_table(), Table::CallCenter);
     }
 
     #[test]
     fn test_generate_call_center_row() {
-        let mut generator = CallCenterRowGenerator::new();
-        let session = Session::default();
+        let mut generator = CallCenterRowGenerator::new(Session::default(), 1);
+        let row = generator.next().expect("row");
+        assert!(generator.next().is_none());
 
-        let row = generator.generate_row(1, &session).unwrap();
-
+        // Check that we can get values (CSV serialization works)
         let values = dat_values(&row);
         assert_eq!(values[0], "1"); // cc_call_center_sk should be row number
     }
