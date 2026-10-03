@@ -30,10 +30,10 @@ use crate::types::{Address, Date, Decimal};
 
 const ROW_SIZE_S_MARKET_DESC: i32 = 100;
 fn store_min_tax_percentage() -> Decimal {
-    Decimal::new(0, 2).unwrap()
+    Decimal::new(0, 2)
 }
 fn store_max_tax_percentage() -> Decimal {
-    Decimal::new(11, 2).unwrap()
+    Decimal::new(11, 2)
 }
 const STORE_MIN_DAYS_OPEN: i32 = 5;
 const STORE_MAX_DAYS_OPEN: i32 = 500;

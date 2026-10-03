@@ -53,7 +53,7 @@ impl RandomValueGenerator {
         number %= max.get_number() - min.get_number() + 1;
         number += min.get_number();
 
-        Decimal::new(number, precision).unwrap()
+        Decimal::new(number, precision)
     }
 
     pub fn generate_uniform_random_date(
@@ -364,8 +364,8 @@ mod tests {
     #[test]
     fn test_uniform_random_decimal() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let min = Decimal::new(100, 2).unwrap(); // 1.00
-        let max = Decimal::new(500, 2).unwrap(); // 5.00
+        let min = Decimal::new(100, 2); // 1.00
+        let max = Decimal::new(500, 2); // 5.00
         let result = RandomValueGenerator::generate_uniform_random_decimal(min, max, &mut stream);
 
         assert!(result.get_number() >= min.get_number() && result.get_number() <= max.get_number());
