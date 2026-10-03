@@ -22,9 +22,7 @@
 //! CSV output is always UTF-8 (while The DAT output can optionally be encoded
 //! as ISO-8859-1 in [`CompatMode::Trino`] (see [`crate::output::DatWriter`]);
 //!
-//! [`GeneratedRowCsv`] wraps the [`GeneratedRow`] enum for callers that work
-//! with rows generically, and [`csv_header`] returns the header line for a
-//! [`Table`].
+//! [`csv_header`] returns the header line for a [`Table`].
 //!
 //! [`CompatMode::Trino`]: crate::config::CompatMode::Trino
 
@@ -33,10 +31,10 @@ use crate::row::dbgen_version_row::TimeOfDay;
 use crate::row::table_row::{CsvQuoted, CsvQuotedNullLiteral, DatField, NullLiteralField};
 use crate::row::{
     CallCenterRow, CatalogPageRow, CatalogReturnsRow, CatalogSalesRow, CustomerAddressRow,
-    CustomerDemographicsRow, CustomerRow, DateDimRow, DbgenVersionRow, GeneratedRow,
-    HouseholdDemographicsRow, IncomeBandRow, InventoryRow, ItemRow, PromotionRow, ReasonRow,
-    ShipModeRow, StoreReturnsRow, StoreRow, StoreSalesRow, TimeDimRow, WarehouseRow, WebPageRow,
-    WebReturnsRow, WebSalesRow, WebSiteRow,
+    CustomerDemographicsRow, CustomerRow, DateDimRow, DbgenVersionRow, HouseholdDemographicsRow,
+    IncomeBandRow, InventoryRow, ItemRow, PromotionRow, ReasonRow, ShipModeRow, StoreReturnsRow,
+    StoreRow, StoreSalesRow, TimeDimRow, WarehouseRow, WebPageRow, WebReturnsRow, WebSalesRow,
+    WebSiteRow,
 };
 use std::fmt::{self, Display};
 
@@ -1970,65 +1968,6 @@ impl Display for WebSiteCsv<'_> {
             row.field(row.web_address.get_gmt_offset(), WebAddressGmtOffset),
             row.field(row.web_tax_percentage, WebTaxPercentage),
         )
-    }
-}
-
-/// Writes any [`GeneratedRow`] in CSV format, delegating to the variant's
-/// table-specific formatting.
-pub struct GeneratedRowCsv<'a> {
-    inner: &'a GeneratedRow,
-    delimiter: char,
-}
-
-impl<'a> GeneratedRowCsv<'a> {
-    /// Create a wrapper that formats `inner` with the default `,` delimiter
-    pub fn new(inner: &'a GeneratedRow) -> Self {
-        Self {
-            inner,
-            delimiter: ',',
-        }
-    }
-
-    /// Create a wrapper that formats `inner` with a custom delimiter
-    pub fn with_delimiter(inner: &'a GeneratedRow, delimiter: char) -> Self {
-        Self { inner, delimiter }
-    }
-}
-
-impl Display for GeneratedRowCsv<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let d = self.delimiter;
-        match self.inner {
-            GeneratedRow::CallCenter(row) => CallCenterCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::CatalogPage(row) => CatalogPageCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::CatalogReturns(row) => CatalogReturnsCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::CatalogSales(row) => CatalogSalesCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Customer(row) => CustomerCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::CustomerAddress(row) => CustomerAddressCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::CustomerDemographics(row) => {
-                CustomerDemographicsCsv::with_delimiter(row, d).fmt(f)
-            }
-            GeneratedRow::DateDim(row) => DateDimCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::DbgenVersion(row) => DbgenVersionCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::HouseholdDemographics(row) => {
-                HouseholdDemographicsCsv::with_delimiter(row, d).fmt(f)
-            }
-            GeneratedRow::IncomeBand(row) => IncomeBandCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Inventory(row) => InventoryCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Item(row) => ItemCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Promotion(row) => PromotionCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Reason(row) => ReasonCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::ShipMode(row) => ShipModeCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Store(row) => StoreCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::StoreReturns(row) => StoreReturnsCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::StoreSales(row) => StoreSalesCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::TimeDim(row) => TimeDimCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::Warehouse(row) => WarehouseCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::WebPage(row) => WebPageCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::WebReturns(row) => WebReturnsCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::WebSales(row) => WebSalesCsv::with_delimiter(row, d).fmt(f),
-            GeneratedRow::WebSite(row) => WebSiteCsv::with_delimiter(row, d).fmt(f),
-        }
     }
 }
 

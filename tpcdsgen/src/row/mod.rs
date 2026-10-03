@@ -1,10 +1,8 @@
 pub mod abstract_row_generator;
-pub mod generated_row;
 pub mod table_row;
 mod tables;
 
 pub use abstract_row_generator::AbstractRowGenerator;
-pub use generated_row::GeneratedRow;
 
 /// One line item of a sales order, as stepped through by a sales generator
 /// and the returns generator that replays it.
