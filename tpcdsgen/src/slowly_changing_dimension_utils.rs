@@ -1,3 +1,4 @@
+#![allow(rustdoc::private_intra_doc_links)]
 //! Utilities for slowly changing dimension (SCD) tables.
 //!
 //! An SCD table keeps history. Rather than one row per entity, it holds
@@ -20,14 +21,15 @@
 //! [`get_value_for_slowly_changing_dimension`] copies forward the fields that
 //! do not change, so each generator keeps the row it generated last.
 //!
+//! # Implementation Notes:
+//!
 //! Generating a range of source rows fast forwards the random number streams
 //! to the first row of the range. The skipped rows are never generated. A
 //! range that starts on a later revision has no previous revision to copy
 //! from, so [`ScdRowGenerator::next_row`] replays the earlier ones (see
-//! `scd_history`) to restore its state.
+//! [`scd_history`]) to restore its state.
 //!
 //! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
-
 use crate::business_key_generator::make_business_key;
 use crate::error::Result;
 use crate::row::AbstractRowGenerator;
