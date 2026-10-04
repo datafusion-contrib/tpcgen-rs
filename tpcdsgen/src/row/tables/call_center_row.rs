@@ -210,9 +210,7 @@ impl fmt::Display for CallCenterRow {
             self.nulled(self.cc_address.get_city(), 24),
             self.nulled(self.cc_address.get_county().unwrap_or(""), 25),
             self.nulled(self.cc_address.get_state(), 26),
-            // Note: unlike other tables the call_center zip is not zero-padded,
-            // matching the Java format_numeric handling.
-            self.nulled(self.cc_address.get_zip(), 27),
+            DatField::zip(self.cc_address.get_zip(), self.is_null(27)),
             self.nulled(self.cc_address.get_country(), 28),
             self.nulled(self.cc_address.get_gmt_offset(), 29),
             self.nulled(self.cc_tax_percentage, 30),

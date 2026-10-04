@@ -139,9 +139,7 @@ impl Display for CallCenterCsv<'_> {
             row.nulled(row.cc_address.get_city(), 24),
             row.nulled(row.cc_address.get_county().unwrap_or(""), 25),
             row.nulled(row.cc_address.get_state(), 26),
-            // Note: unlike other tables the call_center zip is not zero-padded,
-            // matching format_numeric in get_values.
-            row.nulled(row.cc_address.get_zip(), 27),
+            DatField::zip(row.cc_address.get_zip(), row.is_null(27)),
             row.nulled(row.cc_address.get_country(), 28),
             row.nulled(row.cc_address.get_gmt_offset(), 29),
             row.nulled(row.cc_tax_percentage, 30),
