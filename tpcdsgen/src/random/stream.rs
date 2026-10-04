@@ -14,7 +14,7 @@ impl RandomNumberStream {
     const REMAINDER: i64 = 2836; // the remainder MAX_INT % MULTIPLIER
 
     pub fn new(seeds_per_row: i32) -> Self {
-        debug_assert!(seeds_per_row >= 0, "seeds_per_row must be >= 0");
+        assert!(seeds_per_row >= 0, "seeds_per_row must be >= 0");
         RandomNumberStream {
             initial_seed: 3,
             seed: 3,
@@ -28,7 +28,7 @@ impl RandomNumberStream {
     }
 
     pub fn new_with_base(global_column_number: i32, seed_base: i32, seeds_per_row: i32) -> Self {
-        debug_assert!(seeds_per_row >= 0, "seeds_per_row must be >= 0");
+        assert!(seeds_per_row >= 0, "seeds_per_row must be >= 0");
         let initial_seed = seed_base as i64 + global_column_number as i64 * (i32::MAX as i64 / 799);
         RandomNumberStream {
             initial_seed,
