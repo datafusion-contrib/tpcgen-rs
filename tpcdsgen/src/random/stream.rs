@@ -3,8 +3,8 @@ pub struct RandomNumberStream {
     // Constants matching Java implementation exactly
     seed: i64,
     initial_seed: i64,
-    seeds_used: i32,
-    seeds_per_row: i32,
+    seeds_used: u32,
+    seeds_per_row: u32,
 }
 
 impl RandomNumberStream {
@@ -13,8 +13,7 @@ impl RandomNumberStream {
     const QUOTIENT: i64 = 127773; // the quotient MAX_INT / MULTIPLIER
     const REMAINDER: i64 = 2836; // the remainder MAX_INT % MULTIPLIER
 
-    pub fn new(seeds_per_row: i32) -> Self {
-        assert!(seeds_per_row >= 0, "seeds_per_row must be >= 0");
+    pub fn new(seeds_per_row: u32) -> Self {
         RandomNumberStream {
             initial_seed: 3,
             seed: 3,
@@ -23,12 +22,11 @@ impl RandomNumberStream {
         }
     }
 
-    pub fn new_with_column(global_column_number: i32, seeds_per_row: i32) -> Self {
+    pub fn new_with_column(global_column_number: i32, seeds_per_row: u32) -> Self {
         Self::new_with_base(global_column_number, Self::DEFAULT_SEED_BASE, seeds_per_row)
     }
 
-    pub fn new_with_base(global_column_number: i32, seed_base: i32, seeds_per_row: i32) -> Self {
-        assert!(seeds_per_row >= 0, "seeds_per_row must be >= 0");
+    pub fn new_with_base(global_column_number: i32, seed_base: i32, seeds_per_row: u32) -> Self {
         let initial_seed = seed_base as i64 + global_column_number as i64 * (i32::MAX as i64 / 799);
         RandomNumberStream {
             initial_seed,
@@ -82,7 +80,7 @@ impl RandomNumberStream {
         self.seeds_used = 0;
     }
 
-    pub fn get_seeds_used(&self) -> i32 {
+    pub fn get_seeds_used(&self) -> u32 {
         self.seeds_used
     }
 
@@ -90,7 +88,7 @@ impl RandomNumberStream {
         self.seeds_used = 0;
     }
 
-    pub fn get_seeds_per_row(&self) -> i32 {
+    pub fn get_seeds_per_row(&self) -> u32 {
         self.seeds_per_row
     }
 }

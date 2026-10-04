@@ -85,7 +85,7 @@ impl GeneratorColumn for StoreSalesGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             StoreSalesGeneratorColumn::SsSoldDateSk => 2,
             StoreSalesGeneratorColumn::SsSoldTimeSk => 2,

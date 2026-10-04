@@ -72,7 +72,7 @@ impl DateDimGeneratorColumn {
         VALUES
     }
 
-    fn get_column_info(&self) -> (i32, i32) {
+    fn get_column_info(&self) -> (i32, u32) {
         use DateDimGeneratorColumn::*;
         match self {
             DDateSk => (159, 0),
@@ -117,7 +117,7 @@ impl GeneratorColumn for DateDimGeneratorColumn {
         self.get_column_info().0
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
     }
 }

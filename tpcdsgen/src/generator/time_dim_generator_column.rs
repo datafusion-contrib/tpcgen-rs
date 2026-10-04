@@ -27,7 +27,7 @@ impl TimeDimGeneratorColumn {
         VALUES
     }
 
-    fn get_column_info(&self) -> (i32, i32) {
+    fn get_column_info(&self) -> (i32, u32) {
         use TimeDimGeneratorColumn::*;
         match self {
             TTimeSk => (340, 1),
@@ -54,7 +54,7 @@ impl GeneratorColumn for TimeDimGeneratorColumn {
         self.get_column_info().0
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
     }
 }

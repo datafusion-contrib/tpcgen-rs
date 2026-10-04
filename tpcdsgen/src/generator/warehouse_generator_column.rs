@@ -48,7 +48,7 @@ impl WarehouseGeneratorColumn {
     }
 
     /// Get the global column number and seeds per row for this generator column
-    fn get_column_info(&self) -> (i32, i32) {
+    fn get_column_info(&self) -> (i32, u32) {
         use WarehouseGeneratorColumn::*;
         match self {
             WWarehouseSk => (351, 1),
@@ -80,7 +80,7 @@ impl GeneratorColumn for WarehouseGeneratorColumn {
         self.get_column_info().0
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
     }
 }

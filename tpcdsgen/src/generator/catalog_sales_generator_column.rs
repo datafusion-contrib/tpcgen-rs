@@ -111,7 +111,7 @@ impl GeneratorColumn for CatalogSalesGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             CatalogSalesGeneratorColumn::CsSoldDateSk => 1,
             CatalogSalesGeneratorColumn::CsSoldTimeSk => 2,
