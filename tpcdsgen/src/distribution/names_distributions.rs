@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_first_name_male() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let name = NamesDistributions::pick_random_first_name(
             FirstNamesWeights::MaleFrequency,
             &mut stream,
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_first_name_female() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let name = NamesDistributions::pick_random_first_name(
             FirstNamesWeights::FemaleFrequency,
             &mut stream,
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_first_name_general() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let name = NamesDistributions::pick_random_first_name(
             FirstNamesWeights::GeneralFrequency,
             &mut stream,
@@ -154,14 +154,14 @@ mod tests {
 
     #[test]
     fn test_pick_random_last_name() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let name = NamesDistributions::pick_random_last_name(&mut stream).unwrap();
         assert!(!name.is_empty());
     }
 
     #[test]
     fn test_pick_random_salutation() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         let neutral = NamesDistributions::pick_random_salutation(
             SalutationsWeights::GenderNeutral,
@@ -189,8 +189,8 @@ mod tests {
 
     #[test]
     fn test_deterministic_behavior() {
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let name1 = NamesDistributions::pick_random_first_name(
             FirstNamesWeights::GeneralFrequency,

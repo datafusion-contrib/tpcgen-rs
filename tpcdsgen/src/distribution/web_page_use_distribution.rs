@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_web_page_use_type() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let page_use = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream).unwrap();
 
         // Should be a non-empty string
@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn test_pick_random_web_page_use_type_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let page_use1 =
             WebPageUseDistribution::pick_random_web_page_use_type(&mut stream1).unwrap();
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_multiple_picks_are_valid() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let valid_types = [
             "general",
             "order",

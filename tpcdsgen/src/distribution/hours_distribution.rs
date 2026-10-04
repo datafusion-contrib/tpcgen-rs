@@ -201,7 +201,7 @@ mod tests {
     fn test_pick_random_hour() {
         use crate::random::RandomNumberStream;
 
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let hour = HoursDistribution::pick_random_hour(HoursWeights::Uniform, &mut stream).unwrap();
 
         // Hour should be in valid range [0, 23]
@@ -217,8 +217,8 @@ mod tests {
         use crate::random::RandomNumberStream;
 
         // Same seed should produce same hour
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let hour1 = HoursDistribution::pick_random_hour(HoursWeights::Store, &mut stream1).unwrap();
         let hour2 = HoursDistribution::pick_random_hour(HoursWeights::Store, &mut stream2).unwrap();
@@ -231,7 +231,7 @@ mod tests {
         use crate::random::RandomNumberStream;
 
         // Different weights should potentially produce different results
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         let hour_uniform =
             HoursDistribution::pick_random_hour(HoursWeights::Uniform, &mut stream).unwrap();

@@ -41,10 +41,10 @@ impl AbstractRowGenerator {
                 let global_column_number = gen_col.get_global_column_number();
                 let seeds_per_row = gen_col.get_seeds_per_row();
 
-                let stream =
-                    RandomNumberStream::new_with_column(global_column_number, seeds_per_row)
-                        .expect("Failed to create random number stream");
-                random_number_streams.push(stream);
+                random_number_streams.push(RandomNumberStream::new_with_column(
+                    global_column_number,
+                    seeds_per_row,
+                ));
             }
         }
 

@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(dist.get_value_lists_count(), 1);
         assert_eq!(dist.get_value_count(0), 5);
 
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Test multiple picks - all should be valid values
         for _ in 0..10 {
@@ -365,7 +365,7 @@ mod tests {
         ];
 
         let dist = IntValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Test multiple picks - should all be valid
         for _ in 0..10 {
@@ -381,8 +381,8 @@ mod tests {
         let dist = IntValuesDistribution::from_embedded_data(data).unwrap();
 
         // Same seed should produce same results
-        let mut stream1 = RandomNumberStream::new_with_column(42, 1).unwrap();
-        let mut stream2 = RandomNumberStream::new_with_column(42, 1).unwrap();
+        let mut stream1 = RandomNumberStream::new_with_column(42, 1);
+        let mut stream2 = RandomNumberStream::new_with_column(42, 1);
 
         let value1 = dist.pick_random_value(0, 0, &mut stream1).unwrap();
         let value2 = dist.pick_random_value(0, 0, &mut stream2).unwrap();
@@ -399,7 +399,7 @@ mod tests {
         ];
 
         let dist = IntValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Test many picks - should heavily favor value 2
         let mut count_1 = 0;
@@ -421,7 +421,7 @@ mod tests {
     fn test_error_conditions() {
         let data = &[(42, 100)];
         let dist = IntValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Invalid list indices
         assert!(dist.pick_random_value(1, 0, &mut stream).is_err()); // Invalid value list

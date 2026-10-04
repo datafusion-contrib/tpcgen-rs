@@ -225,7 +225,7 @@ mod tests {
     fn test_pick_random_day_of_year() {
         use crate::random::RandomNumberStream;
 
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let day =
             CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream)
                 .unwrap();
@@ -243,8 +243,8 @@ mod tests {
         use crate::random::RandomNumberStream;
 
         // Same seed should produce same day
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let day1 =
             CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream1)
@@ -261,7 +261,7 @@ mod tests {
         use crate::random::RandomNumberStream;
 
         // Different weights should potentially produce different results
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         let day_uniform =
             CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream)

@@ -256,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_from_weights() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let weights = vec![10, 30, 60, 100]; // Cumulative weights
 
         // Test multiple selections to ensure they're in valid range
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_uniform() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         for _ in 0..10 {
             let index = DistributionUtils::pick_random_index_uniform(5, &mut stream).unwrap();
@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_empty() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         assert!(DistributionUtils::pick_random_index_from_weights(&[], &mut stream).is_err());
         assert!(DistributionUtils::pick_random_index_uniform(0, &mut stream).is_err());
     }
@@ -345,8 +345,8 @@ mod tests {
         // Test that same seed produces same results
         let weights = vec![25, 50, 75, 100];
 
-        let mut stream1 = RandomNumberStream::new_with_column(1, 1).unwrap();
-        let mut stream2 = RandomNumberStream::new_with_column(1, 1).unwrap();
+        let mut stream1 = RandomNumberStream::new_with_column(1, 1);
+        let mut stream2 = RandomNumberStream::new_with_column(1, 1);
 
         let index1 =
             DistributionUtils::pick_random_index_from_weights(&weights, &mut stream1).unwrap();

@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_catalog_page_type() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let catalog_type =
             CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream).unwrap();
 
@@ -158,8 +158,8 @@ mod tests {
     #[test]
     fn test_pick_random_catalog_page_type_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let type1 =
             CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream1).unwrap();

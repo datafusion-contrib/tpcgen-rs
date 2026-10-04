@@ -349,21 +349,21 @@ mod tests {
 
     #[test]
     fn test_uniform_random_int() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let result = RandomValueGenerator::generate_uniform_random_int(1, 10, &mut stream);
         assert!((1..=10).contains(&result));
     }
 
     #[test]
     fn test_uniform_random_key() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let result = RandomValueGenerator::generate_uniform_random_key(100, 200, &mut stream);
         assert!((100..=200).contains(&result));
     }
 
     #[test]
     fn test_uniform_random_decimal() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let min = Decimal::new(100, 2).unwrap(); // 1.00
         let max = Decimal::new(500, 2).unwrap(); // 5.00
         let result = RandomValueGenerator::generate_uniform_random_decimal(min, max, &mut stream);
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_uniform_random_date() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let min = Date::new(2020, 1, 1);
         let max = Date::new(2020, 12, 31);
         let result =
@@ -387,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_random_alphanumeric() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let result = RandomValueGenerator::generate_random_alphanumeric(10, &mut stream);
 
         assert_eq!(result.len(), 10);
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_random_digits() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let result = RandomValueGenerator::generate_random_digits(5, &mut stream);
 
         assert_eq!(result.len(), 5);
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_random_boolean() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Test with 0% probability - should always be false
         let _result_never = RandomValueGenerator::generate_random_boolean(0.0, &mut stream);
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_weighted_random_index() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let weights = vec![10, 20, 30, 40];
         let result = RandomValueGenerator::generate_weighted_random_index(&weights, &mut stream);
 
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_random_string_custom_charset() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let charset = "ABC123";
         let result = RandomValueGenerator::generate_random_string(8, charset, &mut stream);
 

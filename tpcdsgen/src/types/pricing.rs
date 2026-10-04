@@ -516,8 +516,8 @@ mod tests {
     #[test]
     fn test_skip_pricing_for_sales_table_matches_generate() {
         use crate::random::RandomNumberStream;
-        let mut generated = RandomNumberStream::new(1).unwrap();
-        let mut skipped = RandomNumberStream::new(1).unwrap();
+        let mut generated = RandomNumberStream::new(1);
+        let mut skipped = RandomNumberStream::new(1);
         generate_pricing_for_sales_table(&get_store_sales_pricing_limits(), &mut generated);
         skip_pricing_for_sales_table(&mut skipped);
         assert_eq!(generated.next_random(), skipped.next_random());

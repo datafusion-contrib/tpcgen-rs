@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn test_generate_time_join_key() {
         use crate::generator::StoreSalesGeneratorColumn;
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
         let result = generate_time_join_key(&column, &mut stream).unwrap();
 
@@ -450,8 +450,8 @@ mod tests {
     #[test]
     fn test_generate_time_join_key_deterministic() {
         use crate::generator::StoreSalesGeneratorColumn;
-        let mut stream1 = RandomNumberStream::new(1).unwrap();
-        let mut stream2 = RandomNumberStream::new(1).unwrap();
+        let mut stream1 = RandomNumberStream::new(1);
+        let mut stream2 = RandomNumberStream::new(1);
         let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
 
         let result1 = generate_time_join_key(&column, &mut stream1).unwrap();
@@ -462,7 +462,7 @@ mod tests {
 
     #[test]
     fn test_catalog_page_join_key() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let scaling = Scaling::new(1.0);
 
         // Catalog page join key is now implemented (CatalogPageTypesDistribution ported)
@@ -476,7 +476,7 @@ mod tests {
     // NOTE: Test disabled until column::Table vs config::Table is resolved
     // #[test]
     // fn test_generate_date_returns_join_key() {
-    //     let mut stream = RandomNumberStream::new(1).unwrap();
+    //     let mut stream = RandomNumberStream::new(1);
     //     let sale_date = Date::to_julian_days(&Date::new(2003, 1, 1)) as i64;
     //
     //     let return_date = _generate_date_returns_join_key(
@@ -497,10 +497,7 @@ mod tests {
     /// Two identical streams, one for `generate_join_key` and one for its
     /// `skip_*` counterpart.
     fn paired_streams() -> (RandomNumberStream, RandomNumberStream) {
-        (
-            RandomNumberStream::new(1).unwrap(),
-            RandomNumberStream::new(1).unwrap(),
-        )
+        (RandomNumberStream::new(1), RandomNumberStream::new(1))
     }
 
     #[test]

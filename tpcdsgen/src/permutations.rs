@@ -40,7 +40,7 @@ use crate::random::{RandomNumberStream, RandomValueGenerator};
 /// use tpcdsgen::random::RandomNumberStream;
 /// use tpcdsgen::permutations::make_permutation;
 ///
-/// let mut stream = RandomNumberStream::new(1).unwrap();
+/// let mut stream = RandomNumberStream::new(1);
 /// let perm = make_permutation(5, &mut stream);
 /// // perm contains [0,1,2,3,4] in some random order
 /// assert_eq!(perm.len(), 5);
@@ -100,14 +100,14 @@ mod tests {
 
     #[test]
     fn test_make_permutation_correct_size() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let perm = make_permutation(10, &mut stream);
         assert_eq!(perm.len(), 10, "Permutation should have correct size");
     }
 
     #[test]
     fn test_make_permutation_contains_all_values() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let size = 20;
         let perm = make_permutation(size, &mut stream);
 
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_make_permutation_is_randomized() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let perm = make_permutation(10, &mut stream);
 
         // Check that it's not just the identity permutation [0,1,2,3,...]
@@ -149,8 +149,8 @@ mod tests {
     #[test]
     fn test_make_permutation_deterministic() {
         // Same seed should produce same permutation
-        let mut stream1 = RandomNumberStream::new(1).unwrap();
-        let mut stream2 = RandomNumberStream::new(1).unwrap();
+        let mut stream1 = RandomNumberStream::new(1);
+        let mut stream2 = RandomNumberStream::new(1);
 
         let perm1 = make_permutation(10, &mut stream1);
         let perm2 = make_permutation(10, &mut stream2);
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn test_permutation_integration() {
         // Test the full workflow: create permutation, access entries
-        let mut stream = RandomNumberStream::new(42).unwrap();
+        let mut stream = RandomNumberStream::new(42);
         let size = 5;
         let perm = make_permutation(size, &mut stream);
 
