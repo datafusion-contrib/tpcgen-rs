@@ -23,12 +23,14 @@
 //! Generating a range of source rows fast forwards the random number streams
 //! to the first row of the range. The skipped rows are never generated. A
 //! range that starts on a later revision has no previous revision to copy
-//! from, so the generator replays the earlier ones (see `scd_history`)
-//! to restore its state.
+//! from, so [`ScdRowGenerator::next_row`] replays the earlier ones (see
+//! `scd_history`) to restore its state.
 //!
 //! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
 
 use crate::business_key_generator::make_business_key;
+use crate::error::Result;
+use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::Date;
 use std::ops::Range;
@@ -174,6 +176,44 @@ pub(crate) fn scd_history(row_number: u64) -> Range<u64> {
         "replay must start on a new business key"
     );
     first_revision..row_number
+}
+
+/// A row generator for an SCD table.
+///
+/// Each generator retains the row it generated last, which the next revision
+/// copies values from. Seeking clears it, and [`Self::next_row`] rebuilds it.
+pub(crate) trait ScdRowGenerator {
+    type Row;
+
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator;
+
+    /// The row generated last, or `None` after a seek.
+    fn previous_row(&self) -> Option<&Self::Row>;
+
+    /// Generate source row `row_number` and retain it as the previous row.
+    fn generate_row(&mut self, row_number: u64) -> Result<Self::Row>;
+
+    /// Generate the next source row, or `None` past the end of the range.
+    ///
+    /// After a seek, first replays the revisions the row inherits from, so it
+    /// has the same values to copy from as in an uninterrupted run.
+    fn next_row(&mut self) -> Option<Self::Row> {
+        let row_number = self.abstract_generator().next_row_number()?;
+        if self.previous_row().is_none() {
+            let history = scd_history(row_number);
+            if !history.is_empty() {
+                self.abstract_generator()
+                    .skip_rows_until_starting_row_number(history.start);
+                for row_number in history {
+                    self.generate_row(row_number).expect("row gen");
+                    self.abstract_generator().finish_row();
+                }
+            }
+        }
+        let row = self.generate_row(row_number).expect("row gen");
+        self.abstract_generator().finish_row();
+        Some(row)
+    }
 }
 
 pub fn get_value_for_slowly_changing_dimension<T>(

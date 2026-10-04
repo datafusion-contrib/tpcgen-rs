@@ -42,7 +42,7 @@ impl WebReturnsRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         WebReturnsRowGenerator {
             sales: WebSalesRowGenerator::new(session, row_count),
-            abstract_generator: AbstractRowGenerator::new(Table::WebReturns),
+            abstract_generator: AbstractRowGenerator::new(Table::WebReturns, row_count),
         }
     }
 
@@ -63,7 +63,7 @@ impl WebReturnsRowGenerator {
         self.sales
             .set_source_row_range(starting_row_number, ending_row_number);
         self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 
     /// Generate the return row for `sales_row`.

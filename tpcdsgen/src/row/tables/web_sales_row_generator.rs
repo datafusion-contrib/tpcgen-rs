@@ -81,22 +81,18 @@ pub struct WebSalesRowGenerator {
     order_info: OrderInfo,
     item_index: i32,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl WebSalesRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         WebSalesRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::WebSales),
+            abstract_generator: AbstractRowGenerator::new(Table::WebSales, row_count),
             item_permutation: None,
             remaining_line_items: 0,
             order_info: OrderInfo::default(),
             item_index: 0,
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -105,7 +101,6 @@ impl WebSalesRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -113,8 +108,8 @@ impl WebSalesRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 
     pub(crate) fn session(&self) -> &Session {
@@ -420,9 +415,9 @@ impl WebSalesRowGenerator {
     pub(crate) fn next_line_item(&mut self) -> Result<Option<LineItem>> {
         use WebSalesGeneratorColumn::*;
 
-        if self.current_row > self.row_count {
+        let Some(row_number) = self.abstract_generator.next_row_number() else {
             return Ok(None);
-        }
+        };
 
         let item_count = self
             .session
@@ -439,7 +434,7 @@ impl WebSalesRowGenerator {
 
         // Start a new order if we've finished the previous one
         if self.remaining_line_items == 0 {
-            self.order_info = self.generate_order_info(self.current_row)?;
+            self.order_info = self.generate_order_info(row_number)?;
 
             let stream = self.abstract_generator.get_random_number_stream(&WsItemSk);
             self.item_index =
@@ -491,8 +486,7 @@ impl WebSalesRowGenerator {
         self.remaining_line_items -= 1;
         let last_in_order = self.remaining_line_items == 0;
         if last_in_order {
-            self.abstract_generator.consume_remaining_seeds_for_row();
-            self.current_row += 1;
+            self.abstract_generator.finish_row();
         }
         last_in_order
     }

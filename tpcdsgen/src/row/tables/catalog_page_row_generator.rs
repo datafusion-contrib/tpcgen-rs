@@ -30,18 +30,14 @@ const WIDTH_CP_DESCRIPTION: i32 = 100;
 pub struct CatalogPageRowGenerator {
     abstract_generator: AbstractRowGenerator,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl CatalogPageRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         CatalogPageRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::CatalogPage),
+            abstract_generator: AbstractRowGenerator::new(Table::CatalogPage, row_count),
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -130,7 +126,6 @@ impl CatalogPageRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -138,8 +133,8 @@ impl CatalogPageRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 }
 
@@ -147,14 +142,9 @@ impl Iterator for CatalogPageRowGenerator {
     type Item = CatalogPageRow;
 
     fn next(&mut self) -> Option<CatalogPageRow> {
-        if self.current_row > self.row_count {
-            return None;
-        }
-        let row = self
-            .generate_catalog_page_row(self.current_row)
-            .expect("row gen");
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.current_row += 1;
+        let row_number = self.abstract_generator.next_row_number()?;
+        let row = self.generate_catalog_page_row(row_number).expect("row gen");
+        self.abstract_generator.finish_row();
         Some(row)
     }
 }

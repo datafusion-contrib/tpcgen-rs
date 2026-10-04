@@ -45,7 +45,7 @@ impl StoreReturnsRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         StoreReturnsRowGenerator {
             sales: StoreSalesRowGenerator::new(session, row_count),
-            abstract_generator: AbstractRowGenerator::new(Table::StoreReturns),
+            abstract_generator: AbstractRowGenerator::new(Table::StoreReturns, row_count),
         }
     }
 
@@ -66,7 +66,7 @@ impl StoreReturnsRowGenerator {
         self.sales
             .set_source_row_range(starting_row_number, ending_row_number);
         self.abstract_generator
-            .skip_rows_until_starting_row_number(starting_row_number);
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 
     /// Generate the return row for `sales_row`.

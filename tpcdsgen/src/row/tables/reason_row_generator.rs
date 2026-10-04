@@ -11,18 +11,14 @@ use crate::table::Table;
 pub struct ReasonRowGenerator {
     abstract_generator: AbstractRowGenerator,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl ReasonRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::Reason),
+            abstract_generator: AbstractRowGenerator::new(Table::Reason, row_count),
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -65,7 +61,6 @@ impl ReasonRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -73,8 +68,8 @@ impl ReasonRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 }
 
@@ -82,12 +77,9 @@ impl Iterator for ReasonRowGenerator {
     type Item = ReasonRow;
 
     fn next(&mut self) -> Option<ReasonRow> {
-        if self.current_row > self.row_count {
-            return None;
-        }
-        let row = self.generate_reason_row(self.current_row).expect("row gen");
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.current_row += 1;
+        let row_number = self.abstract_generator.next_row_number()?;
+        let row = self.generate_reason_row(row_number).expect("row gen");
+        self.abstract_generator.finish_row();
         Some(row)
     }
 }
