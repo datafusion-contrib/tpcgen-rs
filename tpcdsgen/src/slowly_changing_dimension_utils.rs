@@ -178,16 +178,18 @@ pub(crate) fn scd_history(row_number: u64) -> Range<u64> {
     first_revision..row_number
 }
 
-/// A row generator for an SCD table.
+/// A row generator for a Slowly Changing Dimension (SCD) table.
 ///
-/// Each generator retains the row it generated last, which the next revision
-/// copies values from. Seeking clears it, and [`Self::next_row`] rebuilds it.
+/// Each generator retains the previously generated row, which is used to help generate
+/// the next revision.
 pub(crate) trait ScdRowGenerator {
+    /// The type of output row produced by this generator.
     type Row;
 
+    /// Underlying abstract generator that produces the source rows for this SCD table.
     fn abstract_generator(&mut self) -> &mut AbstractRowGenerator;
 
-    /// The row generated last, or `None` after a seek.
+    /// The previously generated row, or `None` after a seek.
     fn previous_row(&self) -> Option<&Self::Row>;
 
     /// Generate source row `row_number` and retain it as the previous row.
@@ -195,10 +197,13 @@ pub(crate) trait ScdRowGenerator {
 
     /// Generate the next source row, or `None` past the end of the range.
     ///
-    /// After a seek, first replays the revisions the row inherits from, so it
-    /// has the same values to copy from as in an uninterrupted run.
+    /// Also handles the case of skipping rows (such as when starting a range in
+    /// the middle of a business key's revisions) by replaying the missing rows
+    /// to restore the generator state.
     fn next_row(&mut self) -> Option<Self::Row> {
         let row_number = self.abstract_generator().next_row_number()?;
+        // Replay the missing slowly changing dimension (SCD) state
+        // This gives it the same values to copy from as an uninterrupted run.
         if self.previous_row().is_none() {
             let history = scd_history(row_number);
             if !history.is_empty() {
