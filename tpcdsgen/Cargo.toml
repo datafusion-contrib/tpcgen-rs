@@ -3,6 +3,7 @@ name = "tpcdsgen"
 authors = ["clflushopt", "alamb"]
 description = "Blazing fast pure Rust zero dependency TPC-DS data generation library."
 repository = { workspace = true }
+readme = "README.md"
 version = { workspace = true }
 edition = "2021"
 license = { workspace = true }
