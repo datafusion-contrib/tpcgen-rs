@@ -1,9 +1,10 @@
 //! Rust TPCH Data Generator
 //!
-//! This crate provides a native Rust implementation of functions and utilities
-//! necessary for generating the TPC-H benchmark dataset in several popular
-//! formats.
+//! This crate provides a native Rust implementation of the [TPC-H] benchmark
+//! dataset data generator in several popular formats.
 //!
+//! [TPC-H]: http://www.tpc.org/tpch/
+//! 
 //! # Example: TBL output format
 //! ```
 //! # use tpchgen::generators::LineItemGenerator;

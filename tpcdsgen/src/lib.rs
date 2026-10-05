@@ -1,8 +1,9 @@
 //! Rust TPC-DS Data Generator
 //!
-//! This crate provides a native Rust implementation of functions and utilities
-//! necessary for generating the TPC-DS benchmark dataset in several popular
-//! formats.
+//! This crate provides a native Rust implementation of the [TPC-DS]
+//! dataset data generator in several popular formats.
+//!
+//! [TPC-DS]: http://www.tpc.org/tpcds/
 //!
 //! # Example: DAT output format
 //! ```
@@ -29,32 +30,30 @@
 //! ```
 //!
 //! The TPC-DS dataset is composed of 24 tables (plus the `dbgen_version`
-//! metadata table) with foreign key relations
-//! between them. For each table we implement and expose a generator in the
-//! [`row`] module that uses the iterator API to produce structs e.g
-//! [`StoreSalesRow`] that represent a single row.
+//! metadata table) with foreign key relations between them. Each table has a
+//! generator in the [`row`] module that uses the iterator API to produce
+//! structs e.g [`StoreSalesRow`] that represent a single row.
 //!
 //! For each struct type we expose several facilities that allow fast conversion
-//! to DAT and CSV formats but can also be extended to support other output formats.
-//!
-//! This crate currently supports the following output formats:
-//!
+//! to various output formats such as:
 //! - DAT: The `Display` impl of the row structs produces the TPC-DS `dsdgen` DAT
 //!   format. [`DatWriter`] handles the character encoding (see below).
 //! - CSV: the [`csv`] module has formatters for CSV output (e.g. [`StoreSalesCsv`]).
 //!
+//! See the [tpcdsgen-arrow] crate for direct generation of Arrow [`RecordBatch`].
+//!
 //! [`StoreSalesRow`]: row::StoreSalesRow
 //! [`StoreSalesCsv`]: csv::StoreSalesCsv
 //! [`DatWriter`]: output::DatWriter
+//! [tpcdsgen-arrow]: https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/
+//! [RecordBatch]: https://docs.rs/arrow/latest/arrow/array/struct.RecordBatch.html
 //!
-//! The library was designed to be easily integrated in existing Rust projects as
-//! such it avoids exposing a malleable API and purposely does not have any dependencies
-//! on other Rust crates. It is focused entirely on the core
-//! generation logic.
+//! The library was designed to be easily integrated in existing Rust projects
+//! and thus has no dependencies on other Rust crates. It is focused entirely on
+//! the core generation logic.
 //!
 //! If you want an easy way to generate the TPC-DS dataset for use with external
-//! tools, see the [`tpcgen-cli`] command line tool. To generate Arrow
-//! `RecordBatch`es directly, see the [`tpcdsgen-arrow`] crate.
+//! tools, see the [`tpcgen-cli`] command line tool.
 //!
 //! [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli
 //! [`tpcdsgen-arrow`]: https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/
@@ -86,10 +85,10 @@
 //!
 //! # Reference implementations and [`CompatMode`]
 //!
-//! TPC-DS has two common reference implementations: the original C `dsdgen`
-//! and the Java port used by Trino, which this crate was derived from. They
-//! differ in a small number of places, so [`CompatMode`] selects which one to
-//! match byte-for-byte:
+//! TPC-DS has two common reference implementations: the original C `dsdgen` and
+//! the Java port used by Trino, which this crate was originally derived from.
+//! They differ in a small number of places, so [`CompatMode`] selects which one
+//! to match byte-for-byte:
 //!
 //! - [`CompatMode::Trino`] (default): matches the Java port, including its
 //!   ISO-8859-1 (Latin-1) DAT output.
@@ -117,8 +116,8 @@
 //! # Scale factors above 100,000
 //!
 //! The TPC-DS spec only defines scale factors up to 100,000; scaling beyond
-//! that is not defined. Larger scale factors are allowed, and this crate does
-//! its best to simulate growth.
+//! that is not defined. Larger scale factors are allowed by this crate, but we
+//! had to modify the generator logic above 100,000 to accommodate growth.
 
 pub mod business_key_generator;
 pub mod column;
