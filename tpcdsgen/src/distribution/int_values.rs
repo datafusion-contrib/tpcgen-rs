@@ -212,15 +212,7 @@ impl IntValuesDistribution {
         &self,
         weight_list_index: usize,
         stream: &mut RandomNumberStream,
-    ) -> Result<usize> {
-        if weight_list_index >= self.weights_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Weight list index {} out of range, max is {}",
-                weight_list_index,
-                self.weights_lists.len().saturating_sub(1)
-            )));
-        }
-
+    ) -> usize {
         DistributionUtils::pick_random_index_from_weights(
             &self.weights_lists[weight_list_index],
             stream,
@@ -235,62 +227,16 @@ impl Distribution<i32> for IntValuesDistribution {
         value_list: usize,
         weight_list: usize,
         stream: &mut RandomNumberStream,
-    ) -> Result<i32> {
-        if value_list >= self.values_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Value list index {} out of bounds",
-                value_list
-            )));
-        }
-        if weight_list >= self.weights_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Weight list index {} out of bounds",
-                weight_list
-            )));
-        }
-
+    ) -> i32 {
         let values = &self.values_lists[value_list];
         let weights = &self.weights_lists[weight_list];
-
-        if values.len() != weights.len() {
-            return Err(TpcdsError::new(
-                "Values and weights lists have different lengths",
-            ));
-        }
-
-        if values.is_empty() {
-            return Err(TpcdsError::new("Cannot pick from empty distribution"));
-        }
-
-        let index = DistributionUtils::pick_random_index_from_weights(weights, stream)?;
-        if index >= values.len() {
-            return Err(TpcdsError::new(&format!(
-                "Selected index {} out of bounds for values",
-                index
-            )));
-        }
-
-        Ok(values[index])
+        let index = DistributionUtils::pick_random_index_from_weights(weights, stream);
+        values[index]
     }
 
     /// Get value at specific index
-    fn get_value_at_index(&self, value_list: usize, index: usize) -> Result<i32> {
-        if value_list >= self.values_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Value list index {} out of bounds",
-                value_list
-            )));
-        }
-
-        let values = &self.values_lists[value_list];
-        if index >= values.len() {
-            return Err(TpcdsError::new(&format!(
-                "Index {} out of bounds for values",
-                index
-            )));
-        }
-
-        Ok(values[index])
+    fn get_value_at_index(&self, value_list: usize, index: usize) -> i32 {
+        self.values_lists[value_list][index]
     }
 
     /// Get number of values in a list
@@ -318,9 +264,9 @@ mod tests {
         assert_eq!(dist.get_value_count(0), 3);
 
         // Test value access
-        assert_eq!(dist.get_value_at_index(0, 0).unwrap(), 1);
-        assert_eq!(dist.get_value_at_index(0, 1).unwrap(), 2);
-        assert_eq!(dist.get_value_at_index(0, 2).unwrap(), 3);
+        assert_eq!(dist.get_value_at_index(0, 0), 1);
+        assert_eq!(dist.get_value_at_index(0, 1), 2);
+        assert_eq!(dist.get_value_at_index(0, 2), 3);
     }
 
     #[test]
@@ -335,7 +281,7 @@ mod tests {
 
         // Test multiple picks - all should be valid values
         for _ in 0..10 {
-            let value = dist.pick_random_value(0, 0, &mut stream).unwrap();
+            let value = dist.pick_random_value(0, 0, &mut stream);
             assert!(values.contains(&value));
         }
     }
@@ -369,7 +315,7 @@ mod tests {
 
         // Test multiple picks - should all be valid
         for _ in 0..10 {
-            let value = dist.pick_random_value(0, 0, &mut stream).unwrap();
+            let value = dist.pick_random_value(0, 0, &mut stream);
             assert!(value == 100 || value == 200);
         }
     }
@@ -384,8 +330,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new_with_column(42, 1).unwrap();
         let mut stream2 = RandomNumberStream::new_with_column(42, 1).unwrap();
 
-        let value1 = dist.pick_random_value(0, 0, &mut stream1).unwrap();
-        let value2 = dist.pick_random_value(0, 0, &mut stream2).unwrap();
+        let value1 = dist.pick_random_value(0, 0, &mut stream1);
+        let value2 = dist.pick_random_value(0, 0, &mut stream2);
 
         assert_eq!(value1, value2);
     }
@@ -406,7 +352,7 @@ mod tests {
         let mut count_2 = 0;
 
         for _ in 0..100 {
-            match dist.pick_random_value(0, 0, &mut stream).unwrap() {
+            match dist.pick_random_value(0, 0, &mut stream) {
                 1 => count_1 += 1,
                 2 => count_2 += 1,
                 _ => panic!("Unexpected value"),
@@ -418,20 +364,11 @@ mod tests {
     }
 
     #[test]
-    fn test_error_conditions() {
+    #[should_panic(expected = "index out of bounds")]
+    fn test_invalid_index_panics() {
         let data = &[(42, 100)];
         let dist = IntValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStream::new(1).unwrap();
-
-        // Invalid list indices
-        assert!(dist.pick_random_value(1, 0, &mut stream).is_err()); // Invalid value list
-        assert!(dist.pick_random_value(0, 1, &mut stream).is_err()); // Invalid weight list
-        assert!(dist.get_value_at_index(1, 0).is_err()); // Invalid value list
-        assert!(dist.get_value_at_index(0, 1).is_err()); // Invalid index
-
-        // Empty distribution
-        let empty_dist = IntValuesDistribution::new(vec![], vec![]).unwrap();
-        assert!(empty_dist.pick_random_value(0, 0, &mut stream).is_err());
+        dist.get_value_at_index(0, 1);
     }
 
     #[test]

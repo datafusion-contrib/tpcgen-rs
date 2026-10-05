@@ -117,12 +117,11 @@ impl CatalogPageTypesDistribution {
     /// # Returns
     ///
     /// A catalog type string ("monthly", "bi-annual", or "quarterly")
-    pub fn pick_random_catalog_page_type(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_catalog_page_type(stream: &mut RandomNumberStream) -> String {
         let dist = Self::get_instance();
 
         // Use the second weight list (sales volume, index 1)
-        let value_ref = pick_random_value(&dist.values, &dist.weights_list2, stream)?;
-        Ok(value_ref.clone())
+        pick_random_value(&dist.values, &dist.weights_list2, stream).clone()
     }
 }
 
@@ -144,8 +143,7 @@ mod tests {
     #[test]
     fn test_pick_random_catalog_page_type() {
         let mut stream = RandomNumberStream::new(1).unwrap();
-        let catalog_type =
-            CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream).unwrap();
+        let catalog_type = CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream);
 
         // Should be one of the valid types
         assert!(
@@ -161,10 +159,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new(42).unwrap();
         let mut stream2 = RandomNumberStream::new(42).unwrap();
 
-        let type1 =
-            CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream1).unwrap();
-        let type2 =
-            CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream2).unwrap();
+        let type1 = CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream1);
+        let type2 = CatalogPageTypesDistribution::pick_random_catalog_page_type(&mut stream2);
 
         assert_eq!(type1, type2, "Same seed should produce same catalog type");
     }

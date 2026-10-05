@@ -45,16 +45,16 @@ impl ShipModeRowGenerator {
         let sm_ship_mode_sk = row_number_i64;
         let sm_ship_mode_id = make_business_key(row_number);
 
-        let sm_type = ShipModeDistributions::get_ship_mode_type_for_index_mod_size(row_number_i64)?;
+        let sm_type = ShipModeDistributions::get_ship_mode_type_for_index_mod_size(row_number_i64);
 
         // Calculate index for code (divide by type distribution size)
         let type_distribution_size = ShipModeDistributions::get_ship_mode_type_size() as i64;
         let index = row_number_i64 / type_distribution_size;
 
-        let sm_code = ShipModeDistributions::get_ship_mode_code_for_index_mod_size(index)?;
+        let sm_code = ShipModeDistributions::get_ship_mode_code_for_index_mod_size(index);
 
         let sm_carrier =
-            ShipModeDistributions::get_ship_mode_carrier_at_index((row_number - 1) as usize)?;
+            ShipModeDistributions::get_ship_mode_carrier_at_index((row_number - 1) as usize);
 
         let contract_stream = self
             .abstract_generator
