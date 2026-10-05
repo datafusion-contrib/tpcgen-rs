@@ -124,7 +124,7 @@ let d_weekend = d_dow == 5 || d_dow == 6;  // Friday or Saturday
 // Replicate current day comparison bug
 let d_current_day = d_date_sk == TODAYS_DATE.day() as i64;  // Bug: comparing julian to day of month
 
-// From date.rs - Replicate leap year bug
+// From types/date.rs - Replicate leap year bug
 pub fn is_leap_year(year: i32) -> bool {
     year % 4 == 0  // Intentionally wrong for compatibility
 }

@@ -3,7 +3,7 @@
 //! This crate provides a native Rust implementation of the [TPC-DS]
 //! dataset data generator in several popular formats.
 //!
-//! [TPC-DS]: http://www.tpc.org/tpcds/
+//! [TPC-DS]: https://www.tpc.org/tpcds/
 //!
 //! # Example: DAT output format
 //! ```
@@ -42,21 +42,14 @@
 //!
 //! See the [tpcdsgen-arrow] crate for direct generation of Arrow [`RecordBatch`].
 //!
-//! [`StoreSalesRow`]: row::StoreSalesRow
-//! [`StoreSalesCsv`]: csv::StoreSalesCsv
-//! [`DatWriter`]: output::DatWriter
-//! [tpcdsgen-arrow]: https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/
-//! [RecordBatch]: https://docs.rs/arrow/latest/arrow/array/struct.RecordBatch.html
+//! If you want to generate the TPC-DS dataset with an easy-to-use command line interface
+//! see [`tpcgen-cli`].
+//!
+//! # No dependencies
 //!
 //! The library was designed to be easily integrated in existing Rust projects
 //! and thus has no dependencies on other Rust crates. It is focused entirely on
 //! the core generation logic.
-//!
-//! If you want an easy way to generate the TPC-DS dataset for use with external
-//! tools, see the [`tpcgen-cli`] command line tool.
-//!
-//! [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli
-//! [`tpcdsgen-arrow`]: https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/
 //!
 //! # Configuration: [`Session`]
 //!
@@ -90,18 +83,13 @@
 //! They differ in a small number of places, so [`CompatMode`] selects which one
 //! to match byte-for-byte:
 //!
-//! - [`CompatMode::Trino`] (default): matches the Java port, including its
-//!   ISO-8859-1 (Latin-1) DAT output.
-//! - [`CompatMode::C`]: matches the C `dsdgen`, correcting the known
-//!   divergences of the Java port and writing UTF-8.
+//! - [`CompatMode::Trino`] (default): matches the Java port, which writes
+//!   DAT output as ISO-8859-1 (Latin-1).
+//! - [`CompatMode::C`]: matches the C `dsdgen`, which writes UTF-8. This does
+//!   not fix the [known bugs](#known-bugs), which are in both implementations.
 //!
 //! The output is verified against both reference implementations in CI, see
 //! [TESTING.md] for details.
-//!
-//! [`CompatMode`]: config::CompatMode
-//! [`CompatMode::Trino`]: config::CompatMode::Trino
-//! [`CompatMode::C`]: config::CompatMode::C
-//! [TESTING.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/TESTING.md
 //!
 //! # Known Bugs
 //!
@@ -111,13 +99,24 @@
 //! originated in the C implementation and were reproduced in the Java port,
 //! so this crate replicates them as well. See [BUGS.md] for the list.
 //!
-//! [BUGS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcdsgen/BUGS.md
-//!
 //! # Scale factors above 100,000
 //!
 //! The TPC-DS spec only defines scale factors up to 100,000; scaling beyond
 //! that is not defined. Larger scale factors are allowed by this crate, but we
 //! had to modify the generator logic above 100,000 to accommodate growth.
+//!
+//! [`StoreSalesRow`]: row::StoreSalesRow
+//! [`StoreSalesCsv`]: csv::StoreSalesCsv
+//! [`DatWriter`]: output::DatWriter
+//! [tpcdsgen-arrow]: https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/
+//! [`RecordBatch`]: https://docs.rs/arrow/latest/arrow/array/struct.RecordBatch.html
+//! [`CompatMode`]: config::CompatMode
+//! [`CompatMode::Trino`]: config::CompatMode::Trino
+//! [`CompatMode::C`]: config::CompatMode::C
+//! [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli
+//! [TESTING.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/TESTING.md
+//! [BUGS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcdsgen/BUGS.md
+
 
 pub mod business_key_generator;
 pub mod column;
