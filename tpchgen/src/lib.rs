@@ -4,7 +4,7 @@
 //! dataset data generator in several popular formats.
 //!
 //! [TPC-H]: http://www.tpc.org/tpch/
-//! 
+//!
 //! # Example: TBL output format
 //! ```
 //! # use tpchgen::generators::LineItemGenerator;

@@ -117,7 +117,6 @@
 //! [TESTING.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/TESTING.md
 //! [BUGS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcdsgen/BUGS.md
 
-
 pub mod business_key_generator;
 pub mod column;
 pub mod config;
