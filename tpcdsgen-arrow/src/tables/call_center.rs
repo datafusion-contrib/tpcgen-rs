@@ -11,6 +11,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CallCenterRow, CallCenterRowGenerator};
 
+/// Generate [`CallCenterRow`]s in [`RecordBatch`] format
 pub struct CallCenterArrow {
     inner: CallCenterRowGenerator,
     batch_size: usize,

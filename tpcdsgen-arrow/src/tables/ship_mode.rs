@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{ShipModeRow, ShipModeRowGenerator};
 
+/// Generate [`ShipModeRow`]s in [`RecordBatch`] format
 pub struct ShipModeArrow {
     inner: ShipModeRowGenerator,
     batch_size: usize,

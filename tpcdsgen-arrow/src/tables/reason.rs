@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{ReasonRow, ReasonRowGenerator};
 
+/// Generate [`ReasonRow`]s in [`RecordBatch`] format
 pub struct ReasonArrow {
     inner: ReasonRowGenerator,
     batch_size: usize,

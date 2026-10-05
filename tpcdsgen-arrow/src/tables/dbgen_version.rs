@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{DbgenVersionRow, DbgenVersionRowGenerator};
 
+/// Generate [`DbgenVersionRow`]s in [`RecordBatch`] format
 pub struct DbgenVersionArrow {
     inner: DbgenVersionRowGenerator,
     batch_size: usize,

@@ -10,6 +10,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{DateDimRow, DateDimRowGenerator};
 
+/// Generate [`DateDimRow`]s in [`RecordBatch`] format
 pub struct DateDimArrow {
     inner: DateDimRowGenerator,
     batch_size: usize,

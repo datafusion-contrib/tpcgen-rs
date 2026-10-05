@@ -11,6 +11,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{PromotionRow, PromotionRowGenerator};
 
+/// Generate [`PromotionRow`]s in [`RecordBatch`] format
 pub struct PromotionArrow {
     inner: PromotionRowGenerator,
     batch_size: usize,

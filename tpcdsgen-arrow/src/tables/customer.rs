@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CustomerRow, CustomerRowGenerator};
 
+/// Generate [`CustomerRow`]s in [`RecordBatch`] format
 pub struct CustomerArrow {
     inner: CustomerRowGenerator,
     batch_size: usize,

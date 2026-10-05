@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{TimeDimRow, TimeDimRowGenerator};
 
+/// Generate [`TimeDimRow`]s in [`RecordBatch`] format
 pub struct TimeDimArrow {
     inner: TimeDimRowGenerator,
     batch_size: usize,

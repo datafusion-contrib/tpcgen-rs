@@ -11,6 +11,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{StoreRow, StoreRowGenerator};
 
+/// Generate [`StoreRow`]s in [`RecordBatch`] format
 pub struct StoreArrow {
     inner: StoreRowGenerator,
     batch_size: usize,

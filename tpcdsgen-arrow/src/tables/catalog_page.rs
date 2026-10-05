@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CatalogPageRow, CatalogPageRowGenerator};
 
+/// Generate [`CatalogPageRow`]s in [`RecordBatch`] format
 pub struct CatalogPageArrow {
     inner: CatalogPageRowGenerator,
     batch_size: usize,
