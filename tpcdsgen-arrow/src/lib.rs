@@ -10,7 +10,11 @@
 //! # use tpcdsgen_arrow::StoreSalesArrow;
 //! # use tpcdsgen_arrow::arrow::util::pretty::pretty_format_batches;
 //! // Create a SF=1 session for the store_sales table
-//! let session = SessionBuilder::new().with_scale_factor(1.0).build().unwrap();
+//! let session = SessionBuilder::new()
+//!   .with_scale_factor(1.0)
+//!   .build()
+//!   .unwrap();
+//! // Create the appropriate generator to Arrow
 //! let mut arrow_generator = StoreSalesArrow::new(session)
 //!   .with_batch_size(10);
 //! // The generator is a Rust iterator, producing RecordBatch
