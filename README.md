@@ -3,7 +3,7 @@
 > [!NOTE]
 > Made with ❤️ by [@clflushopt], [@alamb] and [@kevinjqliu]
 >
-> Originally located at [`clflushopt/tpchgen-rs`], the project is now maintained at
+> Originally [`clflushopt/tpchgen-rs`], the project is now maintained at
 > [`datafusion-contrib/tpcgen-rs`]
 
 [@clflushopt]: https://github.com/clflushopt
@@ -27,9 +27,9 @@ Modern, blazing fast and easy to use [TPC-H] and [TPC-DS] benchmark data generat
 
 ## Goal
 
-Democratize the comparison of analytical systems with tools for easily and
-efficiently generating benchmark data for common benchmarks in modern formats
-such as [Apache Parquet], [Apache Arrow], and CSV.
+Democratize the comparison of analytical systems by making it easy to
+efficiently generate benchmark data in modern formats such as [Apache Parquet],
+[Apache Arrow], and CSV.
 
 [Apache Parquet]: https://parquet.apache.org/
 [Apache Arrow]: https://arrow.apache.org/
@@ -38,7 +38,7 @@ such as [Apache Parquet], [Apache Arrow], and CSV.
 
 1. Blazing Speed 🚀
 2. Easy to Use: CLI or embeddable libraries
-3. Obsessively Tested 📋
+3. Obsessively Tested: byte-for-byte identical with the reference generators 📋 
 4. Resource Efficient: multi-core and constant memory use 🧠
 
 ## Quick Start
@@ -61,6 +61,15 @@ See the [`tpcgen-cli`] README for more examples.
 
 [`tpcgen-cli`]: tpcgen-cli/README.md
 
+## Representative Performance (10x Faster)
+
+![Representative Generation Performance](summary-performance.png)
+
+Time to generate TPC-H Scale Factor 100 data in Parquet format. See the
+[performance spreadsheet] for details and more comparisons.
+
+[performance spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=718004686#gid=718004686
+
 ## Sub projects
 
 | Project                            | Description                                                                                          |
@@ -71,15 +80,6 @@ See the [`tpcgen-cli`] README for more examples.
 | [`tpchgen-arrow`](tpchgen-arrow)   | Rust library to generate TPC-H data in [Apache Arrow] format                                         |
 | [`tpcdsgen`](tpcdsgen)             | Rust library to generate TPC-DS data (zero dependencies)                                             |
 | [`tpcdsgen-arrow`](tpcdsgen-arrow) | Rust library to generate TPC-DS data in [Apache Arrow] format                                        |
-
-## Representative Performance (10x Faster)
-
-![Representative Generation Performance](summary-performance.png)
-
-Time to generate TPC-H Scale Factor 100 data in Parquet format. See the
-[performance spreadsheet] for details and more comparisons.
-
-[performance spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=718004686#gid=718004686
 
 ## Testing
 
