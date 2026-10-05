@@ -35,11 +35,11 @@ use crate::table::Table;
 use crate::types::Decimal;
 
 fn min_item_markdown_pct() -> Decimal {
-    Decimal::new(30, 2).unwrap()
+    Decimal::new(30, 2)
 }
 
 fn max_item_markdown_pct() -> Decimal {
-    Decimal::new(90, 2).unwrap()
+    Decimal::new(90, 2)
 }
 const ROW_SIZE_I_PRODUCT_NAME: i32 = 50;
 const ROW_SIZE_I_ITEM_DESC: i32 = 200;

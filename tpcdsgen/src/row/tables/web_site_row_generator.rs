@@ -343,7 +343,7 @@ impl WebSiteRowGenerator {
         // Generate web_tax_percentage
         let mut web_tax_percentage = RandomValueGenerator::generate_uniform_random_decimal(
             Decimal::ZERO,
-            Decimal::new(12, 2)?,
+            Decimal::new(12, 2),
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebTaxPercentage),
         );

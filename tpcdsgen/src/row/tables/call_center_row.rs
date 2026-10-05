@@ -418,7 +418,7 @@ mod tests {
             .gmt_offset(-8)
             .build();
 
-        let tax_percentage = Decimal::new(825, 2).unwrap(); // 8.25%
+        let tax_percentage = Decimal::new(825, 2); // 8.25%
 
         let row = CallCenterRow::builder()
             .set_cc_call_center_sk(1)
