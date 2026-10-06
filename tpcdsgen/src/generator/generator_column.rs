@@ -14,7 +14,7 @@ pub trait GeneratorColumn: Send + Sync {
     fn get_global_column_number(&self) -> i32;
 
     /// Get the number of seeds per row for this generator column  
-    fn get_seeds_per_row(&self) -> i32;
+    fn get_seeds_per_row(&self) -> u32;
 }
 
 #[cfg(test)]
@@ -25,7 +25,7 @@ mod tests {
     struct TestGeneratorColumn {
         table: Table,
         global_column_number: i32,
-        seeds_per_row: i32,
+        seeds_per_row: u32,
     }
 
     impl GeneratorColumn for TestGeneratorColumn {
@@ -37,7 +37,7 @@ mod tests {
             self.global_column_number
         }
 
-        fn get_seeds_per_row(&self) -> i32 {
+        fn get_seeds_per_row(&self) -> u32 {
             self.seeds_per_row
         }
     }

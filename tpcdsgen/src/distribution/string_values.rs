@@ -171,7 +171,7 @@ mod tests {
         let data = &[("rare", 1), ("common", 99)];
 
         let dist = StringValuesDistribution::from_embedded_data(data).unwrap();
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Test multiple picks - should all be valid
         for _ in 0..10 {
@@ -190,7 +190,7 @@ mod tests {
         ];
 
         let dist = StringValuesDistribution::from_multi_weight_data(data).unwrap();
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Pick from second weight list (index 1) - should only get "empty"
         let value = dist.pick_random_value(0, 1, &mut stream);
@@ -208,8 +208,8 @@ mod tests {
         let dist = StringValuesDistribution::from_embedded_data(data).unwrap();
 
         // Same seed should produce same results
-        let mut stream1 = RandomNumberStream::new_with_column(42, 1).unwrap();
-        let mut stream2 = RandomNumberStream::new_with_column(42, 1).unwrap();
+        let mut stream1 = RandomNumberStream::new_with_column(42, 1);
+        let mut stream2 = RandomNumberStream::new_with_column(42, 1);
 
         let value1 = dist.pick_random_value(0, 0, &mut stream1);
         let value2 = dist.pick_random_value(0, 0, &mut stream2);

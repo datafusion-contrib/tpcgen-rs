@@ -109,7 +109,7 @@ impl GeneratorColumn for WebSalesGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             WebSalesGeneratorColumn::WsSoldDateSk => 2,
             WebSalesGeneratorColumn::WsSoldTimeSk => 2,

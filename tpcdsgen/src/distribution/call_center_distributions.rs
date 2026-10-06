@@ -80,22 +80,22 @@ mod tests {
 
     #[test]
     fn test_pick_random_call_center_class() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let class = CallCenterDistributions::pick_random_call_center_class(&mut stream);
         assert!(!class.is_empty());
     }
 
     #[test]
     fn test_pick_random_call_center_hours() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let hours = CallCenterDistributions::pick_random_call_center_hours(&mut stream);
         assert!(!hours.is_empty());
     }
 
     #[test]
     fn test_deterministic_selection() {
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let class1 = CallCenterDistributions::pick_random_call_center_class(&mut stream1);
         let class2 = CallCenterDistributions::pick_random_call_center_class(&mut stream2);

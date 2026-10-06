@@ -55,7 +55,7 @@ impl GeneratorColumn for CatalogPageGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             CatalogPageGeneratorColumn::CpDescription => 100, // S_CP_DESCRIPTION
             CatalogPageGeneratorColumn::CpNulls => 2,

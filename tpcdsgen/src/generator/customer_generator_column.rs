@@ -98,7 +98,7 @@ impl CustomerGeneratorColumn {
     }
 
     /// Get the seeds per row for this column
-    fn seeds_per_row(&self) -> i32 {
+    fn seeds_per_row(&self) -> u32 {
         use CustomerGeneratorColumn::*;
         match self {
             CCustomerSk => 1,
@@ -133,7 +133,7 @@ impl GeneratorColumn for CustomerGeneratorColumn {
         self.global_column_number()
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         self.seeds_per_row()
     }
 }

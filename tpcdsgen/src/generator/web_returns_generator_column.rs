@@ -85,7 +85,7 @@ impl GeneratorColumn for WebReturnsGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             WebReturnsGeneratorColumn::WrReturnedDateSk => 32,
             WebReturnsGeneratorColumn::WrReturnedTimeSk => 32,

@@ -419,28 +419,28 @@ mod tests {
 
     #[test]
     fn test_pick_random_size() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let size = pick_random_size(SizeWeights::Sized, &mut stream);
         assert!(!size.is_empty());
     }
 
     #[test]
     fn test_pick_random_color() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let color = pick_random_color(ColorsWeights::Skewed, &mut stream);
         assert!(!color.is_empty());
     }
 
     #[test]
     fn test_pick_random_unit() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let unit = pick_random_unit(&mut stream);
         assert!(!unit.is_empty());
     }
 
     #[test]
     fn test_pick_random_category_index() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let index = pick_random_category_index(&mut stream);
         assert!(index < 10); // Should be less than number of categories
     }
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_category_class() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let class = pick_random_category_class(0, &mut stream);
         assert!(!class.get_name().is_empty());
         assert!(class.get_brand_count() > 0);
@@ -461,21 +461,21 @@ mod tests {
 
     #[test]
     fn test_pick_random_current_price_range() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let (min, max) = pick_random_current_price_range(&mut stream);
         assert!(min.get_number() <= max.get_number());
     }
 
     #[test]
     fn test_pick_random_manager_id_range() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let (min, max) = pick_random_manager_id_range(IdWeights::Unified, &mut stream);
         assert!(min <= max);
     }
 
     #[test]
     fn test_pick_random_manufact_id_range() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let (min, max) = pick_random_manufact_id_range(IdWeights::Unified, &mut stream);
         assert!(min <= max);
     }

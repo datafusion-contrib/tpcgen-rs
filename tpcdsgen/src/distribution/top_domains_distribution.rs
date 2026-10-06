@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_top_domain() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let domain = TopDomainsDistribution::pick_random_top_domain(&mut stream);
 
         // Should be a non-empty string
@@ -141,8 +141,8 @@ mod tests {
     #[test]
     fn test_pick_random_top_domain_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let domain1 = TopDomainsDistribution::pick_random_top_domain(&mut stream1);
         let domain2 = TopDomainsDistribution::pick_random_top_domain(&mut stream2);
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn test_multiple_picks_are_valid() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Pick multiple domains and verify all are valid
         for _ in 0..10 {

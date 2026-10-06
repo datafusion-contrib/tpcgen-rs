@@ -49,7 +49,7 @@ impl GeneratorColumn for WebPageGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             Self::WpCreationDateSk => 2,
             Self::WpNulls => 2,

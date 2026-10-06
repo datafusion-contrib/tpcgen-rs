@@ -1,12 +1,10 @@
-use crate::{check_argument, error::Result, TpcdsError};
-
 #[derive(Debug, Clone)]
 pub struct RandomNumberStream {
     // Constants matching Java implementation exactly
     seed: i64,
     initial_seed: i64,
-    seeds_used: i32,
-    seeds_per_row: i32,
+    seeds_used: u32,
+    seeds_per_row: u32,
 }
 
 impl RandomNumberStream {
@@ -15,33 +13,27 @@ impl RandomNumberStream {
     const QUOTIENT: i64 = 127773; // the quotient MAX_INT / MULTIPLIER
     const REMAINDER: i64 = 2836; // the remainder MAX_INT % MULTIPLIER
 
-    pub fn new(seeds_per_row: i32) -> Result<Self> {
-        check_argument!(seeds_per_row >= 0, "seedsPerRow must be >=0");
-        Ok(RandomNumberStream {
+    pub fn new(seeds_per_row: u32) -> Self {
+        RandomNumberStream {
             initial_seed: 3,
             seed: 3,
             seeds_used: 0,
             seeds_per_row,
-        })
+        }
     }
 
-    pub fn new_with_column(global_column_number: i32, seeds_per_row: i32) -> Result<Self> {
+    pub fn new_with_column(global_column_number: i32, seeds_per_row: u32) -> Self {
         Self::new_with_base(global_column_number, Self::DEFAULT_SEED_BASE, seeds_per_row)
     }
 
-    pub fn new_with_base(
-        global_column_number: i32,
-        seed_base: i32,
-        seeds_per_row: i32,
-    ) -> Result<Self> {
-        check_argument!(seeds_per_row >= 0, "seedsPerRow must be >=0");
+    pub fn new_with_base(global_column_number: i32, seed_base: i32, seeds_per_row: u32) -> Self {
         let initial_seed = seed_base as i64 + global_column_number as i64 * (i32::MAX as i64 / 799);
-        Ok(RandomNumberStream {
+        RandomNumberStream {
             initial_seed,
             seed: initial_seed,
             seeds_used: 0,
             seeds_per_row,
-        })
+        }
     }
 }
 
@@ -88,7 +80,7 @@ impl RandomNumberStream {
         self.seeds_used = 0;
     }
 
-    pub fn get_seeds_used(&self) -> i32 {
+    pub fn get_seeds_used(&self) -> u32 {
         self.seeds_used
     }
 
@@ -96,7 +88,7 @@ impl RandomNumberStream {
         self.seeds_used = 0;
     }
 
-    pub fn get_seeds_per_row(&self) -> i32 {
+    pub fn get_seeds_per_row(&self) -> u32 {
         self.seeds_per_row
     }
 }
@@ -107,14 +99,14 @@ mod tests {
 
     #[test]
     fn test_random_stream_creation() {
-        let stream = RandomNumberStream::new(1).unwrap();
+        let stream = RandomNumberStream::new(1);
         assert_eq!(stream.get_seeds_per_row(), 1);
         assert_eq!(stream.get_seeds_used(), 0);
     }
 
     #[test]
     fn test_random_stream_with_column() {
-        let stream = RandomNumberStream::new_with_column(1, 1).unwrap();
+        let stream = RandomNumberStream::new_with_column(1, 1);
         assert_eq!(stream.get_seeds_per_row(), 1);
 
         // Initial seed should be computed based on column number
@@ -123,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_next_random() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let first = stream.next_random();
         let second = stream.next_random();
 
@@ -134,7 +126,7 @@ mod tests {
 
     #[test]
     fn test_random_double() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let random_double = stream.next_random_double();
 
         // Should be between 0 and 1
@@ -143,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_reset_seed() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let initial = stream.next_random();
         stream.next_random(); // Generate another
 
@@ -156,8 +148,8 @@ mod tests {
 
     #[test]
     fn test_skip_rows() {
-        let mut stream1 = RandomNumberStream::new(2).unwrap();
-        let mut stream2 = RandomNumberStream::new(2).unwrap();
+        let mut stream1 = RandomNumberStream::new(2);
+        let mut stream2 = RandomNumberStream::new(2);
 
         // Generate 2 rows manually on stream1
         stream1.next_random();

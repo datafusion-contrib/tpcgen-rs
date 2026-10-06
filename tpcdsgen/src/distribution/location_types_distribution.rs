@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_location_type() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let location_type = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::DistributionFrequency,
             &mut stream,
@@ -173,8 +173,8 @@ mod tests {
     #[test]
     fn test_pick_random_location_type_deterministic() {
         // Same seed should produce same result
-        let mut stream1 = RandomNumberStream::new(42).unwrap();
-        let mut stream2 = RandomNumberStream::new(42).unwrap();
+        let mut stream1 = RandomNumberStream::new(42);
+        let mut stream2 = RandomNumberStream::new(42);
 
         let type1 = LocationTypesDistribution::pick_random_location_type(
             LocationTypeWeights::Uniform,
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_both_weight_types() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Both weight types should work
         let type_uniform = LocationTypesDistribution::pick_random_location_type(

@@ -92,7 +92,7 @@ impl GeneratorColumn for CustomerAddressGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             CustomerAddressGeneratorColumn::CaAddressSk => 1,
             CustomerAddressGeneratorColumn::CaAddressId => 1,

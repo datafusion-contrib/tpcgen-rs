@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_pick_random_index_from_weights() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         let weights = vec![10, 30, 60, 100]; // Cumulative weights
 
         // Test multiple selections to ensure they're in valid range
@@ -234,13 +234,13 @@ mod tests {
     #[test]
     #[should_panic(expected = "same size")]
     fn test_pick_random_value_mismatched_lengths() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         pick_random_value(&["a", "b"], &[10, 20, 30], &mut stream);
     }
 
     #[test]
     fn test_pick_random_index_uniform() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         for _ in 0..10 {
             let index = DistributionUtils::pick_random_index_uniform(5, &mut stream);
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "empty weights")]
     fn test_pick_random_index_empty() {
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
         DistributionUtils::pick_random_index_from_weights(&[], &mut stream);
     }
 
@@ -291,8 +291,8 @@ mod tests {
         // Test that same seed produces same results
         let weights = vec![25, 50, 75, 100];
 
-        let mut stream1 = RandomNumberStream::new_with_column(1, 1).unwrap();
-        let mut stream2 = RandomNumberStream::new_with_column(1, 1).unwrap();
+        let mut stream1 = RandomNumberStream::new_with_column(1, 1);
+        let mut stream2 = RandomNumberStream::new_with_column(1, 1);
 
         let index1 = DistributionUtils::pick_random_index_from_weights(&weights, &mut stream1);
         let index2 = DistributionUtils::pick_random_index_from_weights(&weights, &mut stream2);

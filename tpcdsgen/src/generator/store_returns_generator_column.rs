@@ -77,7 +77,7 @@ impl GeneratorColumn for StoreReturnsGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             StoreReturnsGeneratorColumn::SrReturnedDateSk => 32,
             StoreReturnsGeneratorColumn::SrReturnedTimeSk => 32,

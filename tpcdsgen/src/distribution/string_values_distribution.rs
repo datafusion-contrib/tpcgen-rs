@@ -155,7 +155,7 @@ mod tests {
         )
         .unwrap();
 
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Pick using uniform weights (index 0)
         let center1 = dist.pick_random_value(0, 0, &mut stream);
@@ -177,7 +177,7 @@ mod tests {
 
         assert!(dist.get_size() > 100); // Should have many names
 
-        let mut stream = RandomNumberStream::new(1).unwrap();
+        let mut stream = RandomNumberStream::new(1);
 
         // Pick using male frequency weights (index 0)
         let male_name = dist.pick_random_value(0, 0, &mut stream);
@@ -198,8 +198,8 @@ mod tests {
             StringValuesDistribution::build_string_values_distribution("call_centers.dst", 1, 2)
                 .unwrap();
 
-        let mut stream1 = RandomNumberStream::new(1).unwrap();
-        let mut stream2 = RandomNumberStream::new(1).unwrap();
+        let mut stream1 = RandomNumberStream::new(1);
+        let mut stream2 = RandomNumberStream::new(1);
 
         let result1 = dist.pick_random_value(0, 0, &mut stream1);
         let result2 = dist.pick_random_value(0, 0, &mut stream2);

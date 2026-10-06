@@ -96,7 +96,7 @@ impl GeneratorColumn for PromotionGeneratorColumn {
         }
     }
 
-    fn get_seeds_per_row(&self) -> i32 {
+    fn get_seeds_per_row(&self) -> u32 {
         match self {
             PromotionGeneratorColumn::PChannelDetails => 100,
             PromotionGeneratorColumn::PNulls => 2,
