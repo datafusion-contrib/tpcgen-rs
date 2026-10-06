@@ -83,48 +83,17 @@ impl StringValuesDistribution {
         value_list_index: usize,
         weight_list_index: usize,
         stream: &mut RandomNumberStream,
-    ) -> Result<&str> {
-        if value_list_index >= self.values_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Value list index {} out of range, max is {}",
-                value_list_index,
-                self.values_lists.len() - 1
-            )));
-        }
-
-        if weight_list_index >= self.weights_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Weight list index {} out of range, max is {}",
-                weight_list_index,
-                self.weights_lists.len() - 1
-            )));
-        }
-
-        let value = pick_random_value(
+    ) -> &str {
+        pick_random_value(
             &self.values_lists[value_list_index],
             &self.weights_lists[weight_list_index],
             stream,
-        )?;
-
-        Ok(value)
+        )
     }
 
     /// Get a value by index modulo the size of the list
-    pub fn get_value_for_index_mod_size(
-        &self,
-        index: i64,
-        value_list_index: usize,
-    ) -> Result<&str> {
-        if value_list_index >= self.values_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Value list index {} out of range, max is {}",
-                value_list_index,
-                self.values_lists.len() - 1
-            )));
-        }
-
-        let value = get_value_for_index_mod_size(index, &self.values_lists[value_list_index]);
-        Ok(value)
+    pub fn get_value_for_index_mod_size(&self, index: i64, value_list_index: usize) -> &str {
+        get_value_for_index_mod_size(index, &self.values_lists[value_list_index])
     }
 
     /// Pick a random index from the specified weight list
@@ -132,28 +101,12 @@ impl StringValuesDistribution {
         &self,
         weight_list_index: usize,
         stream: &mut RandomNumberStream,
-    ) -> Result<usize> {
-        if weight_list_index >= self.weights_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Weight list index {} out of range, max is {}",
-                weight_list_index,
-                self.weights_lists.len() - 1
-            )));
-        }
-
+    ) -> usize {
         pick_random_index(&self.weights_lists[weight_list_index], stream)
     }
 
     /// Get the weight for a specific index
-    pub fn get_weight_for_index(&self, index: usize, weight_list_index: usize) -> Result<i32> {
-        if weight_list_index >= self.weights_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Weight list index {} out of range, max is {}",
-                weight_list_index,
-                self.weights_lists.len() - 1
-            )));
-        }
-
+    pub fn get_weight_for_index(&self, index: usize, weight_list_index: usize) -> i32 {
         get_weight_for_index(index, &self.weights_lists[weight_list_index])
     }
 
@@ -167,24 +120,8 @@ impl StringValuesDistribution {
     }
 
     /// Get a specific value at a specific index
-    pub fn get_value_at_index(&self, value_list_index: usize, value_index: usize) -> Result<&str> {
-        if value_list_index >= self.values_lists.len() {
-            return Err(TpcdsError::new(&format!(
-                "Value list index {} out of range, max is {}",
-                value_list_index,
-                self.values_lists.len() - 1
-            )));
-        }
-
-        if value_index >= self.values_lists[value_list_index].len() {
-            return Err(TpcdsError::new(&format!(
-                "Value index {} out of range, max is {}",
-                value_index,
-                self.values_lists[value_list_index].len() - 1
-            )));
-        }
-
-        Ok(&self.values_lists[value_list_index][value_index])
+    pub fn get_value_at_index(&self, value_list_index: usize, value_index: usize) -> &str {
+        &self.values_lists[value_list_index][value_index]
     }
 }
 
@@ -205,7 +142,7 @@ mod tests {
         assert!(dist.get_size() > 0);
 
         // Check we can get a value by index
-        let first_center = dist.get_value_at_index(0, 0).unwrap();
+        let first_center = dist.get_value_at_index(0, 0);
         assert!(!first_center.is_empty());
     }
 
@@ -221,11 +158,11 @@ mod tests {
         let mut stream = RandomNumberStream::new(1);
 
         // Pick using uniform weights (index 0)
-        let center1 = dist.pick_random_value(0, 0, &mut stream).unwrap();
+        let center1 = dist.pick_random_value(0, 0, &mut stream);
         assert!(!center1.is_empty());
 
         // Pick using sales percentage weights (index 1)
-        let center2 = dist.pick_random_value(0, 1, &mut stream).unwrap();
+        let center2 = dist.pick_random_value(0, 1, &mut stream);
         assert!(!center2.is_empty());
     }
 
@@ -243,15 +180,15 @@ mod tests {
         let mut stream = RandomNumberStream::new(1);
 
         // Pick using male frequency weights (index 0)
-        let male_name = dist.pick_random_value(0, 0, &mut stream).unwrap();
+        let male_name = dist.pick_random_value(0, 0, &mut stream);
         assert!(!male_name.is_empty());
 
         // Pick using female frequency weights (index 1)
-        let female_name = dist.pick_random_value(0, 1, &mut stream).unwrap();
+        let female_name = dist.pick_random_value(0, 1, &mut stream);
         assert!(!female_name.is_empty());
 
         // Pick using general frequency weights (index 2)
-        let general_name = dist.pick_random_value(0, 2, &mut stream).unwrap();
+        let general_name = dist.pick_random_value(0, 2, &mut stream);
         assert!(!general_name.is_empty());
     }
 
@@ -264,8 +201,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new(1);
         let mut stream2 = RandomNumberStream::new(1);
 
-        let result1 = dist.pick_random_value(0, 0, &mut stream1).unwrap();
-        let result2 = dist.pick_random_value(0, 0, &mut stream2).unwrap();
+        let result1 = dist.pick_random_value(0, 0, &mut stream1);
+        let result2 = dist.pick_random_value(0, 0, &mut stream2);
 
         // Should be deterministic with same seed
         assert_eq!(result1, result2);

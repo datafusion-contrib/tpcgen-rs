@@ -102,10 +102,9 @@ impl TopDomainsDistribution {
     /// # Returns
     ///
     /// A domain suffix string (e.g., "com", "org", "edu")
-    pub fn pick_random_top_domain(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_top_domain(stream: &mut RandomNumberStream) -> String {
         let dist = Self::get_instance();
-        let value_ref = pick_random_value(&dist.values, &dist.weights_list, stream)?;
-        Ok(value_ref.clone())
+        pick_random_value(&dist.values, &dist.weights_list, stream).clone()
     }
 }
 
@@ -126,7 +125,7 @@ mod tests {
     #[test]
     fn test_pick_random_top_domain() {
         let mut stream = RandomNumberStream::new(1);
-        let domain = TopDomainsDistribution::pick_random_top_domain(&mut stream).unwrap();
+        let domain = TopDomainsDistribution::pick_random_top_domain(&mut stream);
 
         // Should be a non-empty string
         assert!(!domain.is_empty(), "Domain should not be empty");
@@ -145,8 +144,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new(42);
         let mut stream2 = RandomNumberStream::new(42);
 
-        let domain1 = TopDomainsDistribution::pick_random_top_domain(&mut stream1).unwrap();
-        let domain2 = TopDomainsDistribution::pick_random_top_domain(&mut stream2).unwrap();
+        let domain1 = TopDomainsDistribution::pick_random_top_domain(&mut stream1);
+        let domain2 = TopDomainsDistribution::pick_random_top_domain(&mut stream2);
 
         assert_eq!(domain1, domain2, "Same seed should produce same domain");
     }
@@ -169,7 +168,7 @@ mod tests {
 
         // Pick multiple domains and verify all are valid
         for _ in 0..10 {
-            let domain = TopDomainsDistribution::pick_random_top_domain(&mut stream).unwrap();
+            let domain = TopDomainsDistribution::pick_random_top_domain(&mut stream);
             assert!(!domain.is_empty(), "All picked domains should be non-empty");
         }
     }

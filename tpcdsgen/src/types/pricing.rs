@@ -33,11 +33,11 @@ impl Pricing {
 
     // Predefined markup and discount minimums
     pub fn markup_min() -> Decimal {
-        Decimal::new(0, 2).unwrap()
+        Decimal::new(0, 2)
     }
 
     pub fn discount_min() -> Decimal {
-        Decimal::new(0, 2).unwrap()
+        Decimal::new(0, 2)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -241,7 +241,7 @@ pub fn generate_pricing_for_sales_table(
     );
     let decimal_quantity = Decimal::from_integer(quantity);
     let wholesale_cost = RandomValueGenerator::generate_uniform_random_decimal(
-        Decimal::new(100, 2).unwrap(), // 1.00
+        Decimal::new(100, 2), // 1.00
         limits.get_max_wholesale_cost(),
         stream,
     );
@@ -339,7 +339,7 @@ pub fn get_store_sales_pricing_limits() -> PricingLimits {
 pub fn get_web_sales_pricing_limits() -> PricingLimits {
     PricingLimits::new(
         100,
-        Decimal::new(200, 2).unwrap(), // 2.00
+        Decimal::new(200, 2), // 2.00
         Decimal::ONE,
         Decimal::ONE_HUNDRED,
     )
@@ -350,7 +350,7 @@ pub fn get_catalog_sales_pricing_limits() -> PricingLimits {
     // CS_QUANTITY_MAX = 100, CS_MARKUP_MAX = 2.00, CS_DISCOUNT_MAX = 1.00, CS_WHOLESALE_MAX = 100.00
     PricingLimits::new(
         100,
-        Decimal::new(200, 2).unwrap(), // 2.00
+        Decimal::new(200, 2), // 2.00
         Decimal::ONE,
         Decimal::ONE_HUNDRED,
     )
@@ -468,29 +468,29 @@ mod tests {
     #[test]
     fn test_pricing_creation() {
         let pricing = Pricing::new(
-            Decimal::new(1000, 2).unwrap(), // wholesale_cost: 10.00
-            Decimal::new(1500, 2).unwrap(), // list_price: 15.00
-            Decimal::new(1200, 2).unwrap(), // sales_price: 12.00
-            5,                              // quantity
-            Decimal::new(300, 2).unwrap(),  // ext_discount_amount: 3.00
-            Decimal::new(6000, 2).unwrap(), // ext_sales_price: 60.00
-            Decimal::new(5000, 2).unwrap(), // ext_wholesale_cost: 50.00
-            Decimal::new(7500, 2).unwrap(), // ext_list_price: 75.00
-            Decimal::new(8, 2).unwrap(),    // tax_percent: 0.08
-            Decimal::new(480, 2).unwrap(),  // ext_tax: 4.80
-            Decimal::new(100, 2).unwrap(),  // coupon_amount: 1.00
-            Decimal::new(200, 2).unwrap(),  // ship_cost: 2.00
-            Decimal::new(1000, 2).unwrap(), // ext_ship_cost: 10.00
-            Decimal::new(5900, 2).unwrap(), // net_paid: 59.00
-            Decimal::new(6380, 2).unwrap(), // net_paid_including_tax: 63.80
-            Decimal::new(6900, 2).unwrap(), // net_paid_including_shipping: 69.00
-            Decimal::new(7380, 2).unwrap(), // net_paid_including_shipping_and_tax: 73.80
-            Decimal::new(900, 2).unwrap(),  // net_profit: 9.00
-            Decimal::ZERO,                  // refunded_cash
-            Decimal::ZERO,                  // reversed_charge
-            Decimal::ZERO,                  // store_credit
-            Decimal::ZERO,                  // fee
-            Decimal::ZERO,                  // net_loss
+            Decimal::new(1000, 2), // wholesale_cost: 10.00
+            Decimal::new(1500, 2), // list_price: 15.00
+            Decimal::new(1200, 2), // sales_price: 12.00
+            5,                     // quantity
+            Decimal::new(300, 2),  // ext_discount_amount: 3.00
+            Decimal::new(6000, 2), // ext_sales_price: 60.00
+            Decimal::new(5000, 2), // ext_wholesale_cost: 50.00
+            Decimal::new(7500, 2), // ext_list_price: 75.00
+            Decimal::new(8, 2),    // tax_percent: 0.08
+            Decimal::new(480, 2),  // ext_tax: 4.80
+            Decimal::new(100, 2),  // coupon_amount: 1.00
+            Decimal::new(200, 2),  // ship_cost: 2.00
+            Decimal::new(1000, 2), // ext_ship_cost: 10.00
+            Decimal::new(5900, 2), // net_paid: 59.00
+            Decimal::new(6380, 2), // net_paid_including_tax: 63.80
+            Decimal::new(6900, 2), // net_paid_including_shipping: 69.00
+            Decimal::new(7380, 2), // net_paid_including_shipping_and_tax: 73.80
+            Decimal::new(900, 2),  // net_profit: 9.00
+            Decimal::ZERO,         // refunded_cash
+            Decimal::ZERO,         // reversed_charge
+            Decimal::ZERO,         // store_credit
+            Decimal::ZERO,         // fee
+            Decimal::ZERO,         // net_loss
         );
 
         assert_eq!(pricing.get_quantity(), 5);

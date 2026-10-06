@@ -9,10 +9,10 @@ pub trait Distribution<T> {
         value_list: usize,
         weight_list: usize,
         stream: &mut RandomNumberStream,
-    ) -> Result<T>;
+    ) -> T;
 
     /// Get value at specific index
-    fn get_value_at_index(&self, value_list: usize, index: usize) -> Result<T>;
+    fn get_value_at_index(&self, value_list: usize, index: usize) -> T;
 
     /// Get number of values in a list
     fn get_value_count(&self, value_list: usize) -> usize;
@@ -55,40 +55,18 @@ impl WeightsBuilder {
 
 /// Pick a random value from values list based on weights (DistributionUtils.pickRandomValue)
 ///
-/// Weights must be nondecreasing.
+/// Weights must be nondecreasing and the same length as `values`.
 pub fn pick_random_value<'a, T>(
     values: &'a [T],
     weights: &[i32],
     stream: &mut RandomNumberStream,
-) -> Result<&'a T> {
-    use crate::random::RandomValueGenerator;
-
-    if values.len() != weights.len() {
-        return Err(TpcdsError::new(
-            "Values and weights lists must be the same size",
-        ));
-    }
-
-    if weights.is_empty() {
-        return Err(TpcdsError::new("Cannot pick from empty distribution"));
-    }
-
-    let max_weight = weights[weights.len() - 1];
-    let random_weight = RandomValueGenerator::generate_uniform_random_int(1, max_weight, stream);
-
-    get_value_for_weight(random_weight, values, weights)
-}
-
-/// Get value for specific weight (DistributionUtils.getValueForWeight)
-fn get_value_for_weight<'a, T>(weight: i32, values: &'a [T], weights: &[i32]) -> Result<&'a T> {
-    if values.len() != weights.len() {
-        return Err(TpcdsError::new(
-            "Values and weights lists must be the same size",
-        ));
-    }
-
-    let index = get_index_for_weight(weight, weights)?;
-    Ok(&values[index])
+) -> &'a T {
+    assert_eq!(
+        values.len(),
+        weights.len(),
+        "Values and weights lists must be the same size"
+    );
+    &values[pick_random_index(weights, stream)]
 }
 
 /// Get value for index modulo size (DistributionUtils.getValueForIndexModSize)
@@ -100,45 +78,35 @@ pub fn get_value_for_index_mod_size<T>(index: i64, values: &[T]) -> &T {
 
 /// Pick random index from weights (DistributionUtils.pickRandomIndex)
 ///
-/// Weights must be nondecreasing.
-pub fn pick_random_index(weights: &[i32], stream: &mut RandomNumberStream) -> Result<usize> {
+/// Weights must be nondecreasing and non-empty.
+pub fn pick_random_index(weights: &[i32], stream: &mut RandomNumberStream) -> usize {
     use crate::random::RandomValueGenerator;
 
-    if weights.is_empty() {
-        return Err(TpcdsError::new("Cannot pick from empty weights"));
-    }
-
-    let max_weight = weights[weights.len() - 1];
+    let max_weight = *weights.last().expect("Cannot pick from empty weights");
     let random_weight = RandomValueGenerator::generate_uniform_random_int(1, max_weight, stream);
 
     get_index_for_weight(random_weight, weights)
 }
 
 /// Get index for specific weight (DistributionUtils.getIndexForWeight)
-fn get_index_for_weight(weight: i32, weights: &[i32]) -> Result<usize> {
+///
+/// `weight` must not exceed the last (largest) weight.
+fn get_index_for_weight(weight: i32, weights: &[i32]) -> usize {
     let index = weights.partition_point(|&w| w < weight);
-    if index < weights.len() {
-        Ok(index)
-    } else {
-        Err(TpcdsError::new("Random weight was greater than max weight"))
-    }
+    assert!(
+        index < weights.len(),
+        "Weight {weight} is greater than max weight"
+    );
+    index
 }
 
 /// Get weight for specific index (DistributionUtils.getWeightForIndex)
-pub fn get_weight_for_index(index: usize, weights: &[i32]) -> Result<i32> {
-    if index >= weights.len() {
-        return Err(TpcdsError::new(&format!(
-            "Index {} larger than distribution size {}",
-            index,
-            weights.len()
-        )));
-    }
-
+pub fn get_weight_for_index(index: usize, weights: &[i32]) -> i32 {
     // Reverse the accumulation of weights
     if index == 0 {
-        Ok(weights[index])
+        weights[index]
     } else {
-        Ok(weights[index] - weights[index - 1])
+        weights[index] - weights[index - 1]
     }
 }
 
@@ -158,39 +126,19 @@ impl DistributionUtils {
     pub fn pick_random_index_from_weights(
         weights: &[i32],
         stream: &mut RandomNumberStream,
-    ) -> Result<usize> {
-        if weights.is_empty() {
-            return Err(TpcdsError::new("Cannot pick from empty weights"));
-        }
-
-        let max_weight = *weights.last().unwrap();
-        if max_weight <= 0 {
-            return Err(TpcdsError::new("Total weight must be positive"));
-        }
-
-        // Generate random number in range [1, max_weight] (inclusive)
-        // This matches the Java implementation exactly
-        let random_weight =
-            crate::random::RandomValueGenerator::generate_uniform_random_int(1, max_weight, stream);
-
-        get_index_for_weight(random_weight, weights)
+    ) -> usize {
+        pick_random_index(weights, stream)
     }
 
     /// Pick random index with uniform distribution (for non-weighted selection)
-    pub fn pick_random_index_uniform(
-        count: usize,
-        stream: &mut RandomNumberStream,
-    ) -> Result<usize> {
-        if count == 0 {
-            return Err(TpcdsError::new("Cannot pick from empty collection"));
-        }
-
+    pub fn pick_random_index_uniform(count: usize, stream: &mut RandomNumberStream) -> usize {
+        assert!(count > 0, "Cannot pick from empty collection");
         let index = crate::random::RandomValueGenerator::generate_uniform_random_int(
             0,
             count as i32 - 1,
             stream,
         );
-        Ok(index as usize)
+        index as usize
     }
 
     /// Parse comma-separated list of values (utility for file parsing)
@@ -261,8 +209,7 @@ mod tests {
 
         // Test multiple selections to ensure they're in valid range
         for _ in 0..10 {
-            let index =
-                DistributionUtils::pick_random_index_from_weights(&weights, &mut stream).unwrap();
+            let index = DistributionUtils::pick_random_index_from_weights(&weights, &mut stream);
             assert!(index < weights.len());
         }
     }
@@ -270,26 +217,25 @@ mod tests {
     #[test]
     fn test_weight_lookup_boundaries() {
         let weights = [0, 10, 10, 20, 40];
-        let values = ["zero", "first ten", "second ten", "twenty", "forty"];
 
-        assert_eq!(get_index_for_weight(0, &weights).unwrap(), 0);
-        assert_eq!(get_index_for_weight(1, &weights).unwrap(), 1);
-        assert_eq!(get_index_for_weight(10, &weights).unwrap(), 1);
-        assert_eq!(get_index_for_weight(11, &weights).unwrap(), 3);
-        assert_eq!(get_index_for_weight(40, &weights).unwrap(), 4);
-        assert!(get_index_for_weight(41, &weights).is_err());
-        assert!(get_index_for_weight(1, &[]).is_err());
+        assert_eq!(get_index_for_weight(0, &weights), 0);
+        assert_eq!(get_index_for_weight(1, &weights), 1);
+        assert_eq!(get_index_for_weight(10, &weights), 1);
+        assert_eq!(get_index_for_weight(11, &weights), 3);
+        assert_eq!(get_index_for_weight(40, &weights), 4);
+    }
 
-        assert_eq!(
-            get_value_for_weight(10, &values, &weights).unwrap(),
-            &"first ten"
-        );
-        assert_eq!(
-            get_value_for_weight(11, &values, &weights).unwrap(),
-            &"twenty"
-        );
-        assert!(get_value_for_weight(1, &[] as &[i32], &[]).is_err());
-        assert!(get_value_for_weight(1, &values[..4], &weights).is_err());
+    #[test]
+    #[should_panic(expected = "greater than max weight")]
+    fn test_weight_lookup_above_max() {
+        get_index_for_weight(41, &[0, 10, 10, 20, 40]);
+    }
+
+    #[test]
+    #[should_panic(expected = "same size")]
+    fn test_pick_random_value_mismatched_lengths() {
+        let mut stream = RandomNumberStream::new(1);
+        pick_random_value(&["a", "b"], &[10, 20, 30], &mut stream);
     }
 
     #[test]
@@ -297,16 +243,16 @@ mod tests {
         let mut stream = RandomNumberStream::new(1);
 
         for _ in 0..10 {
-            let index = DistributionUtils::pick_random_index_uniform(5, &mut stream).unwrap();
+            let index = DistributionUtils::pick_random_index_uniform(5, &mut stream);
             assert!(index < 5);
         }
     }
 
     #[test]
+    #[should_panic(expected = "empty weights")]
     fn test_pick_random_index_empty() {
         let mut stream = RandomNumberStream::new(1);
-        assert!(DistributionUtils::pick_random_index_from_weights(&[], &mut stream).is_err());
-        assert!(DistributionUtils::pick_random_index_uniform(0, &mut stream).is_err());
+        DistributionUtils::pick_random_index_from_weights(&[], &mut stream);
     }
 
     #[test]
@@ -348,10 +294,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new_with_column(1, 1);
         let mut stream2 = RandomNumberStream::new_with_column(1, 1);
 
-        let index1 =
-            DistributionUtils::pick_random_index_from_weights(&weights, &mut stream1).unwrap();
-        let index2 =
-            DistributionUtils::pick_random_index_from_weights(&weights, &mut stream2).unwrap();
+        let index1 = DistributionUtils::pick_random_index_from_weights(&weights, &mut stream1);
+        let index2 = DistributionUtils::pick_random_index_from_weights(&weights, &mut stream2);
 
         assert_eq!(index1, index2); // Should be deterministic
     }

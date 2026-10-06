@@ -1,5 +1,4 @@
 use crate::distribution::{Distribution, StringValuesDistribution};
-use crate::error::Result;
 use crate::random::RandomNumberStream;
 use std::sync::OnceLock;
 
@@ -295,65 +294,53 @@ impl EnglishDistributions {
 
     // Public API methods (matching Java interface)
 
-    pub fn pick_random_adjective(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_adjective(stream: &mut RandomNumberStream) -> String {
         Self::adjectives_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_adverb(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_adverb(stream: &mut RandomNumberStream) -> String {
         Self::adverbs_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_article(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_article(stream: &mut RandomNumberStream) -> String {
         Self::articles_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_auxiliary(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_auxiliary(stream: &mut RandomNumberStream) -> String {
         Self::auxiliaries_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_noun(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_noun(stream: &mut RandomNumberStream) -> String {
         Self::nouns_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_preposition(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_preposition(stream: &mut RandomNumberStream) -> String {
         Self::prepositions_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_verb(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_verb(stream: &mut RandomNumberStream) -> String {
         Self::verbs_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_terminator(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_terminator(stream: &mut RandomNumberStream) -> String {
         Self::terminators_distribution().pick_random_value(0, 0, stream)
     }
 
-    pub fn pick_random_sentence(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_sentence(stream: &mut RandomNumberStream) -> String {
         Self::sentences_distribution().pick_random_value(0, 0, stream)
     }
 
     /// Generate a random phrase by combining words
-    pub fn generate_random_phrase(
-        stream: &mut RandomNumberStream,
-        word_count: usize,
-    ) -> Result<String> {
-        if word_count == 0 {
-            return Ok(String::new());
-        }
-
-        let mut words = Vec::new();
-
-        for i in 0..word_count {
-            let word = match i % 4 {
-                0 => Self::pick_random_article(stream)?,
-                1 => Self::pick_random_adjective(stream)?,
-                2 => Self::pick_random_noun(stream)?,
-                3 => Self::pick_random_verb(stream)?,
-                _ => Self::pick_random_noun(stream)?,
-            };
-            words.push(word);
-        }
-
-        Ok(words.join(" "))
+    pub fn generate_random_phrase(stream: &mut RandomNumberStream, word_count: usize) -> String {
+        let words: Vec<String> = (0..word_count)
+            .map(|i| match i % 4 {
+                0 => Self::pick_random_article(stream),
+                1 => Self::pick_random_adjective(stream),
+                2 => Self::pick_random_noun(stream),
+                _ => Self::pick_random_verb(stream),
+            })
+            .collect();
+        words.join(" ")
     }
 }
 
@@ -365,7 +352,7 @@ mod tests {
     #[test]
     fn test_pick_random_adjective() {
         let mut stream = RandomNumberStream::new(1);
-        let adjective = EnglishDistributions::pick_random_adjective(&mut stream).unwrap();
+        let adjective = EnglishDistributions::pick_random_adjective(&mut stream);
         assert!(!adjective.is_empty());
         println!("Random adjective: {}", adjective);
     }
@@ -373,7 +360,7 @@ mod tests {
     #[test]
     fn test_pick_random_adverb() {
         let mut stream = RandomNumberStream::new(1);
-        let adverb = EnglishDistributions::pick_random_adverb(&mut stream).unwrap();
+        let adverb = EnglishDistributions::pick_random_adverb(&mut stream);
         assert!(!adverb.is_empty());
         println!("Random adverb: {}", adverb);
     }
@@ -381,7 +368,7 @@ mod tests {
     #[test]
     fn test_pick_random_article() {
         let mut stream = RandomNumberStream::new(1);
-        let article = EnglishDistributions::pick_random_article(&mut stream).unwrap();
+        let article = EnglishDistributions::pick_random_article(&mut stream);
         assert!(article == "the" || article == "a" || article == "an");
         println!("Random article: {}", article);
     }
@@ -389,7 +376,7 @@ mod tests {
     #[test]
     fn test_pick_random_noun() {
         let mut stream = RandomNumberStream::new(1);
-        let noun = EnglishDistributions::pick_random_noun(&mut stream).unwrap();
+        let noun = EnglishDistributions::pick_random_noun(&mut stream);
         assert!(!noun.is_empty());
         println!("Random noun: {}", noun);
     }
@@ -397,7 +384,7 @@ mod tests {
     #[test]
     fn test_pick_random_verb() {
         let mut stream = RandomNumberStream::new(1);
-        let verb = EnglishDistributions::pick_random_verb(&mut stream).unwrap();
+        let verb = EnglishDistributions::pick_random_verb(&mut stream);
         assert!(!verb.is_empty());
         println!("Random verb: {}", verb);
     }
@@ -405,7 +392,7 @@ mod tests {
     #[test]
     fn test_pick_random_sentence() {
         let mut stream = RandomNumberStream::new(1);
-        let sentence = EnglishDistributions::pick_random_sentence(&mut stream).unwrap();
+        let sentence = EnglishDistributions::pick_random_sentence(&mut stream);
         assert!(!sentence.is_empty());
         println!("Random sentence: {}", sentence);
     }
@@ -414,13 +401,13 @@ mod tests {
     fn test_generate_random_phrase() {
         let mut stream = RandomNumberStream::new(1);
 
-        let phrase = EnglishDistributions::generate_random_phrase(&mut stream, 4).unwrap();
+        let phrase = EnglishDistributions::generate_random_phrase(&mut stream, 4);
         assert!(!phrase.is_empty());
         assert!(phrase.contains(' ')); // Should have spaces between words
         println!("Random phrase: {}", phrase);
 
         // Test empty phrase
-        let empty_phrase = EnglishDistributions::generate_random_phrase(&mut stream, 0).unwrap();
+        let empty_phrase = EnglishDistributions::generate_random_phrase(&mut stream, 0);
         assert!(empty_phrase.is_empty());
     }
 
@@ -430,8 +417,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new_with_column(42, 1);
         let mut stream2 = RandomNumberStream::new_with_column(42, 1);
 
-        let word1 = EnglishDistributions::pick_random_noun(&mut stream1).unwrap();
-        let word2 = EnglishDistributions::pick_random_noun(&mut stream2).unwrap();
+        let word1 = EnglishDistributions::pick_random_noun(&mut stream1);
+        let word2 = EnglishDistributions::pick_random_noun(&mut stream2);
 
         assert_eq!(word1, word2);
     }
@@ -441,15 +428,15 @@ mod tests {
         let mut stream = RandomNumberStream::new(1);
 
         // Test that all distribution methods work without panicking
-        assert!(EnglishDistributions::pick_random_adjective(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_adverb(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_article(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_auxiliary(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_noun(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_preposition(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_verb(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_terminator(&mut stream).is_ok());
-        assert!(EnglishDistributions::pick_random_sentence(&mut stream).is_ok());
+        EnglishDistributions::pick_random_adjective(&mut stream);
+        EnglishDistributions::pick_random_adverb(&mut stream);
+        EnglishDistributions::pick_random_article(&mut stream);
+        EnglishDistributions::pick_random_auxiliary(&mut stream);
+        EnglishDistributions::pick_random_noun(&mut stream);
+        EnglishDistributions::pick_random_preposition(&mut stream);
+        EnglishDistributions::pick_random_verb(&mut stream);
+        EnglishDistributions::pick_random_terminator(&mut stream);
+        EnglishDistributions::pick_random_sentence(&mut stream);
     }
 
     #[test]
@@ -459,7 +446,7 @@ mod tests {
         // Generate multiple words and ensure we get variety
         let mut words = std::collections::HashSet::new();
         for _ in 0..20 {
-            let word = EnglishDistributions::pick_random_noun(&mut stream).unwrap();
+            let word = EnglishDistributions::pick_random_noun(&mut stream);
             words.insert(word);
         }
 

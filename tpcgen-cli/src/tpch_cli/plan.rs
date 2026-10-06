@@ -40,18 +40,17 @@ use tpchgen::generators::{
 ///
 /// # Example
 /// ```
-/// use tpcgen_cli::tpch_cli::{GenerationPlan, OutputFormat, Table};
-///
+/// # use tpcgen_cli::tpch_cli::{GenerationPlan, OutputFormat, Table};
+/// # fn main() {
 /// let plan = GenerationPlan::try_new(
 ///   Table::Orders,
 ///   OutputFormat::Parquet,
-///   1.0, // scale factor
-///   Some(-1), // cli_part
-///   Some(-1), // cli_parts
-///    0,
+///   0.01, // scale factor
+///   Some(1), // cli_part
+///   Some(2), // cli_parts
+///   1000000, // 1MB row groups
 ///  );
-/// let results = plan.into_iter().collect::<Vec<_>>();
-/// /// assert_eq!(results.len(), 1);
+/// # }
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct GenerationPlan {

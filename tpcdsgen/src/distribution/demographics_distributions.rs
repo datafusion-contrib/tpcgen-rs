@@ -1,6 +1,5 @@
 use crate::distribution::string_values_distribution::StringValuesDistribution as FileBasedStringValuesDistribution;
 use crate::distribution::{Distribution, IntValuesDistribution};
-use crate::error::Result;
 use std::sync::OnceLock;
 
 /// Distribution for demographics data including income bands (Demographics)
@@ -107,23 +106,17 @@ impl DemographicsDistributions {
 
     /// Get gender for index mod size (getGenderForIndexModSize)
     pub fn get_gender_for_index_mod_size(index: i64) -> &'static str {
-        Self::get_gender_distribution()
-            .get_value_for_index_mod_size(index, 0)
-            .expect("Failed to get gender value")
+        Self::get_gender_distribution().get_value_for_index_mod_size(index, 0)
     }
 
     /// Get marital status for index mod size (getMaritalStatusForIndexModSize)
     pub fn get_marital_status_for_index_mod_size(index: i64) -> &'static str {
-        Self::get_marital_status_distribution()
-            .get_value_for_index_mod_size(index, 0)
-            .expect("Failed to get marital status value")
+        Self::get_marital_status_distribution().get_value_for_index_mod_size(index, 0)
     }
 
     /// Get education for index mod size (getEducationForIndexModSize)
     pub fn get_education_for_index_mod_size(index: i64) -> &'static str {
-        Self::get_education_distribution()
-            .get_value_for_index_mod_size(index, 0)
-            .expect("Failed to get education value")
+        Self::get_education_distribution().get_value_for_index_mod_size(index, 0)
     }
 
     /// Get purchase band for index mod size (getPurchaseBandForIndexModSize)
@@ -133,9 +126,7 @@ impl DemographicsDistributions {
 
     /// Get credit rating for index mod size (getCreditRatingForIndexModSize)
     pub fn get_credit_rating_for_index_mod_size(index: i64) -> &'static str {
-        Self::get_credit_rating_distribution()
-            .get_value_for_index_mod_size(index, 0)
-            .expect("Failed to get credit rating value")
+        Self::get_credit_rating_distribution().get_value_for_index_mod_size(index, 0)
     }
 
     /// Get gender distribution size
@@ -164,12 +155,12 @@ impl DemographicsDistributions {
     }
 
     /// Get income band lower bound at the specified index (getValueAtIndex)
-    pub fn get_income_band_lower_bound_at_index(index: usize) -> Result<i32> {
+    pub fn get_income_band_lower_bound_at_index(index: usize) -> i32 {
         Self::get_income_band_distribution().get_value_at_index(0, index)
     }
 
     /// Get income band upper bound at the specified index (getValueAtIndex)
-    pub fn get_income_band_upper_bound_at_index(index: usize) -> Result<i32> {
+    pub fn get_income_band_upper_bound_at_index(index: usize) -> i32 {
         Self::get_income_band_distribution().get_value_at_index(1, index)
     }
 
@@ -180,9 +171,7 @@ impl DemographicsDistributions {
 
     /// Get buy potential for index mod size (getBuyPotentialForIndexModSize)
     pub fn get_buy_potential_for_index_mod_size(index: i64) -> &'static str {
-        Self::get_buy_potential_distribution()
-            .get_value_for_index_mod_size(index, 0)
-            .expect("Failed to get buy potential value")
+        Self::get_buy_potential_distribution().get_value_for_index_mod_size(index, 0)
     }
 
     /// Get dep count for index mod size (getDepCountForIndexModSize)
@@ -228,35 +217,17 @@ mod tests {
         for i in 0..size.min(5) {
             let lower = DemographicsDistributions::get_income_band_lower_bound_at_index(i);
             let upper = DemographicsDistributions::get_income_band_upper_bound_at_index(i);
-
             assert!(
-                lower.is_ok(),
-                "Should be able to get lower bound at index {}",
-                i
-            );
-            assert!(
-                upper.is_ok(),
-                "Should be able to get upper bound at index {}",
-                i
-            );
-
-            // Lower bound should be less than or equal to upper bound
-            let lower_val = lower.unwrap();
-            let upper_val = upper.unwrap();
-            assert!(
-                lower_val <= upper_val,
-                "Lower bound {} should be <= upper bound {} at index {}",
-                lower_val,
-                upper_val,
-                i
+                lower <= upper,
+                "Lower bound {lower} should be <= upper bound {upper} at index {i}"
             );
         }
     }
 
     #[test]
+    #[should_panic(expected = "index out of bounds")]
     fn test_income_band_out_of_bounds() {
         let size = DemographicsDistributions::get_income_band_size();
-        let result = DemographicsDistributions::get_income_band_lower_bound_at_index(size + 100);
-        assert!(result.is_err(), "Should fail for out of bounds index");
+        DemographicsDistributions::get_income_band_lower_bound_at_index(size + 100);
     }
 }

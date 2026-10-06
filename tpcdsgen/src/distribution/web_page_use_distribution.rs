@@ -103,10 +103,9 @@ impl WebPageUseDistribution {
     /// # Returns
     ///
     /// A web page use type string (e.g., "general", "order", "welcome", "ad", "feedback", "protected", "dynamic")
-    pub fn pick_random_web_page_use_type(stream: &mut RandomNumberStream) -> Result<String> {
+    pub fn pick_random_web_page_use_type(stream: &mut RandomNumberStream) -> String {
         let dist = Self::get_instance();
-        let value_ref = pick_random_value(&dist.values, &dist.weights_list, stream)?;
-        Ok(value_ref.clone())
+        pick_random_value(&dist.values, &dist.weights_list, stream).clone()
     }
 }
 
@@ -127,7 +126,7 @@ mod tests {
     #[test]
     fn test_pick_random_web_page_use_type() {
         let mut stream = RandomNumberStream::new(1);
-        let page_use = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream).unwrap();
+        let page_use = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream);
 
         // Should be a non-empty string
         assert!(!page_use.is_empty(), "Page use type should not be empty");
@@ -156,10 +155,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new(42);
         let mut stream2 = RandomNumberStream::new(42);
 
-        let page_use1 =
-            WebPageUseDistribution::pick_random_web_page_use_type(&mut stream1).unwrap();
-        let page_use2 =
-            WebPageUseDistribution::pick_random_web_page_use_type(&mut stream2).unwrap();
+        let page_use1 = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream1);
+        let page_use2 = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream2);
 
         assert_eq!(
             page_use1, page_use2,
@@ -198,8 +195,7 @@ mod tests {
 
         // Pick multiple page use types and verify all are valid
         for _ in 0..20 {
-            let page_use =
-                WebPageUseDistribution::pick_random_web_page_use_type(&mut stream).unwrap();
+            let page_use = WebPageUseDistribution::pick_random_web_page_use_type(&mut stream);
             assert!(
                 valid_types.contains(&page_use.as_str()),
                 "Page use '{}' should be valid",

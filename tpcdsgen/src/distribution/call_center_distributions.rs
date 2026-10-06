@@ -1,5 +1,4 @@
 use crate::distribution::string_values_distribution::StringValuesDistribution;
-use crate::error::Result;
 use crate::random::RandomNumberStream;
 use std::sync::OnceLock;
 
@@ -11,67 +10,54 @@ static CALL_CENTER_CLASSES_DISTRIBUTION: OnceLock<StringValuesDistribution> = On
 static CALL_CENTER_HOURS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 
 impl CallCenterDistributions {
-    /// Initialize all distributions (lazy loading)
-    fn ensure_initialized() -> Result<()> {
-        // Initialize call centers distribution
-        if CALL_CENTERS_DISTRIBUTION.get().is_none() {
-            let dist = StringValuesDistribution::build_string_values_distribution(
-                "call_centers.dst",
-                1, // 1 value field: name
-                2, // 2 weight fields: uniform, sales percentage
-            )?;
-            let _ = CALL_CENTERS_DISTRIBUTION.set(dist);
-        }
+    fn call_centers() -> &'static StringValuesDistribution {
+        CALL_CENTERS_DISTRIBUTION.get_or_init(|| {
+            // 1 value field: name; 2 weight fields: uniform, sales percentage
+            StringValuesDistribution::build_string_values_distribution("call_centers.dst", 1, 2)
+                .expect("Failed to load call_centers.dst")
+        })
+    }
 
-        // Initialize call center classes distribution
-        if CALL_CENTER_CLASSES_DISTRIBUTION.get().is_none() {
-            let dist = StringValuesDistribution::build_string_values_distribution(
+    fn call_center_classes() -> &'static StringValuesDistribution {
+        CALL_CENTER_CLASSES_DISTRIBUTION.get_or_init(|| {
+            StringValuesDistribution::build_string_values_distribution(
                 "call_center_classes.dst",
-                1, // 1 value field: class
-                1, // 1 weight field: frequency
-            )?;
-            let _ = CALL_CENTER_CLASSES_DISTRIBUTION.set(dist);
-        }
+                1,
+                1,
+            )
+            .expect("Failed to load call_center_classes.dst")
+        })
+    }
 
-        // Initialize call center hours distribution
-        if CALL_CENTER_HOURS_DISTRIBUTION.get().is_none() {
-            let dist = StringValuesDistribution::build_string_values_distribution(
+    fn call_center_hours() -> &'static StringValuesDistribution {
+        CALL_CENTER_HOURS_DISTRIBUTION.get_or_init(|| {
+            StringValuesDistribution::build_string_values_distribution(
                 "call_center_hours.dst",
-                1, // 1 value field: hours
-                1, // 1 weight field: frequency
-            )?;
-            let _ = CALL_CENTER_HOURS_DISTRIBUTION.set(dist);
-        }
-
-        Ok(())
+                1,
+                1,
+            )
+            .expect("Failed to load call_center_hours.dst")
+        })
     }
 
     /// Get call center name at specific index
-    pub fn get_call_center_at_index(index: usize) -> Result<&'static str> {
-        Self::ensure_initialized()?;
-        let dist = CALL_CENTERS_DISTRIBUTION.get().unwrap();
-        dist.get_value_at_index(0, index)
+    pub fn get_call_center_at_index(index: usize) -> &'static str {
+        Self::call_centers().get_value_at_index(0, index)
     }
 
     /// Get total number of call centers
-    pub fn get_number_of_call_centers() -> Result<usize> {
-        Self::ensure_initialized()?;
-        let dist = CALL_CENTERS_DISTRIBUTION.get().unwrap();
-        Ok(dist.get_size())
+    pub fn get_number_of_call_centers() -> usize {
+        Self::call_centers().get_size()
     }
 
     /// Pick a random call center class
-    pub fn pick_random_call_center_class(stream: &mut RandomNumberStream) -> Result<&'static str> {
-        Self::ensure_initialized()?;
-        let dist = CALL_CENTER_CLASSES_DISTRIBUTION.get().unwrap();
-        dist.pick_random_value(0, 0, stream)
+    pub fn pick_random_call_center_class(stream: &mut RandomNumberStream) -> &'static str {
+        Self::call_center_classes().pick_random_value(0, 0, stream)
     }
 
     /// Pick random call center hours
-    pub fn pick_random_call_center_hours(stream: &mut RandomNumberStream) -> Result<&'static str> {
-        Self::ensure_initialized()?;
-        let dist = CALL_CENTER_HOURS_DISTRIBUTION.get().unwrap();
-        dist.pick_random_value(0, 0, stream)
+    pub fn pick_random_call_center_hours(stream: &mut RandomNumberStream) -> &'static str {
+        Self::call_center_hours().pick_random_value(0, 0, stream)
     }
 }
 
@@ -82,27 +68,27 @@ mod tests {
 
     #[test]
     fn test_call_center_at_index() {
-        let center = CallCenterDistributions::get_call_center_at_index(0).unwrap();
+        let center = CallCenterDistributions::get_call_center_at_index(0);
         assert!(!center.is_empty());
     }
 
     #[test]
     fn test_number_of_call_centers() {
-        let count = CallCenterDistributions::get_number_of_call_centers().unwrap();
+        let count = CallCenterDistributions::get_number_of_call_centers();
         assert!(count > 0);
     }
 
     #[test]
     fn test_pick_random_call_center_class() {
         let mut stream = RandomNumberStream::new(1);
-        let class = CallCenterDistributions::pick_random_call_center_class(&mut stream).unwrap();
+        let class = CallCenterDistributions::pick_random_call_center_class(&mut stream);
         assert!(!class.is_empty());
     }
 
     #[test]
     fn test_pick_random_call_center_hours() {
         let mut stream = RandomNumberStream::new(1);
-        let hours = CallCenterDistributions::pick_random_call_center_hours(&mut stream).unwrap();
+        let hours = CallCenterDistributions::pick_random_call_center_hours(&mut stream);
         assert!(!hours.is_empty());
     }
 
@@ -111,8 +97,8 @@ mod tests {
         let mut stream1 = RandomNumberStream::new(42);
         let mut stream2 = RandomNumberStream::new(42);
 
-        let class1 = CallCenterDistributions::pick_random_call_center_class(&mut stream1).unwrap();
-        let class2 = CallCenterDistributions::pick_random_call_center_class(&mut stream2).unwrap();
+        let class1 = CallCenterDistributions::pick_random_call_center_class(&mut stream1);
+        let class2 = CallCenterDistributions::pick_random_call_center_class(&mut stream2);
 
         assert_eq!(class1, class2);
     }

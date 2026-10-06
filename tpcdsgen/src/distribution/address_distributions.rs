@@ -1,5 +1,4 @@
 use crate::distribution::string_values_distribution::StringValuesDistribution;
-use crate::error::Result;
 use crate::random::stream::RandomNumberStream;
 use std::sync::OnceLock;
 
@@ -27,7 +26,7 @@ pub enum CitiesWeights {
 pub fn pick_random_street_name(
     weights: StreetNamesWeights,
     stream: &mut RandomNumberStream,
-) -> Result<&'static str> {
+) -> &'static str {
     let dist = STREET_NAMES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("street_names.dst", 1, 2)
             .expect("Failed to load street names distribution")
@@ -36,7 +35,7 @@ pub fn pick_random_street_name(
     dist.pick_random_value(0, weights as usize, stream)
 }
 
-pub fn pick_random_street_type(stream: &mut RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_street_type(stream: &mut RandomNumberStream) -> &'static str {
     let dist = STREET_TYPES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("street_types.dst", 1, 1)
             .expect("Failed to load street types distribution")
@@ -45,10 +44,7 @@ pub fn pick_random_street_type(stream: &mut RandomNumberStream) -> Result<&'stat
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn pick_random_city(
-    weights: CitiesWeights,
-    stream: &mut RandomNumberStream,
-) -> Result<&'static str> {
+pub fn pick_random_city(weights: CitiesWeights, stream: &mut RandomNumberStream) -> &'static str {
     let dist = CITIES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("cities.dst", 1, 6)
             .expect("Failed to load cities distribution")
@@ -57,7 +53,7 @@ pub fn pick_random_city(
     dist.pick_random_value(0, weights as usize, stream)
 }
 
-pub fn pick_random_country(stream: &mut RandomNumberStream) -> Result<&'static str> {
+pub fn pick_random_country(stream: &mut RandomNumberStream) -> &'static str {
     let dist = COUNTRIES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("countries.dst", 1, 1)
             .expect("Failed to load countries distribution")
@@ -66,7 +62,7 @@ pub fn pick_random_country(stream: &mut RandomNumberStream) -> Result<&'static s
     dist.pick_random_value(0, 0, stream)
 }
 
-pub fn get_city_at_index(index: usize) -> Result<&'static str> {
+pub fn get_city_at_index(index: usize) -> &'static str {
     let dist = CITIES_DISTRIBUTION.get_or_init(|| {
         StringValuesDistribution::build_string_values_distribution("cities.dst", 1, 6)
             .expect("Failed to load cities distribution")

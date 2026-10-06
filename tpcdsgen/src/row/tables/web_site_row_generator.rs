@@ -142,11 +142,11 @@ impl WebSiteRowGenerator {
             },
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebManager),
-        )?;
+        );
         let last_name = NamesDistributions::pick_random_last_name(
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebManager),
-        )?;
+        );
         let mut web_manager = format!("{} {}", first_name, last_name);
         if let Some(ref prev) = self.previous_row {
             web_manager = get_value_for_slowly_changing_dimension(
@@ -218,11 +218,11 @@ impl WebSiteRowGenerator {
             },
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebMarketManager),
-        )?;
+        );
         let last_name = NamesDistributions::pick_random_last_name(
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebMarketManager),
-        )?;
+        );
         let mut web_market_manager = format!("{} {}", first_name, last_name);
         if let Some(ref prev) = self.previous_row {
             web_market_manager = get_value_for_slowly_changing_dimension(
@@ -343,7 +343,7 @@ impl WebSiteRowGenerator {
         // Generate web_tax_percentage
         let mut web_tax_percentage = RandomValueGenerator::generate_uniform_random_decimal(
             Decimal::ZERO,
-            Decimal::new(12, 2)?,
+            Decimal::new(12, 2),
             self.abstract_generator
                 .get_random_number_stream(&WebSiteGeneratorColumn::WebTaxPercentage),
         );

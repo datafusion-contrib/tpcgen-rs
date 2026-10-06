@@ -1,6 +1,5 @@
 use crate::config::CompatMode;
 use crate::distribution::FileBasedStringValuesDistribution;
-use crate::error::Result;
 use std::sync::OnceLock;
 
 /// Distribution for return reasons (ReturnReasons)
@@ -34,7 +33,7 @@ impl ReturnReasonsDistribution {
         })
     }
 
-    pub fn get_return_reason_at_index(index: usize, compat: CompatMode) -> Result<&'static str> {
+    pub fn get_return_reason_at_index(index: usize, compat: CompatMode) -> &'static str {
         match compat {
             CompatMode::C => Self::get_distribution_c().get_value_at_index(0, index),
             CompatMode::Trino => Self::get_distribution().get_value_at_index(0, index),
@@ -62,20 +61,14 @@ mod tests {
         // Test that we can get values at valid indices
         for i in 0..size.min(5) {
             let value = ReturnReasonsDistribution::get_return_reason_at_index(i, CompatMode::Trino);
-            assert!(value.is_ok(), "Should be able to get value at index {}", i);
-            assert!(
-                !value.unwrap().is_empty(),
-                "Value at index {} should not be empty",
-                i
-            );
+            assert!(!value.is_empty(), "Value at index {i} should not be empty");
         }
     }
 
     #[test]
+    #[should_panic(expected = "index out of bounds")]
     fn test_return_reasons_out_of_bounds() {
         let size = ReturnReasonsDistribution::get_size();
-        let result =
-            ReturnReasonsDistribution::get_return_reason_at_index(size + 100, CompatMode::Trino);
-        assert!(result.is_err(), "Should fail for out of bounds index");
+        ReturnReasonsDistribution::get_return_reason_at_index(size + 100, CompatMode::Trino);
     }
 }

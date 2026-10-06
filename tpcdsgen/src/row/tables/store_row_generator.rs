@@ -30,10 +30,10 @@ use crate::types::{Address, Date, Decimal};
 
 const ROW_SIZE_S_MARKET_DESC: i32 = 100;
 fn store_min_tax_percentage() -> Decimal {
-    Decimal::new(0, 2).unwrap()
+    Decimal::new(0, 2)
 }
 fn store_max_tax_percentage() -> Decimal {
-    Decimal::new(11, 2).unwrap()
+    Decimal::new(11, 2)
 }
 const STORE_MIN_DAYS_OPEN: i32 = 5;
 const STORE_MAX_DAYS_OPEN: i32 = 500;
@@ -164,7 +164,7 @@ impl StoreRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreHours);
-        let hours = CallCenterDistributions::pick_random_call_center_hours(stream)?.to_string();
+        let hours = CallCenterDistributions::pick_random_call_center_hours(stream).to_string();
         field_change_flags >>= 1;
 
         // Generate store manager
@@ -176,11 +176,11 @@ impl StoreRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreManager);
-        let first_name = NamesDistributions::pick_random_first_name(weights, stream)?;
+        let first_name = NamesDistributions::pick_random_first_name(weights, stream);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreManager);
-        let last_name = NamesDistributions::pick_random_last_name(stream)?;
+        let last_name = NamesDistributions::pick_random_last_name(stream);
         let mut store_manager = format!("{} {}", first_name, last_name);
         if let Some(ref prev_row) = self.previous_row {
             store_manager = get_value_for_slowly_changing_dimension(
@@ -253,11 +253,11 @@ impl StoreRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreMarketManager);
-        let first_name = NamesDistributions::pick_random_first_name(weights, stream)?;
+        let first_name = NamesDistributions::pick_random_first_name(weights, stream);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreMarketManager);
-        let last_name = NamesDistributions::pick_random_last_name(stream)?;
+        let last_name = NamesDistributions::pick_random_last_name(stream);
         let mut market_manager = format!("{} {}", first_name, last_name);
         if let Some(ref prev_row) = self.previous_row {
             market_manager = get_value_for_slowly_changing_dimension(

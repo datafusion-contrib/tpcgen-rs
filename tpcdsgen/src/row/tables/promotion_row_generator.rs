@@ -107,7 +107,7 @@ impl PromotionRowGenerator {
             scaling,
         )?;
 
-        let p_cost = Decimal::new(100000, 2)?;
+        let p_cost = Decimal::new(100000, 2);
         let p_response_target = 1;
 
         // generate_word doesn't use random numbers - it deterministically creates from seed

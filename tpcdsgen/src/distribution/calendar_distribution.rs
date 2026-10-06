@@ -145,12 +145,11 @@ impl CalendarDistribution {
     pub fn pick_random_day_of_year(
         weights: CalendarWeights,
         stream: &mut RandomNumberStream,
-    ) -> Result<i32> {
+    ) -> i32 {
         let dist = Self::get_instance();
         let weights_list = &dist.weights_lists[weights as usize];
 
-        let value_ref = pick_random_value(&dist.days_of_year, weights_list, stream)?;
-        Ok(*value_ref)
+        *pick_random_value(&dist.days_of_year, weights_list, stream)
     }
 
     /// Get the 0-based index into the calendar distribution for a given date.
@@ -227,8 +226,7 @@ mod tests {
 
         let mut stream = RandomNumberStream::new(1);
         let day =
-            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream)
-                .unwrap();
+            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream);
 
         // Day should be in valid range [1, 366]
         assert!(
@@ -247,11 +245,9 @@ mod tests {
         let mut stream2 = RandomNumberStream::new(42);
 
         let day1 =
-            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream1)
-                .unwrap();
+            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream1);
         let day2 =
-            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream2)
-                .unwrap();
+            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream2);
 
         assert_eq!(day1, day2, "Same seed should produce same day");
     }
@@ -264,11 +260,9 @@ mod tests {
         let mut stream = RandomNumberStream::new(1);
 
         let day_uniform =
-            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream)
-                .unwrap();
+            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Uniform, &mut stream);
         let day_sales =
-            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream)
-                .unwrap();
+            CalendarDistribution::pick_random_day_of_year(CalendarWeights::Sales, &mut stream);
 
         // Both should be valid
         assert!((1..=366).contains(&day_uniform));
