@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{HouseholdDemographicsRow, HouseholdDemographicsRowGenerator};
 
+/// Generate [`HouseholdDemographicsRow`]s in [`RecordBatch`] format
 pub struct HouseholdDemographicsArrow {
     inner: HouseholdDemographicsRowGenerator,
     batch_size: usize,

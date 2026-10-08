@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{IncomeBandRow, IncomeBandRowGenerator};
 
+/// Generate [`IncomeBandRow`]s in [`RecordBatch`] format
 pub struct IncomeBandArrow {
     inner: IncomeBandRowGenerator,
     batch_size: usize,

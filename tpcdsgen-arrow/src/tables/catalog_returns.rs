@@ -8,6 +8,7 @@ use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CatalogReturnsRow, CatalogReturnsRowGenerator};
 
+/// Generate [`CatalogReturnsRow`]s in [`RecordBatch`] format
 pub struct CatalogReturnsArrow {
     inner: CatalogReturnsRowGenerator,
     batch_size: usize,
