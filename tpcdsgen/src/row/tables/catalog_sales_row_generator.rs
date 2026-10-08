@@ -438,9 +438,7 @@ impl CatalogSalesRowGenerator {
     pub(crate) fn next_line_item(&mut self) -> Option<LineItem> {
         use CatalogSalesGeneratorColumn::*;
 
-        let Some(row_number) = self.abstract_generator.next_row_number() else {
-            return None;
-        };
+        let row_number = self.abstract_generator.next_row_number()?;
 
         let scaling = self.session.get_scaling();
         let item_count = scaling.get_id_count(crate::config::Table::Item) as usize;

@@ -293,9 +293,7 @@ impl StoreSalesRowGenerator {
     pub(crate) fn next_line_item(&mut self) -> Option<LineItem> {
         use StoreSalesGeneratorColumn::*;
 
-        let Some(row_number) = self.abstract_generator.next_row_number() else {
-            return None;
-        };
+        let row_number = self.abstract_generator.next_row_number()?;
 
         let item_count = self
             .session
