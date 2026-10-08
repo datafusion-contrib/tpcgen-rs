@@ -88,15 +88,13 @@ pub struct CatalogSalesRowGenerator {
     order_info: OrderInfo,
     ticket_item_base: i32,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl CatalogSalesRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         CatalogSalesRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::CatalogSales),
+            abstract_generator: AbstractRowGenerator::new(Table::CatalogSales, row_count),
             item_permutation: None,
             julian_date: Date::JULIAN_DATA_START_DATE,
             next_date_index: 0,
@@ -104,8 +102,6 @@ impl CatalogSalesRowGenerator {
             order_info: OrderInfo::default(),
             ticket_item_base: 0,
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -114,7 +110,6 @@ impl CatalogSalesRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -122,8 +117,8 @@ impl CatalogSalesRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 
     pub(crate) fn session(&self) -> &Session {
@@ -444,9 +439,9 @@ impl CatalogSalesRowGenerator {
     pub(crate) fn next_line_item(&mut self) -> Result<Option<LineItem>> {
         use CatalogSalesGeneratorColumn::*;
 
-        if self.current_row > self.row_count {
+        let Some(row_number) = self.abstract_generator.next_row_number() else {
             return Ok(None);
-        }
+        };
 
         let scaling = self.session.get_scaling();
         let item_count = scaling.get_id_count(crate::config::Table::Item) as usize;
@@ -465,7 +460,7 @@ impl CatalogSalesRowGenerator {
 
         // Start a new order if we've finished the previous one
         if self.remaining_line_items == 0 {
-            self.order_info = self.generate_order_info(self.current_row)?;
+            self.order_info = self.generate_order_info(row_number)?;
 
             let stream = self
                 .abstract_generator
@@ -519,8 +514,7 @@ impl CatalogSalesRowGenerator {
         self.remaining_line_items -= 1;
         let last_in_order = self.remaining_line_items == 0;
         if last_in_order {
-            self.abstract_generator.consume_remaining_seeds_for_row();
-            self.current_row += 1;
+            self.abstract_generator.finish_row();
         }
         last_in_order
     }

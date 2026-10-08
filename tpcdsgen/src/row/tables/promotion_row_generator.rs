@@ -35,18 +35,14 @@ const PROMO_DETAIL_LENGTH_MAX: i32 = 60;
 pub struct PromotionRowGenerator {
     abstract_row_generator: AbstractRowGenerator,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl PromotionRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         PromotionRowGenerator {
-            abstract_row_generator: AbstractRowGenerator::new(Table::Promotion),
+            abstract_row_generator: AbstractRowGenerator::new(Table::Promotion, row_count),
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -55,7 +51,6 @@ impl PromotionRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_row_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -63,8 +58,8 @@ impl PromotionRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_row_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 
     fn generate_promotion_row(&mut self, row_number: u64) -> Result<PromotionRow> {
@@ -193,15 +188,9 @@ impl Iterator for PromotionRowGenerator {
     type Item = PromotionRow;
 
     fn next(&mut self) -> Option<PromotionRow> {
-        if self.current_row > self.row_count {
-            return None;
-        }
-        let row = self
-            .generate_promotion_row(self.current_row)
-            .expect("row gen");
-        self.abstract_row_generator
-            .consume_remaining_seeds_for_row();
-        self.current_row += 1;
+        let row_number = self.abstract_row_generator.next_row_number()?;
+        let row = self.generate_promotion_row(row_number).expect("row gen");
+        self.abstract_row_generator.finish_row();
         Some(row)
     }
 }

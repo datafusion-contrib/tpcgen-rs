@@ -22,7 +22,7 @@ use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, WebSiteRow};
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, get_value_for_slowly_changing_dimension, scd_history,
+    compute_scd_key, get_value_for_slowly_changing_dimension, ScdRowGenerator,
 };
 use crate::table::Table;
 use crate::types::{Address, Decimal};
@@ -31,19 +31,15 @@ pub struct WebSiteRowGenerator {
     abstract_generator: AbstractRowGenerator,
     previous_row: Option<WebSiteRow>,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl WebSiteRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::WebSite),
+            abstract_generator: AbstractRowGenerator::new(Table::WebSite, row_count),
             previous_row: None,
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -52,11 +48,7 @@ impl WebSiteRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        // Invalidate the retained slowly changing dimension (SCD) state.
-        // This tells `next` to replay it when needed.
-        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
         self.previous_row = None;
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -64,8 +56,9 @@ impl WebSiteRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
+        self.previous_row = None;
     }
 
     fn generate_web_site_row(&mut self, row_number: u64) -> Result<WebSiteRow> {
@@ -382,33 +375,27 @@ impl WebSiteRowGenerator {
     }
 }
 
+impl ScdRowGenerator for WebSiteRowGenerator {
+    type Row = WebSiteRow;
+
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+        &mut self.abstract_generator
+    }
+
+    fn previous_row(&self) -> Option<&WebSiteRow> {
+        self.previous_row.as_ref()
+    }
+
+    fn generate_row(&mut self, row_number: u64) -> Result<WebSiteRow> {
+        self.generate_web_site_row(row_number)
+    }
+}
+
 impl Iterator for WebSiteRowGenerator {
     type Item = WebSiteRow;
 
     fn next(&mut self) -> Option<WebSiteRow> {
-        if self.current_row > self.row_count {
-            return None;
-        }
-        // Replay the missing slowly changing dimension (SCD) state this row
-        // inherits from, which `skip_rows_until_starting_row_number` cleared.
-        // This gives it the same values to copy from as an uninterrupted run.
-        if self.previous_row.is_none() {
-            let history = scd_history(self.current_row);
-            if !history.is_empty() {
-                self.abstract_generator
-                    .skip_rows_until_starting_row_number(history.start);
-                for row_number in history {
-                    self.generate_web_site_row(row_number).expect("row gen");
-                    self.abstract_generator.consume_remaining_seeds_for_row();
-                }
-            }
-        }
-        let row = self
-            .generate_web_site_row(self.current_row)
-            .expect("row gen");
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.current_row += 1;
-        Some(row)
+        self.next_row()
     }
 }
 

@@ -23,17 +23,13 @@ const WEEKDAY_NAMES: [&str; 7] = [
 
 pub struct DateDimRowGenerator {
     base: AbstractRowGenerator,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl DateDimRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(_session: Session, row_count: u64) -> Self {
         DateDimRowGenerator {
-            base: AbstractRowGenerator::new(Table::DateDim),
-            current_row: 1,
-            row_count,
+            base: AbstractRowGenerator::new(Table::DateDim, row_count),
         }
     }
 
@@ -42,7 +38,6 @@ impl DateDimRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.base
             .skip_rows_until_starting_row_number(starting_row_number);
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -50,8 +45,8 @@ impl DateDimRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.base
+            .set_source_row_range(starting_row_number, ending_row_number);
     }
 
     fn generate_date_dim_row(&mut self, row_number: u64) -> Result<DateDimRow> {
@@ -176,14 +171,9 @@ impl Iterator for DateDimRowGenerator {
     type Item = DateDimRow;
 
     fn next(&mut self) -> Option<DateDimRow> {
-        if self.current_row > self.row_count {
-            return None;
-        }
-        let row = self
-            .generate_date_dim_row(self.current_row)
-            .expect("row gen");
-        self.base.consume_remaining_seeds_for_row();
-        self.current_row += 1;
+        let row_number = self.base.next_row_number()?;
+        let row = self.generate_date_dim_row(row_number).expect("row gen");
+        self.base.finish_row();
         Some(row)
     }
 }

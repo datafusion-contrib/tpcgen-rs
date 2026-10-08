@@ -1,3 +1,4 @@
+#![allow(rustdoc::private_intra_doc_links)]
 //! Utilities for slowly changing dimension (SCD) tables.
 //!
 //! An SCD table keeps history. Rather than one row per entity, it holds
@@ -20,15 +21,18 @@
 //! [`get_value_for_slowly_changing_dimension`] copies forward the fields that
 //! do not change, so each generator keeps the row it generated last.
 //!
+//! # Implementation Notes:
+//!
 //! Generating a range of source rows fast forwards the random number streams
 //! to the first row of the range. The skipped rows are never generated. A
 //! range that starts on a later revision has no previous revision to copy
-//! from, so the generator replays the earlier ones (see `scd_history`)
-//! to restore its state.
+//! from, so [`ScdRowGenerator::next_row`] replays the earlier ones (see
+//! [`scd_history`]) to restore its state.
 //!
 //! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
-
 use crate::business_key_generator::make_business_key;
+use crate::error::Result;
+use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::Date;
 use std::ops::Range;
@@ -174,6 +178,49 @@ pub(crate) fn scd_history(row_number: u64) -> Range<u64> {
         "replay must start on a new business key"
     );
     first_revision..row_number
+}
+
+/// A row generator for a Slowly Changing Dimension (SCD) table.
+///
+/// Each generator retains the previously generated row, which is used to help generate
+/// the next revision.
+pub(crate) trait ScdRowGenerator {
+    /// The type of output row produced by this generator.
+    type Row;
+
+    /// Underlying abstract generator that produces the source rows for this SCD table.
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator;
+
+    /// The previously generated row, or `None` after a seek.
+    fn previous_row(&self) -> Option<&Self::Row>;
+
+    /// Generate source row `row_number` and retain it as the previous row.
+    fn generate_row(&mut self, row_number: u64) -> Result<Self::Row>;
+
+    /// Generate the next source row, or `None` past the end of the range.
+    ///
+    /// Also handles the case of skipping rows (such as when starting a range in
+    /// the middle of a business key's revisions) by replaying the missing rows
+    /// to restore the generator state.
+    fn next_row(&mut self) -> Option<Self::Row> {
+        let row_number = self.abstract_generator().next_row_number()?;
+        // Replay the missing slowly changing dimension (SCD) state
+        // This gives it the same values to copy from as an uninterrupted run.
+        if self.previous_row().is_none() {
+            let history = scd_history(row_number);
+            if !history.is_empty() {
+                self.abstract_generator()
+                    .skip_rows_until_starting_row_number(history.start);
+                for row_number in history {
+                    self.generate_row(row_number).expect("row gen");
+                    self.abstract_generator().finish_row();
+                }
+            }
+        }
+        let row = self.generate_row(row_number).expect("row gen");
+        self.abstract_generator().finish_row();
+        Some(row)
+    }
 }
 
 pub fn get_value_for_slowly_changing_dimension<T>(

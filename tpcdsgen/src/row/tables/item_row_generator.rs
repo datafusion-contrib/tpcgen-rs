@@ -29,7 +29,7 @@ use crate::random::RandomValueGenerator;
 use crate::row::item_row::ItemRow;
 use crate::row::AbstractRowGenerator;
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, get_value_for_slowly_changing_dimension, scd_history,
+    compute_scd_key, get_value_for_slowly_changing_dimension, ScdRowGenerator,
 };
 use crate::table::Table;
 use crate::types::Decimal;
@@ -52,19 +52,15 @@ pub struct ItemRowGenerator {
     abstract_generator: AbstractRowGenerator,
     previous_row: Option<ItemRow>,
     session: Session,
-    current_row: u64,
-    row_count: u64,
 }
 
 impl ItemRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         ItemRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::Item),
+            abstract_generator: AbstractRowGenerator::new(Table::Item, row_count),
             previous_row: None,
             session,
-            current_row: 1,
-            row_count,
         }
     }
 
@@ -350,11 +346,7 @@ impl ItemRowGenerator {
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
-        // Invalidate the retained slowly changing dimension (SCD) state.
-        // This tells `next` to replay it when needed.
-        // See https://github.com/datafusion-contrib/tpcgen-rs/issues/475
         self.previous_row = None;
-        self.current_row = starting_row_number;
     }
 
     /// Restrict generation to source rows
@@ -362,8 +354,25 @@ impl ItemRowGenerator {
     ///
     /// The ending row number is clamped to the table's row count.
     pub fn set_source_row_range(&mut self, starting_row_number: u64, ending_row_number: u64) {
-        self.skip_rows_until_starting_row_number(starting_row_number);
-        self.row_count = self.row_count.min(ending_row_number);
+        self.abstract_generator
+            .set_source_row_range(starting_row_number, ending_row_number);
+        self.previous_row = None;
+    }
+}
+
+impl ScdRowGenerator for ItemRowGenerator {
+    type Row = ItemRow;
+
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+        &mut self.abstract_generator
+    }
+
+    fn previous_row(&self) -> Option<&ItemRow> {
+        self.previous_row.as_ref()
+    }
+
+    fn generate_row(&mut self, row_number: u64) -> Result<ItemRow> {
+        self.generate_item_row(row_number)
     }
 }
 
@@ -371,26 +380,6 @@ impl Iterator for ItemRowGenerator {
     type Item = ItemRow;
 
     fn next(&mut self) -> Option<ItemRow> {
-        if self.current_row > self.row_count {
-            return None;
-        }
-        // Replay the missing slowly changing dimension (SCD) state this row
-        // inherits from, which `skip_rows_until_starting_row_number` cleared.
-        // This gives it the same values to copy from as an uninterrupted run.
-        if self.previous_row.is_none() {
-            let history = scd_history(self.current_row);
-            if !history.is_empty() {
-                self.abstract_generator
-                    .skip_rows_until_starting_row_number(history.start);
-                for row_number in history {
-                    self.generate_item_row(row_number).expect("row gen");
-                    self.abstract_generator.consume_remaining_seeds_for_row();
-                }
-            }
-        }
-        let row = self.generate_item_row(self.current_row).expect("row gen");
-        self.abstract_generator.consume_remaining_seeds_for_row();
-        self.current_row += 1;
-        Some(row)
+        self.next_row()
     }
 }
