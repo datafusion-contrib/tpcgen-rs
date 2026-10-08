@@ -100,7 +100,7 @@ impl PromotionRowGenerator {
             ConfigTable::Item,
             1,
             scaling,
-        )?;
+        );
 
         let p_cost = Decimal::new(100000, 2);
         let p_response_target = 1;

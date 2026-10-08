@@ -307,7 +307,7 @@ impl ItemRowGenerator {
             crate::config::Table::Promotion,
             1,
             session.get_scaling(),
-        )?;
+        );
         let stream = self.abstract_generator.get_random_number_stream(&IPromoSk);
         let _temp = RandomValueGenerator::generate_uniform_random_int(1, 100, stream);
 

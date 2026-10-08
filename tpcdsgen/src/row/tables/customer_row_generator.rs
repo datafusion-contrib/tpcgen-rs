@@ -73,7 +73,7 @@ impl CustomerRowGenerator {
             crate::config::Table::HouseholdDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -84,7 +84,7 @@ impl CustomerRowGenerator {
             crate::config::Table::CustomerDemographics,
             1,
             scaling,
-        )?;
+        );
 
         let stream = self
             .abstract_generator
@@ -95,7 +95,7 @@ impl CustomerRowGenerator {
             crate::config::Table::CustomerAddress,
             c_customer_sk,
             scaling,
-        )?;
+        );
 
         // Name generation (matches Java order lines 81-85)
         let stream = self

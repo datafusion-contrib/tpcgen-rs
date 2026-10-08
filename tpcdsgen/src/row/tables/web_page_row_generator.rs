@@ -72,7 +72,7 @@ impl WebPageRowGenerator {
             ConfigTable::DateDim,
             row_number_i64,
             session.get_scaling(),
-        )?;
+        );
         if let Some(prev) = &self.previous_row {
             wp_creation_date_sk = get_value_for_slowly_changing_dimension(
                 field_change_flags,
@@ -127,7 +127,7 @@ impl WebPageRowGenerator {
             ConfigTable::Customer,
             1,
             session.get_scaling(),
-        )?;
+        );
         if let Some(prev) = &self.previous_row {
             wp_customer_sk = get_value_for_slowly_changing_dimension(
                 field_change_flags,
