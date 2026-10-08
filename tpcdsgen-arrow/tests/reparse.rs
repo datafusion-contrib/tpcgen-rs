@@ -19,8 +19,9 @@ use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use std::fmt::Display;
 use std::io::Write as _;
+use std::ops::RangeInclusive;
 use std::sync::{Arc, LazyLock};
-use tpcdsgen::config::{Session, Table};
+use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen::csv::*;
 use tpcdsgen::row::*;
 use tpcdsgen_arrow::arrow;
@@ -32,21 +33,37 @@ use tpcdsgen_arrow::{
     WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
-/// Session options for tests (scale factor 1).
-static SESSION: LazyLock<Session> = LazyLock::new(Session::default);
+/// Sessions to test every table with.
+///
+/// Generating a row range costs the same at any scale factor, so large scale
+/// factors are cheap.
+static SESSIONS: LazyLock<[Session; 6]> = LazyLock::new(|| {
+    [1.0, 10.0, 100.0, 1000.0, 10_000.0, 100_000.0].map(|scale_factor| {
+        SessionBuilder::new()
+            .with_scale_factor(scale_factor)
+            .build()
+            .expect("valid session")
+    })
+});
 const DAT_SEPARATOR: char = '|';
 const CSV_SEPARATOR: char = ',';
 
-/// Number of rows to test for `table`.
-fn test_row_count(table: Table) -> u64 {
-    // Test up to 10k rows, rather than the entire table, to keep testing time
-    // reasonable for large fact tables.
-    const MAX_REPARSE_SOURCE_ROWS: u64 = 10_000;
+/// The source row ranges (1-based, inclusive) to test for `table`.
+///
+/// Tables with at most `FULL_TABLE_SOURCE_ROWS` source rows are tested in
+/// full. Larger tables are only spot-checked: `WINDOW_SOURCE_ROWS` rows from
+/// the start, from the middle and from the end.
+fn test_row_ranges(session: &Session, table: Table) -> Vec<RangeInclusive<u64>> {
+    const FULL_TABLE_SOURCE_ROWS: u64 = 10_000;
+    const WINDOW_SOURCE_ROWS: u64 = 500;
 
-    SESSION
-        .get_scaling()
-        .get_row_count(table)
-        .min(MAX_REPARSE_SOURCE_ROWS)
+    let rows = session.get_scaling().get_row_count(table);
+    if rows <= FULL_TABLE_SOURCE_ROWS {
+        return vec![RangeInclusive::new(1, rows)];
+    }
+    [1, rows / 2, rows - WINDOW_SOURCE_ROWS + 1]
+        .map(|start| start..=start + WINDOW_SOURCE_ROWS - 1)
+        .to_vec()
 }
 
 /// The textual output formats that the tpcds crate can produce, each of which
@@ -152,20 +169,20 @@ fn reparsed_rows<R: Display>(
     .flatten()
 }
 
-/// Asserts that two streams of Arrow RecordBatches are logically equal up to a
-/// specified row limit.
+/// Asserts that two streams of Arrow RecordBatches are logically equal and
+/// not empty. `context` describes the case in failure messages.
 ///
 /// It ignores any differences in how the rows are distributed across batches
 /// by realigning the batches before comparison.
-fn assert_record_batch_streams<L, R>(left: L, right: R, row_limit: usize)
+fn assert_record_batch_streams<L, R>(left: L, right: R, context: &str)
 where
     L: RecordBatchReader,
     R: Iterator<Item = RecordBatch>,
 {
     // Use FixedSizeBatches to align batch boundaries for comparison.
     let left = left.map(|batch| batch.expect("arrow generation should not fail"));
-    let mut left = FixedSizeBatches::new(left, row_limit);
-    let mut right = FixedSizeBatches::new(right, row_limit);
+    let mut left = FixedSizeBatches::new(left);
+    let mut right = FixedSizeBatches::new(right);
 
     // Compare the two streams, batch by batch.
     let mut compared_rows = 0;
@@ -173,13 +190,16 @@ where
         .zip(right.by_ref())
         .for_each(|(left_batch, right_batch)| {
             compared_rows += left_batch.num_rows();
-            assert_eq!(left_batch, right_batch);
+            assert_eq!(left_batch, right_batch, "{context}");
         });
-    assert_eq!(compared_rows, row_limit);
-    assert!(left.next().is_none(), "left stream produced extra batches");
+    assert!(compared_rows > 0, "{context}: no rows compared");
+    assert!(
+        left.next().is_none(),
+        "{context}: left stream produced extra batches"
+    );
     assert!(
         right.next().is_none(),
-        "right stream produced extra batches"
+        "{context}: right stream produced extra batches"
     );
 }
 
@@ -199,67 +219,42 @@ macro_rules! table_test {
             use super::*;
 
             #[test]
-            fn from_start_dat() {
-                from_start(Format::Dat);
+            fn dat() {
+                check(Format::Dat);
             }
 
             #[test]
-            fn from_start_csv() {
-                from_start(Format::Csv);
+            fn csv() {
+                check(Format::Csv);
             }
 
-            #[test]
-            fn skip_dat() {
-                skip(Format::Dat);
-            }
+            /// Reparse each test row range at each test session.
+            fn check(format: Format) {
+                for session in SESSIONS.iter() {
+                    let source_row_count = session.get_scaling().get_row_count($table);
+                    for range in test_row_ranges(session, $table) {
+                        let (start, end) = (*range.start(), *range.end());
+                        let mut rows = <$gen>::new(session.clone(), source_row_count);
+                        rows.set_source_row_range(start, end);
+                        let arrow_gen =
+                            $arrow_gen(session.clone()).with_source_row_range(start, end);
 
-            #[test]
-            fn skip_csv() {
-                skip(Format::Csv);
-            }
+                        let schema = arrow_gen.schema();
+                        let reparsed = reparsed_rows(
+                            rows,
+                            format,
+                            &schema,
+                            <$csv>::header_with_delimiter(CSV_SEPARATOR),
+                            |row| <$csv>::with_delimiter(row, CSV_SEPARATOR).to_string(),
+                        );
 
-            /// Parse from the start of the table
-            fn from_start(format: Format) {
-                let source_row_count = SESSION.get_scaling().get_row_count($table);
-                let row_limit = test_row_count($table) as usize;
-                let arrow_gen = $arrow_gen(SESSION.clone());
-                let schema = arrow_gen.schema();
-                let rows = <$gen>::new(SESSION.clone(), source_row_count);
-                let reparsed = reparsed_rows(
-                    rows,
-                    format,
-                    &schema,
-                    <$csv>::header_with_delimiter(CSV_SEPARATOR),
-                    |row| <$csv>::with_delimiter(row, CSV_SEPARATOR).to_string(),
-                );
-
-                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
-            }
-
-            /// Parse after skipping some rows.
-            fn skip(format: Format) {
-                let source_row_count = SESSION.get_scaling().get_row_count($table);
-                let starting_row_number = source_row_count.min(100);
-                let remaining_source_rows = source_row_count - starting_row_number + 1;
-                let row_limit =
-                    test_row_count($table).min(remaining_source_rows).min(1024) as usize;
-
-                let mut rows = <$gen>::new(SESSION.clone(), source_row_count);
-                rows.skip_rows_until_starting_row_number(starting_row_number);
-
-                let mut arrow_gen = $arrow_gen(SESSION.clone());
-                arrow_gen.skip_rows_until_starting_row_number(starting_row_number);
-
-                let schema = arrow_gen.schema();
-                let reparsed = reparsed_rows(
-                    rows,
-                    format,
-                    &schema,
-                    <$csv>::header_with_delimiter(CSV_SEPARATOR),
-                    |row| <$csv>::with_delimiter(row, CSV_SEPARATOR).to_string(),
-                );
-
-                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
+                        let context = format!(
+                            "{format:?} at SF{}, source rows {range:?}",
+                            session.get_scaling().get_scale(),
+                        );
+                        assert_record_batch_streams(arrow_gen, reparsed, &context);
+                    }
+                }
             }
         }
     };
@@ -436,25 +431,20 @@ table_test!(
 ///
 /// It concatenates small batches and slices large batches so each yielded batch
 /// has `batch_size` rows, except the final batch, which may be smaller.
-///
-/// It stops after `row_limit` rows.
 struct FixedSizeBatches<I> {
     /// The source of the RecordBatches.
     inner: I,
     /// The output batch size, except for the last batch.
     batch_size: usize,
-    /// How many rows remain until the limit.
-    remaining_rows: usize,
     /// Partially output batch, if any.
     pending: Option<RecordBatch>,
 }
 
 impl<I> FixedSizeBatches<I> {
-    fn new(inner: I, row_limit: usize) -> Self {
+    fn new(inner: I) -> Self {
         Self {
             inner,
             batch_size: 1024,
-            remaining_rows: row_limit,
             pending: None,
         }
     }
@@ -467,11 +457,7 @@ where
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining_rows == 0 {
-            return None;
-        }
-
-        let target_rows = self.batch_size.min(self.remaining_rows);
+        let target_rows = self.batch_size;
         let mut batches = Vec::new();
         let mut rows = 0;
 
@@ -495,7 +481,6 @@ where
         if rows == 0 {
             None
         } else {
-            self.remaining_rows -= rows;
             let schema = batches[0].schema();
             Some(concat_batches(&schema, &batches).expect("concatenate batches"))
         }

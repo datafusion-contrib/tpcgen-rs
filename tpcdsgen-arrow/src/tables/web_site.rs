@@ -1,6 +1,6 @@
 use crate::conversions::{
-    address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, julian_to_date32, opt,
-    string_view_array_from_opt_iter,
+    address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, is_null,
+    julian_to_date32, opt, string_view_array_from_opt_iter,
 };
 use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Date32Array, Int32Array, RecordBatch};
@@ -98,7 +98,11 @@ impl Iterator for WebSiteArrow {
             let nbm = r.null_bit_map();
             web_sk.push(integer_sk_opt(nbm, 0, r.get_web_site_sk()));
             web_id.push(opt(nbm, 1, r.get_web_site_id()));
-            web_rec_start.push(julian_to_date32(r.get_web_rec_start_date_id()));
+            web_rec_start.push(if is_null(nbm, 2) {
+                None
+            } else {
+                julian_to_date32(r.get_web_rec_start_date_id())
+            });
             web_rec_end.push(julian_to_date32(r.get_web_rec_end_date_id()));
             web_name.push(opt(nbm, 4, r.web_name()));
             web_open_date.push(integer_sk_opt(nbm, 5, r.web_open_date()));

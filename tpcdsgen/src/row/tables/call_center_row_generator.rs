@@ -129,11 +129,12 @@ impl CallCenterRowGenerator {
         let employees_stream = self
             .abstract_generator
             .get_random_number_stream(&CallCenterGeneratorColumn::CcEmployees);
+        let scale = scaling.get_scale().ceil() as i32;
         let mut cc_employees = RandomValueGenerator::generate_uniform_random_int(
             1,
             MAX_NUMBER_OF_EMPLOYEES_UNSCALED
-                * scaling.get_scale().ceil() as i32
-                * scaling.get_scale().ceil() as i32,
+                .wrapping_mul(scale)
+                .wrapping_mul(scale),
             employees_stream,
         );
         if let Some(ref prev_row) = self.previous_row {
@@ -151,7 +152,7 @@ impl CallCenterRowGenerator {
             .get_random_number_stream(&CallCenterGeneratorColumn::CcSqFt);
         let mut cc_sq_ft =
             RandomValueGenerator::generate_uniform_random_int(100, 700, sq_ft_stream)
-                * cc_employees;
+                .wrapping_mul(cc_employees);
         if let Some(ref prev_row) = self.previous_row {
             cc_sq_ft = get_value_for_slowly_changing_dimension(
                 field_change_flag,

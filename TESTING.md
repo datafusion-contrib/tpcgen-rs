@@ -111,10 +111,10 @@ The suites do not cover everything:
   timestamp and the command line used, so it can never match a reference file.
   Its schema and command-line handling are covered by CLI integration tests
   instead.
-- The TPC-DS reparse tests cap at 10,000 source rows per table
-  (`MAX_REPARSE_SOURCE_ROWS`) at scale factor 1, to keep the suite fast. Large
-  fact tables are verified over that prefix plus a mid-table restart point, not
-  end to end.
+- The TPC-DS reparse tests run at different scale factors (1, 10, 100, 1000,
+  10,000 and 100,000). Tables with up to 10,000 source rows are compared in
+  full. Larger tables are only spot-checked: 500 rows from the start, 500 from
+  the middle and 500 from the end.
 - Parquet is compared against Arrow for `store_sales` and `store_returns` only.
   Other tables rely on the writer path being shared.
 - CI verifies TPC-DS at scale factor 1 in both compat modes, scale factor 4

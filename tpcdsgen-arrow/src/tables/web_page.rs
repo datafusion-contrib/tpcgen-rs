@@ -1,5 +1,5 @@
 use crate::conversions::{
-    bool_to_yn, integer_sk_opt, julian_to_date32, opt, string_view_array_from_opt_iter,
+    bool_to_yn, integer_sk_opt, is_null, julian_to_date32, opt, string_view_array_from_opt_iter,
 };
 use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Date32Array, Int32Array, RecordBatch};
@@ -93,7 +93,11 @@ impl Iterator for WebPageArrow {
             let nbm = r.null_bit_map();
             wp_sk.push(integer_sk_opt(nbm, 0, r.get_wp_page_sk()));
             wp_id.push(opt(nbm, 1, r.get_wp_page_id()));
-            wp_rec_start.push(julian_to_date32(r.get_wp_rec_start_date_id()));
+            wp_rec_start.push(if is_null(nbm, 2) {
+                None
+            } else {
+                julian_to_date32(r.get_wp_rec_start_date_id())
+            });
             wp_rec_end.push(julian_to_date32(r.get_wp_rec_end_date_id()));
             wp_creation_date.push(integer_sk_opt(nbm, 4, r.get_wp_creation_date_sk()));
             wp_access_date.push(integer_sk_opt(nbm, 5, r.get_wp_access_date_sk()));

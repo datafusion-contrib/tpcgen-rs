@@ -1,5 +1,5 @@
 use crate::conversions::{
-    address_columns, decimal128_5_2_array, decimal_to_i128, integer_opt, integer_sk_opt,
+    address_columns, decimal128_5_2_array, decimal_to_i128, integer_opt, integer_sk_opt, is_null,
     julian_to_date32, opt, string_view_array_from_opt_iter,
 };
 use crate::DEFAULT_BATCH_SIZE;
@@ -101,7 +101,11 @@ impl Iterator for StoreArrow {
             let nbm = r.null_bit_map();
             s_sk.push(integer_sk_opt(nbm, 0, r.get_store_sk()));
             s_id.push(opt(nbm, 1, r.get_store_id()));
-            s_rec_start.push(julian_to_date32(r.get_rec_start_date_id()));
+            s_rec_start.push(if is_null(nbm, 2) {
+                None
+            } else {
+                julian_to_date32(r.get_rec_start_date_id())
+            });
             s_rec_end.push(julian_to_date32(r.get_rec_end_date_id()));
             s_closed_date.push(integer_sk_opt(nbm, 4, r.get_closed_date_id()));
             s_name.push(opt(nbm, 5, r.get_store_name()));
@@ -110,15 +114,18 @@ impl Iterator for StoreArrow {
             s_hours.push(opt(nbm, 8, r.get_hours()));
             s_manager.push(opt(nbm, 9, r.get_store_manager()));
             s_market_id.push(opt(nbm, 10, r.get_market_id()));
-            s_geography_class.push(opt(nbm, 11, r.get_geography_class()));
-            s_market_desc.push(opt(nbm, 12, r.get_market_desc()));
-            s_market_manager.push(opt(nbm, 13, r.get_market_manager()));
-            s_division_id.push(integer_opt(nbm, 14, r.get_division_id()));
-            s_division_name.push(opt(nbm, 15, r.get_division_name()));
-            s_company_id.push(integer_opt(nbm, 16, r.get_company_id()));
-            s_company_name.push(opt(nbm, 17, r.get_company_name()));
-            addr_rows.push((r.get_address().clone(), nbm, 18));
-            s_tax_pct.push(opt(nbm, 28, decimal_to_i128(r.get_d_tax_percentage())));
+            // Null bits follow the generator column numbering, where the tax
+            // percentage (bit 11) comes before geography class, even though it
+            // is the last output column.
+            s_geography_class.push(opt(nbm, 12, r.get_geography_class()));
+            s_market_desc.push(opt(nbm, 13, r.get_market_desc()));
+            s_market_manager.push(opt(nbm, 14, r.get_market_manager()));
+            s_division_id.push(integer_opt(nbm, 15, r.get_division_id()));
+            s_division_name.push(opt(nbm, 16, r.get_division_name()));
+            s_company_id.push(integer_opt(nbm, 17, r.get_company_id()));
+            s_company_name.push(opt(nbm, 18, r.get_company_name()));
+            addr_rows.push((r.get_address().clone(), nbm, 19));
+            s_tax_pct.push(opt(nbm, 11, decimal_to_i128(r.get_d_tax_percentage())));
         }
 
         let (
