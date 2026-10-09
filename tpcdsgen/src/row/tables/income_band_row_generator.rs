@@ -1,6 +1,5 @@
 use crate::config::Session;
 use crate::distribution::DemographicsDistributions;
-use crate::error::Result;
 use crate::generator::IncomeBandGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, IncomeBandRow};
@@ -20,7 +19,7 @@ impl IncomeBandRowGenerator {
     }
 
     /// Generate an IncomeBandRow with realistic data following Java implementation
-    fn generate_income_band_row(&mut self, row_number: u64) -> Result<IncomeBandRow> {
+    fn generate_income_band_row(&mut self, row_number: u64) -> IncomeBandRow {
         // Create null bit map (createNullBitMap call)
         let nulls_stream = self
             .abstract_generator
@@ -44,12 +43,12 @@ impl IncomeBandRowGenerator {
             (row_number - 1) as usize,
         );
 
-        Ok(IncomeBandRow::new(
+        IncomeBandRow::new(
             null_bit_map,
             ib_income_band_sk,
             ib_lower_bound,
             ib_upper_bound,
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -74,7 +73,7 @@ impl Iterator for IncomeBandRowGenerator {
 
     fn next(&mut self) -> Option<IncomeBandRow> {
         let row_number = self.abstract_generator.next_row_number()?;
-        let row = self.generate_income_band_row(row_number).expect("row gen");
+        let row = self.generate_income_band_row(row_number);
         self.abstract_generator.finish_row();
         Some(row)
     }

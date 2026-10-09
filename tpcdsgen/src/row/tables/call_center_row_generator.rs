@@ -1,6 +1,5 @@
 use crate::config::Session;
 use crate::distribution::{CallCenterDistributions, FirstNamesWeights, NamesDistributions};
-use crate::error::Result;
 use crate::generator::CallCenterGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, CallCenterRow};
@@ -44,7 +43,7 @@ impl CallCenterRowGenerator {
     }
 
     /// Generate a CallCenterRow with realistic data following Java implementation
-    fn generate_call_center_row(&mut self, row_number: u64) -> Result<CallCenterRow> {
+    fn generate_call_center_row(&mut self, row_number: u64) -> CallCenterRow {
         let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -89,22 +88,20 @@ impl CallCenterRowGenerator {
                 .abstract_generator
                 .get_random_number_stream(&CallCenterGeneratorColumn::CcAddress);
             let address =
-                Address::make_address_for_column(Table::CallCenter, address_stream, scaling)?;
+                Address::make_address_for_column(Table::CallCenter, address_stream, scaling);
 
             (open_date_id, final_cc_name, address)
         } else {
             // Use values from previous row - DO NOT consume random streams!
-            if let Some(ref prev_row) = self.previous_row {
-                (
-                    prev_row.get_cc_open_date_id(),
-                    prev_row.get_cc_name().to_string(),
-                    prev_row.get_cc_address().clone(),
-                )
-            } else {
-                return Err(crate::TpcdsError::new(
-                    "previousRow has not yet been initialized",
-                ));
-            }
+            let prev_row = self
+                .previous_row
+                .as_ref()
+                .expect("previous row is set when the business key repeats");
+            (
+                prev_row.get_cc_open_date_id(),
+                prev_row.get_cc_name().to_string(),
+                prev_row.get_cc_address().clone(),
+            )
         };
 
         // Select the random number that controls if a field changes from one record to the next.
@@ -383,7 +380,7 @@ impl CallCenterRowGenerator {
 
         self.previous_row = Some(new_row.clone());
 
-        Ok(new_row)
+        new_row
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -416,7 +413,7 @@ impl ScdRowGenerator for CallCenterRowGenerator {
         self.previous_row.as_ref()
     }
 
-    fn generate_row(&mut self, row_number: u64) -> Result<CallCenterRow> {
+    fn generate_row(&mut self, row_number: u64) -> CallCenterRow {
         self.generate_call_center_row(row_number)
     }
 }

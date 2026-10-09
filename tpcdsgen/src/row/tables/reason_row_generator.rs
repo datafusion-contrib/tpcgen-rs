@@ -1,7 +1,6 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::distribution::ReturnReasonsDistribution;
-use crate::error::Result;
 use crate::generator::ReasonGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, ReasonRow};
@@ -23,7 +22,7 @@ impl ReasonRowGenerator {
     }
 
     /// Generate a ReasonRow with realistic data following Java implementation
-    fn generate_reason_row(&mut self, row_number: u64) -> Result<ReasonRow> {
+    fn generate_reason_row(&mut self, row_number: u64) -> ReasonRow {
         let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -48,12 +47,12 @@ impl ReasonRowGenerator {
             session.get_compat_mode(),
         );
 
-        Ok(ReasonRow::new(
+        ReasonRow::new(
             null_bit_map,
             r_reason_sk,
             r_reason_id.to_string(),
             r_reason_desc.to_string(),
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -78,7 +77,7 @@ impl Iterator for ReasonRowGenerator {
 
     fn next(&mut self) -> Option<ReasonRow> {
         let row_number = self.abstract_generator.next_row_number()?;
-        let row = self.generate_reason_row(row_number).expect("row gen");
+        let row = self.generate_reason_row(row_number);
         self.abstract_generator.finish_row();
         Some(row)
     }

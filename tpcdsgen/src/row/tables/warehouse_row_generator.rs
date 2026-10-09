@@ -1,6 +1,5 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
-use crate::error::Result;
 use crate::generator::WarehouseGeneratorColumn;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, WarehouseRow};
@@ -23,7 +22,7 @@ impl WarehouseRowGenerator {
     }
 
     /// Generate a WarehouseRow with realistic data following Java implementation
-    fn generate_warehouse_row(&mut self, row_number: u64) -> Result<WarehouseRow> {
+    fn generate_warehouse_row(&mut self, row_number: u64) -> WarehouseRow {
         let session = &self.session;
         let row_number_i64 = i64::try_from(row_number).expect("row number fits in i64");
 
@@ -59,17 +58,16 @@ impl WarehouseRowGenerator {
         let address_stream = self
             .abstract_generator
             .get_random_number_stream(&WarehouseGeneratorColumn::WWarehouseAddress);
-        let w_address =
-            Address::make_address_for_column(Table::Warehouse, address_stream, scaling)?;
+        let w_address = Address::make_address_for_column(Table::Warehouse, address_stream, scaling);
 
-        Ok(WarehouseRow::new(
+        WarehouseRow::new(
             null_bit_map,
             w_warehouse_sk,
             w_warehouse_id,
             w_warehouse_name,
             w_warehouse_sq_ft,
             w_address,
-        ))
+        )
     }
 
     /// Start generating at `starting_row_number` (1-based), fast forwarding
@@ -94,7 +92,7 @@ impl Iterator for WarehouseRowGenerator {
 
     fn next(&mut self) -> Option<WarehouseRow> {
         let row_number = self.abstract_generator.next_row_number()?;
-        let row = self.generate_warehouse_row(row_number).expect("row gen");
+        let row = self.generate_warehouse_row(row_number);
         self.abstract_generator.finish_row();
         Some(row)
     }

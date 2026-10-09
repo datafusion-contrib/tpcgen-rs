@@ -31,7 +31,6 @@
 //!
 //! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
 use crate::business_key_generator::make_business_key;
-use crate::error::Result;
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::Date;
@@ -195,7 +194,7 @@ pub(crate) trait ScdRowGenerator {
     fn previous_row(&self) -> Option<&Self::Row>;
 
     /// Generate source row `row_number` and retain it as the previous row.
-    fn generate_row(&mut self, row_number: u64) -> Result<Self::Row>;
+    fn generate_row(&mut self, row_number: u64) -> Self::Row;
 
     /// Generate the next source row, or `None` past the end of the range.
     ///
@@ -212,12 +211,12 @@ pub(crate) trait ScdRowGenerator {
                 self.abstract_generator()
                     .skip_rows_until_starting_row_number(history.start);
                 for row_number in history {
-                    self.generate_row(row_number).expect("row gen");
+                    self.generate_row(row_number);
                     self.abstract_generator().finish_row();
                 }
             }
         }
-        let row = self.generate_row(row_number).expect("row gen");
+        let row = self.generate_row(row_number);
         self.abstract_generator().finish_row();
         Some(row)
     }
