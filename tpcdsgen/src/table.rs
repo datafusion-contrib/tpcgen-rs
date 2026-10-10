@@ -1,8 +1,3 @@
-use crate::column::{
-    CallCenterColumn, Column, CustomerAddressColumn, CustomerColumn, DbgenVersionColumn,
-    HouseholdDemographicsColumn, InventoryColumn, PromotionColumn, WebSiteColumn,
-};
-use crate::error::Result;
 use crate::generator::{
     CallCenterGeneratorColumn, CatalogPageGeneratorColumn, CatalogReturnsGeneratorColumn,
     CatalogSalesGeneratorColumn, CustomerAddressGeneratorColumn,
@@ -465,38 +460,6 @@ impl Table {
         }
     }
 
-    /// Get regular column count for this table
-    pub fn get_column_count(&self) -> usize {
-        match self {
-            Table::CallCenter => CallCenterColumn::values().len(),
-            Table::CatalogPage => 9,     // CatalogPageColumn has 9 columns
-            Table::CatalogReturns => 27, // CatalogReturnsColumn has 27 columns
-            Table::CatalogSales => 34,   // CatalogSalesColumn has 34 columns
-            Table::Warehouse => 0, // TODO: Return WarehouseColumn::values().len() once WarehouseColumn is implemented
-            Table::ShipMode => 0, // TODO: Return ShipModeColumn::values().len() once ShipModeColumn is implemented
-            Table::Reason => 0, // TODO: Return ReasonColumn::values().len() once ReasonColumn is implemented
-            Table::IncomeBand => 0, // TODO: Return IncomeBandColumn::values().len() once IncomeBandColumn is implemented
-            Table::HouseholdDemographics => HouseholdDemographicsColumn::values().len(),
-            Table::CustomerDemographics => 0, // TODO: Return CustomerDemographicsColumn::values().len() once CustomerDemographicsColumn is implemented
-            Table::CustomerAddress => CustomerAddressColumn::values().len(),
-            Table::Customer => CustomerColumn::values().len(),
-            Table::DateDim => 0, // TODO: Return DateDimColumn::values().len() once DateDimColumn is implemented
-            Table::TimeDim => 0, // TODO: Return TimeDimColumn::values().len() once TimeDimColumn is implemented
-            Table::Item => 22,   // ItemColumn has 22 columns (I_ITEM_SK to I_PRODUCT_NAME)
-            Table::Promotion => PromotionColumn::values().len(),
-            Table::Store => 29,        // StoreColumn has 29 columns
-            Table::StoreReturns => 20, // StoreReturnsColumn has 20 columns
-            Table::StoreSales => 23,   // StoreSalesColumn has 23 columns
-            Table::WebPage => 0, // TODO: Return WebPageColumn::values().len() once WebPageColumn is implemented
-            Table::WebReturns => 24, // WebReturnsColumn has 24 columns
-            Table::WebSales => 34, // WebSalesColumn has 34 columns
-            Table::WebSite => WebSiteColumn::values().len(),
-            Table::DbgenVersion => DbgenVersionColumn::values().len(),
-            Table::Inventory => InventoryColumn::values().len(),
-            Table::SStore => 0, // Source table
-        }
-    }
-
     /// Get generator column count for this table
     pub fn get_generator_column_count(&self) -> usize {
         match self {
@@ -526,113 +489,6 @@ impl Table {
             Table::DbgenVersion => DbgenVersionGeneratorColumn::values().len(),
             Table::Inventory => InventoryGeneratorColumn::all_variants().len(),
             Table::SStore => 0, // Source table
-        }
-    }
-
-    /// Get a specific regular column by index
-    pub fn get_column_by_index(&self, index: usize) -> Option<&'static dyn Column> {
-        match self {
-            Table::CallCenter => {
-                let columns = CallCenterColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::CatalogPage => {
-                // TODO: Implement once CatalogPageColumn is created
-                None
-            }
-            Table::CatalogReturns => {
-                // TODO: Implement once CatalogReturnsColumn is created
-                None
-            }
-            Table::CatalogSales => {
-                // TODO: Implement once CatalogSalesColumn is created
-                None
-            }
-            Table::Warehouse => {
-                // TODO: Implement once WarehouseColumn is created
-                None
-            }
-            Table::ShipMode => {
-                // TODO: Implement once ShipModeColumn is created
-                None
-            }
-            Table::Reason => {
-                // TODO: Implement once ReasonColumn is created
-                None
-            }
-            Table::IncomeBand => {
-                // TODO: Implement once IncomeBandColumn is created
-                None
-            }
-            Table::HouseholdDemographics => {
-                let columns = HouseholdDemographicsColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::CustomerDemographics => {
-                // TODO: Implement once CustomerDemographicsColumn is created
-                None
-            }
-            Table::CustomerAddress => {
-                let columns = CustomerAddressColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::Customer => {
-                let columns = CustomerColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::DateDim => {
-                // TODO: Implement once DateDimColumn is created
-                None
-            }
-            Table::TimeDim => {
-                // TODO: Implement once TimeDimColumn is created
-                None
-            }
-            Table::Item => {
-                // TODO: Implement once ItemColumn is created
-                None
-            }
-            Table::Promotion => {
-                let columns = PromotionColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::Store => {
-                // TODO: Implement once StoreColumn is created
-                None
-            }
-            Table::StoreReturns => {
-                // TODO: Implement once StoreReturnsColumn is created
-                None
-            }
-            Table::StoreSales => {
-                // TODO: Implement once StoreSalesColumn is created
-                None
-            }
-            Table::WebPage => {
-                // TODO: Implement once WebPageColumn is created
-                None
-            }
-            Table::WebReturns => {
-                // TODO: Implement once WebReturnsColumn is created
-                None
-            }
-            Table::WebSales => {
-                // TODO: Implement once WebSalesColumn is created
-                None
-            }
-            Table::WebSite => {
-                let columns = WebSiteColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::DbgenVersion => {
-                let columns = DbgenVersionColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::Inventory => {
-                let columns = InventoryColumn::values();
-                columns.get(index).map(|col| col as &dyn Column)
-            }
-            Table::SStore => None, // Source table
         }
     }
 
@@ -748,36 +604,6 @@ impl Table {
         }
     }
 
-    /// Get a specific column by name (case-insensitive)
-    pub fn get_column(&self, column_name: &str) -> Result<&'static dyn Column> {
-        let column_name_lower = column_name.to_lowercase();
-        let column_count = self.get_column_count();
-
-        let mut found_column = None;
-        for i in 0..column_count {
-            if let Some(col) = self.get_column_by_index(i) {
-                if col.get_name().to_lowercase() == column_name_lower {
-                    if found_column.is_some() {
-                        return Err(crate::TpcdsError::new(&format!(
-                            "Multiple columns found matching '{}' in table '{}'",
-                            column_name,
-                            self.get_name()
-                        )));
-                    }
-                    found_column = Some(col);
-                }
-            }
-        }
-
-        found_column.ok_or_else(|| {
-            crate::TpcdsError::new(&format!(
-                "Column '{}' not found in table '{}'",
-                column_name,
-                self.get_name()
-            ))
-        })
-    }
-
     /// Check if this table keeps history
     pub fn keeps_history(&self) -> bool {
         self.get_table_flags().keeps_history()
@@ -792,53 +618,6 @@ impl Table {
     pub fn is_date_based(&self) -> bool {
         self.get_table_flags().is_date_based()
     }
-
-    /// Get all base tables (non-source tables)
-    pub fn get_base_tables() -> Vec<Table> {
-        vec![
-            Table::CallCenter,
-            Table::Warehouse,
-            Table::ShipMode,
-            Table::Reason,
-            Table::IncomeBand,
-            Table::HouseholdDemographics,
-            Table::CustomerDemographics,
-            Table::CustomerAddress,
-            Table::Customer,
-            Table::DateDim,
-            Table::TimeDim,
-            Table::Item,
-            Table::Promotion,
-            Table::Store,
-            Table::WebPage,
-            Table::WebSite,
-        ] // TODO: Add other tables as implemented
-    }
-
-    /// Get a table by name (case-insensitive)
-    pub fn get_table(table_name: &str) -> Result<Table> {
-        let table_name_lower = table_name.to_lowercase();
-        let base_tables = Self::get_base_tables();
-
-        let matches: Vec<_> = base_tables
-            .iter()
-            .filter(|table| table.get_name() == table_name_lower)
-            .collect();
-
-        if matches.len() == 1 {
-            Ok(*matches[0])
-        } else if matches.is_empty() {
-            Err(crate::TpcdsError::new(&format!(
-                "Table '{}' not found",
-                table_name
-            )))
-        } else {
-            Err(crate::TpcdsError::new(&format!(
-                "Multiple tables found matching '{}'",
-                table_name
-            )))
-        }
-    }
 }
 
 impl std::fmt::Display for Table {
@@ -850,7 +629,7 @@ impl std::fmt::Display for Table {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::column::ColumnTypeBase;
+    use crate::column::{CallCenterColumn, Column, ColumnTypeBase};
 
     #[test]
     fn test_table_name() {
@@ -885,11 +664,10 @@ mod tests {
 
     #[test]
     fn test_get_columns() {
-        let table = Table::CallCenter;
-        assert_eq!(table.get_column_count(), 31);
+        assert_eq!(CallCenterColumn::values().len(), 31);
 
         // Test first column
-        let first_col = table.get_column_by_index(0).unwrap();
+        let first_col = &CallCenterColumn::values()[0];
         assert_eq!(first_col.get_name(), "cc_call_center_sk");
         assert_eq!(first_col.get_position(), 0);
 
@@ -911,41 +689,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_column_by_name() {
-        let table = Table::CallCenter;
-
-        // Test exact match
-        let column = table.get_column("cc_call_center_sk").unwrap();
-        assert_eq!(column.get_name(), "cc_call_center_sk");
-
-        // Test case insensitive
-        let column = table.get_column("CC_CALL_CENTER_SK").unwrap();
-        assert_eq!(column.get_name(), "cc_call_center_sk");
-
-        // Test not found
-        assert!(table.get_column("nonexistent_column").is_err());
-    }
-
-    #[test]
     fn test_table_flags_methods() {
         let table = Table::CallCenter;
         assert!(table.keeps_history());
         assert!(table.is_small());
         assert!(!table.is_date_based());
-    }
-
-    #[test]
-    fn test_get_table_by_name() {
-        // Test exact match
-        let table = Table::get_table("call_center").unwrap();
-        assert_eq!(table, Table::CallCenter);
-
-        // Test case insensitive
-        let table = Table::get_table("CALL_CENTER").unwrap();
-        assert_eq!(table, Table::CallCenter);
-
-        // Test not found
-        assert!(Table::get_table("nonexistent_table").is_err());
     }
 
     #[test]
@@ -958,26 +706,21 @@ mod tests {
 
     #[test]
     fn test_column_types_integration() {
-        let table = Table::CallCenter;
-
-        // Test some specific column types by finding them by name
-        let sk_column = table.get_column("cc_call_center_sk").unwrap();
+        let sk_column = CallCenterColumn::CcCallCenterSk;
         assert_eq!(sk_column.get_type().get_base(), ColumnTypeBase::Identifier);
 
-        let name_column = table.get_column("cc_name").unwrap();
+        let name_column = CallCenterColumn::CcName;
         assert_eq!(name_column.get_type().get_base(), ColumnTypeBase::Varchar);
         assert_eq!(name_column.get_type().get_precision(), Some(50));
 
-        let date_column = table.get_column("cc_rec_start_date").unwrap();
+        let date_column = CallCenterColumn::CcRecStartDate;
         assert_eq!(date_column.get_type().get_base(), ColumnTypeBase::Date);
     }
 
     #[test]
     fn test_generator_vs_regular_column_count() {
-        let table = Table::CallCenter;
-
-        assert_eq!(table.get_column_count(), 31); // User-visible columns
-        assert_eq!(table.get_generator_column_count(), 34); // Generator columns (includes address, scd, nulls)
+        assert_eq!(CallCenterColumn::values().len(), 31); // User-visible columns
+        assert_eq!(Table::CallCenter.get_generator_column_count(), 34); // Generator columns (includes address, scd, nulls)
     }
 
     #[test]
