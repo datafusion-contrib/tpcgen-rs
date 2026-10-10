@@ -12,6 +12,7 @@ This is the only way.
 |-----------|-----------------------------------------------------------------------------------------|---------------------------------------------------------------|
 | crates.io | `tpchgen`, `tpchgen-arrow`, `tpchgen-cli`, `tpcdsgen`, `tpcdsgen-arrow`, `tpcgen-cli`     | `publish-crates.yml`                                          |
 | PyPI      | `tpchgen-cli`, `tpcgen-cli`                                                             | `publish-pypi.yml`                                            |
+| Homebrew  | `tpcgen-cli`                                                                            | Homebrew updates it automatically (see [Homebrew](#homebrew)) |
 
 - Only repository admins can create, move or delete `v*` tags.
 - The `release` (crates.io) and `pypi` environments only deploy from `v*` tags.
@@ -73,6 +74,14 @@ Only continue once an RC has published and been checked successfully.
    uvx tpchgen-cli@X.Y.Z --version
    ```
 
+7. Homebrew picks up the release automatically (see [Homebrew](#homebrew)).
+   Once the version bump merges, check it:
+
+   ```shell
+   brew update && brew upgrade tpcgen-cli
+   tpcgen-cli --version
+   ```
+
 ## If something fails
 
 | Failure                                           | What to do                                                                                     |
@@ -97,3 +106,18 @@ To publish the remaining crates manually:
    ```
 
 3. Turn **trusted publishing only** back on.
+
+## Homebrew
+
+The `tpcgen-cli` formula lives in
+[Homebrew/homebrew-core](https://github.com/Homebrew/homebrew-core/blob/main/Formula/t/tpcgen-cli.rb).
+Homebrew's [autobump](https://docs.brew.sh/Autobump) bot opens a version bump
+pull request within a few hours of each release. Homebrew skips versions
+containing `rc`, `alpha`, `beta`, `dev` or `preview`, so release candidates
+(`vX.Y.Z-rc.N`) are not picked up.
+
+If no pull request appears within a day, open one manually:
+
+```shell
+brew bump-formula-pr tpcgen-cli --version X.Y.Z
+```
