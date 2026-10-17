@@ -94,22 +94,6 @@ impl Table {
         ]
     }
 
-    /// Return the table whose source rows drive generation of this table.
-    ///
-    /// The returns tables are generated row by row from their corresponding
-    /// sales generators, so anything that partitions generation by source row
-    /// (for example parallel Parquet generation) must use the sales table's
-    /// row counts; the returns tables' own scaling row counts would miss or
-    /// duplicate return rows. Every other table generates from its own rows.
-    pub fn source_table(&self) -> Table {
-        match self {
-            Table::StoreReturns => Table::StoreSales,
-            Table::CatalogReturns => Table::CatalogSales,
-            Table::WebReturns => Table::WebSales,
-            other => *other,
-        }
-    }
-
     pub fn keeps_history(&self) -> bool {
         // Tables that maintain historical data
         matches!(
@@ -198,15 +182,6 @@ mod tests {
     fn test_keeps_history() {
         assert!(Table::CallCenter.keeps_history());
         assert!(!Table::CatalogSales.keeps_history());
-    }
-
-    #[test]
-    fn test_source_table() {
-        assert_eq!(Table::StoreReturns.source_table(), Table::StoreSales);
-        assert_eq!(Table::CatalogReturns.source_table(), Table::CatalogSales);
-        assert_eq!(Table::WebReturns.source_table(), Table::WebSales);
-        assert_eq!(Table::StoreSales.source_table(), Table::StoreSales);
-        assert_eq!(Table::Reason.source_table(), Table::Reason);
     }
 
     #[test]

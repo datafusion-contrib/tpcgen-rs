@@ -34,9 +34,7 @@ impl PlannedTable {
     /// [`crate::generate::Source`] per chunk.
     pub(super) fn chunks(&self) -> impl Iterator<Item = (Session, u64, RangeInclusive<u64>)> {
         let session = self.session.clone();
-        let source_rows = session
-            .get_scaling()
-            .get_row_count(self.table.source_table());
+        let source_rows = session.get_scaling().get_row_count(self.table);
         self.plan
             .clone()
             .into_iter()

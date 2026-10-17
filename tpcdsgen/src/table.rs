@@ -356,12 +356,12 @@ impl Table {
                 })
             }
             Table::StoreReturns => {
-                // StoreReturns is generated as part of StoreSales (10% return rate)
-                // Its row count is derived from StoreSales, not independently scaled
                 static SCALING: OnceLock<ScalingInfo> = OnceLock::new();
                 SCALING.get_or_init(|| {
-                    let row_counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-                    ScalingInfo::new(0, ScalingModel::Static, &row_counts, 0)
+                    let row_counts = [
+                        0, 24, 240, 2400, 7200, 24000, 72000, 240000, 720000, 2400000,
+                    ];
+                    ScalingInfo::new(4, ScalingModel::Linear, &row_counts, 0)
                         .expect("StoreReturns ScalingInfo creation should not fail")
                 })
             }
