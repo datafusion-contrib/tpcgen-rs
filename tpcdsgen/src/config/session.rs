@@ -163,7 +163,7 @@ impl Session {
     /// A chunk with no work returns an empty range, so callers must check
     /// [`RangeInclusive::is_empty`] before generating
     pub fn get_source_row_range(&self, table: Table) -> RangeInclusive<u64> {
-        let total_rows = self.scaling.get_row_count(table.source_table());
+        let total_rows = self.scaling.get_row_count(table);
         let (first_row, row_count) = split_work(total_rows, self.chunk_number, self.total_chunks);
         first_row..=(first_row + row_count - 1)
     }
@@ -460,7 +460,6 @@ mod tests {
 
     #[test]
     fn test_catalog_returns_ranges() {
-        // catalog_returns is split over its paired catalog_sales source rows
         RowSizeTest::new(Table::CatalogReturns, &[1..=160000, 1..=0, 1..=0]).run();
     }
 
@@ -542,7 +541,6 @@ mod tests {
 
     #[test]
     fn test_store_returns_ranges() {
-        // store_returns is split over its paired store_sales source rows
         RowSizeTest::new(Table::StoreReturns, &[1..=240000, 1..=0, 1..=0]).run();
     }
 
@@ -568,7 +566,6 @@ mod tests {
 
     #[test]
     fn test_web_returns_ranges() {
-        // web_returns is split over its paired web_sales source rows
         RowSizeTest::new(Table::WebReturns, &[1..=60000, 1..=0, 1..=0]).run();
     }
 

@@ -1,6 +1,5 @@
 use crate::config::{CompatMode, Table};
 use crate::distribution::calendar_distribution::{CalendarDistribution, CalendarWeights};
-use crate::table::Table as MetaTable;
 use crate::types::Date;
 
 /// Row count for the `reason` table under C dsdgen compatibility.
@@ -83,11 +82,8 @@ impl Scaling {
             return REASON_ROW_COUNT_C;
         }
 
-        // Convert config::Table to table::Table to access ScalingInfo
-        let meta_table = Self::to_meta_table(table);
-
         // Get base row count from ScalingInfo
-        let scaling_info = meta_table.get_scaling_info();
+        let scaling_info = table.get_scaling_info();
         let base_row_count: u64 = scaling_info
             .get_row_count_for_scale(self.scale)
             .unwrap_or(0)
@@ -96,7 +92,7 @@ impl Scaling {
 
         // Apply multiplier based on keepsHistory and scalingInfo.multiplier
         // multiplier = (keepsHistory ? 2 : 1) * 10^scalingInfo.multiplier
-        let mut multiplier: u64 = if meta_table.keeps_history() { 2 } else { 1 };
+        let mut multiplier: u64 = if table.keeps_history() { 2 } else { 1 };
         for _ in 0..scaling_info.get_multiplier() {
             multiplier *= 10;
         }
@@ -122,37 +118,6 @@ impl Scaling {
         let n_days = Date::JULIAN_DATE_MAXIMUM - Date::JULIAN_DATE_MINIMUM;
         let n_weeks = (n_days + 7) / 7; // Round up to weeks
         self.get_id_count(Table::Item) * self.get_row_count(Table::Warehouse) * n_weeks as u64
-    }
-
-    /// Convert config::Table to table::Table for accessing metadata
-    fn to_meta_table(table: Table) -> MetaTable {
-        match table {
-            Table::CallCenter => MetaTable::CallCenter,
-            Table::CatalogPage => MetaTable::CatalogPage,
-            Table::CatalogReturns => MetaTable::CatalogReturns,
-            Table::CatalogSales => MetaTable::CatalogSales,
-            Table::Customer => MetaTable::Customer,
-            Table::CustomerAddress => MetaTable::CustomerAddress,
-            Table::CustomerDemographics => MetaTable::CustomerDemographics,
-            Table::DateDim => MetaTable::DateDim,
-            Table::HouseholdDemographics => MetaTable::HouseholdDemographics,
-            Table::IncomeBand => MetaTable::IncomeBand,
-            Table::Inventory => MetaTable::Inventory,
-            Table::Item => MetaTable::Item,
-            Table::Promotion => MetaTable::Promotion,
-            Table::Reason => MetaTable::Reason,
-            Table::ShipMode => MetaTable::ShipMode,
-            Table::Store => MetaTable::Store,
-            Table::StoreReturns => MetaTable::StoreReturns,
-            Table::StoreSales => MetaTable::StoreSales,
-            Table::TimeDim => MetaTable::TimeDim,
-            Table::Warehouse => MetaTable::Warehouse,
-            Table::WebPage => MetaTable::WebPage,
-            Table::WebReturns => MetaTable::WebReturns,
-            Table::WebSales => MetaTable::WebSales,
-            Table::WebSite => MetaTable::WebSite,
-            Table::DbgenVersion => MetaTable::DbgenVersion,
-        }
     }
 
     /// Get unique ID count for tables that keep history
@@ -209,38 +174,6 @@ impl Scaling {
         result /= calendar_total;
 
         result
-    }
-
-    /// Basic row counts per table at scale factor 1.
-    #[allow(dead_code)]
-    fn get_base_row_count(&self, table: Table) -> i64 {
-        match table {
-            Table::CallCenter => 6,
-            Table::CatalogPage => 11718,
-            Table::CatalogReturns => 160000, // Same as CatalogSales orders (returns are ~10% of sales)
-            Table::CatalogSales => 160000,   // Number of ORDERS, not line items (16 * 10^4)
-            Table::Customer => 100000,
-            Table::CustomerAddress => 50000,
-            Table::CustomerDemographics => 1920800,
-            Table::DateDim => 73049,
-            Table::HouseholdDemographics => 7200,
-            Table::IncomeBand => 20,
-            Table::Inventory => 11745000,
-            Table::Item => 18000,
-            Table::Promotion => 300,
-            Table::Reason => 35,
-            Table::ShipMode => 20,
-            Table::Store => 12,
-            Table::StoreReturns => 240000, // Same as StoreSales orders (returns are ~10% of sales)
-            Table::StoreSales => 240000,   // Number of ORDERS, not line items (24 * 10^4)
-            Table::TimeDim => 86400,
-            Table::Warehouse => 5,
-            Table::WebPage => 60,
-            Table::WebReturns => 60000, // Same as WebSales orders (returns are ~10% of sales)
-            Table::WebSales => 60000,   // Number of ORDERS, not line items (60 * 10^3)
-            Table::WebSite => 30,
-            Table::DbgenVersion => 1,
-        }
     }
 }
 

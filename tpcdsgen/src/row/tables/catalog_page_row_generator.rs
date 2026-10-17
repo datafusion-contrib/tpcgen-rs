@@ -59,9 +59,7 @@ impl CatalogPageRowGenerator {
         let cp_catalog_page_id = crate::business_key_generator::make_business_key(row_number);
 
         // Calculate catalog page numbers
-        let row_count = session
-            .get_scaling()
-            .get_row_count(crate::config::table::Table::CatalogPage);
+        let row_count = session.get_scaling().get_row_count(Table::CatalogPage);
         let catalog_page_max = ((row_count / CATALOGS_PER_YEAR as u64) as i32)
             / (Date::DATE_MAXIMUM.year() - Date::DATE_MINIMUM.year() + 2);
         let cp_catalog_number = ((row_number_i64 - 1) / catalog_page_max as i64 + 1) as i32;

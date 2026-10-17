@@ -153,18 +153,7 @@ impl Address {
             )
         };
 
-        let config_table = match table {
-            crate::table::Table::CallCenter => crate::config::table::Table::CallCenter,
-            crate::table::Table::WebSite => crate::config::table::Table::WebSite,
-            crate::table::Table::Warehouse => crate::config::table::Table::Warehouse,
-            crate::table::Table::CustomerAddress => crate::config::table::Table::CustomerAddress,
-            crate::table::Table::Store => crate::config::table::Table::Store,
-            _ => panic!(
-                "Table {:?} not yet supported in Address::make_address_for_column",
-                table
-            ),
-        };
-        let row_count = scaling.get_row_count(config_table) as i32;
+        let row_count = scaling.get_row_count(table) as i32;
         let city = if table.is_small() {
             let max_cities =
                 PseudoTableScalingInfos::get_active_cities_row_count_for_scale(scaling.get_scale())

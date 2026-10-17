@@ -314,7 +314,7 @@ mod tests {
         chunk_size_bytes: i64,
         format: ChunkFormat,
     ) -> TpcdsGenerationPlan {
-        let source_rows = Scaling::new(scale_factor).get_row_count(table.source_table());
+        let source_rows = Scaling::new(scale_factor).get_row_count(table);
         TpcdsGenerationPlan::new_for_range(table, chunk_size_bytes, 1..=source_rows, format)
     }
 
@@ -364,15 +364,6 @@ mod tests {
     fn maximum_target_keeps_one_row_group() {
         let plan = plan(Table::StoreSales, 1.0, i64::MAX);
         assert_eq!(plan.chunk_count(), 1);
-        assert_covers(&plan, 240_000);
-    }
-
-    #[test]
-    fn store_returns_ranges_use_sales_source_rows() {
-        let plan = plan(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        // store_returns is generated from the 240k store_sales source rows
-        // (its own scaling row count is 0)
-        assert_eq!(plan.chunk_count(), 3);
         assert_covers(&plan, 240_000);
     }
 
@@ -435,14 +426,6 @@ mod tests {
             let plan = plan_with_format(Table::StoreSales, 3000.0, DEFAULT_ROW_GROUP_BYTES, format);
             assert!(plan.chunk_count() > MAX_ROW_GROUPS as usize);
             assert_covers(&plan, Scaling::new(3000.0).get_row_count(Table::StoreSales));
-        }
-    }
-
-    #[test]
-    fn text_returns_ranges_use_sales_source_rows() {
-        for format in [ChunkFormat::Dat, ChunkFormat::Csv] {
-            let plan = plan_with_format(Table::StoreReturns, 1.0, DEFAULT_ROW_GROUP_BYTES, format);
-            assert_covers(&plan, 240_000);
         }
     }
 }
