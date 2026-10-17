@@ -205,12 +205,12 @@ pub struct CommonArgs {
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
-    /// Reference implementation to match: trino or c
-    ///
-    /// trino: the Trino Java port; dat output is ISO-8859-1 (Latin-1)
+    /// Reference implementation to match: c or trino
     ///
     /// c: the original C dsdgen; dat output is UTF-8
-    #[arg(long, default_value_t = CompatMode::Trino)]
+    ///
+    /// trino: the Trino Java port; dat output is ISO-8859-1 (Latin-1)
+    #[arg(long, default_value_t = CompatMode::C)]
     compat: CompatMode,
 
     /// Number of part(itions) to generate. If not specified creates a single file per table

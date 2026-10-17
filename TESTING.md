@@ -119,9 +119,9 @@ The suites do not cover everything:
   Other tables rely on the writer path being shared.
 - CI verifies TPC-DS at scale factor 1 in both compat modes, scale factor 4
   against C, and, in the full pass, scale factor 2 for C.
-- The reparse tests run in Trino compat mode only, since that is
-  `Session::default()`. The `--compat c` corrections are covered at the `.dat`
-  level but not through the Arrow, CSV and Parquet paths.
+- The reparse tests run in C compat mode only, since that is
+  `Session::default()`. The `--compat trino` differences are covered at the
+  `.dat` level but not through the Arrow, CSV and Parquet paths.
 - The step from text back to Arrow uses the `arrow-csv` reader as its parser, so
   a bug in that reader that exactly mirrored a bug in our Arrow generators would
   not be caught.
@@ -201,7 +201,7 @@ ac61de9604337e791f1bdbcef8f0cdcc21b01514  tpch-dbgen/region.tbl
 
 There are two reference implementations to check against.
 
-For the Trino Java port (`--compat trino`, the default), build it once and
+For the Trino Java port (`--compat trino`), build it once and
 generate its reference data:
 
 ```sh
@@ -210,7 +210,7 @@ generate its reference data:
 shasum tpcgen-cli/tests/fixtures/tpcds/scale-1-trino/*.dat
 ```
 
-For the C `dsdgen` reference (`--compat c`), the data is pre-generated and
+For the C `dsdgen` reference (`--compat c`, the default), the data is pre-generated and
 published in [alamb/tpcds-data], so no build is needed:
 
 ```sh

@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn small_table_single_row_group() {
         let plan = plan(Table::Reason, 1.0, DEFAULT_ROW_GROUP_BYTES);
-        assert_eq!(plan.ranges, vec![1..=35]);
+        assert_eq!(plan.ranges, vec![1..=75]);
     }
 
     #[test]
@@ -396,10 +396,10 @@ mod tests {
 
     #[test]
     fn row_groups_never_exceed_source_rows() {
-        // 35 source rows in 1 byte row groups still yields at most 35 groups
+        // 75 source rows in 1 byte row groups still yields at most 75 groups
         let plan = plan(Table::Reason, 1.0, 1);
-        assert_eq!(plan.chunk_count(), 35);
-        assert_covers(&plan, 35);
+        assert_eq!(plan.chunk_count(), 75);
+        assert_covers(&plan, 75);
     }
 
     #[test]
@@ -412,7 +412,7 @@ mod tests {
 
     #[test]
     fn empty_table_gets_one_empty_range() {
-        let plan = plan(Table::Reason, 0.0, DEFAULT_ROW_GROUP_BYTES);
+        let plan = plan(Table::Customer, 0.0, DEFAULT_ROW_GROUP_BYTES);
         assert_eq!(plan.chunk_count(), 1);
         assert!(plan.ranges[0].is_empty());
     }

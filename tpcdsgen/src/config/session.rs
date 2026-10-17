@@ -89,7 +89,7 @@ impl Session {
     pub const DEFAULT_CHUNK_NUMBER: i32 = 1;
     pub const DEFAULT_TOTAL_CHUNKS: i32 = 1;
     pub const DEFAULT_PARTITIONED: bool = false;
-    pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
+    pub const DEFAULT_COMPAT: CompatMode = CompatMode::C;
 
     /// Convert this session into a builder initialized with its current values.
     pub fn into_builder(self) -> SessionBuilder {
@@ -349,6 +349,7 @@ mod tests {
         assert!(!session.generate_only_one_table());
         assert!(session.is_sexist());
         assert_eq!(session.get_chunk_number(), 1);
+        assert_eq!(session.get_compat_mode(), CompatMode::C);
         assert_eq!(session.command_line_arguments(), None);
     }
 
@@ -360,7 +361,7 @@ mod tests {
             .with_no_sexism(true)
             .with_chunk_number(2)
             .with_total_chunks(4)
-            .with_compat_mode(CompatMode::C)
+            .with_compat_mode(CompatMode::Trino)
             .with_command_line_arguments("tpcgen-cli tpcds --scale-factor 2")
             .build()
             .unwrap();
@@ -370,7 +371,7 @@ mod tests {
         assert!(!session.is_sexist());
         assert_eq!(session.get_chunk_number(), 2);
         assert_eq!(session.get_total_chunks(), 4);
-        assert_eq!(session.get_compat_mode(), CompatMode::C);
+        assert_eq!(session.get_compat_mode(), CompatMode::Trino);
         assert_eq!(
             session.command_line_arguments(),
             Some("tpcgen-cli tpcds --scale-factor 2")
@@ -527,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_reason_ranges() {
-        RowSizeTest::new(Table::Reason, &[1..=35, 1..=0, 1..=0]).run();
+        RowSizeTest::new(Table::Reason, &[1..=75, 1..=0, 1..=0]).run();
     }
 
     #[test]

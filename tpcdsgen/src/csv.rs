@@ -230,9 +230,9 @@ impl Display for CatalogPageCsv<'_> {
 /// assert_eq!(
 ///   csv,
 ///   "cr_returned_date_sk,cr_returned_time_sk,cr_item_sk,cr_refunded_customer_sk,cr_refunded_cdemo_sk,cr_refunded_hdemo_sk,cr_refunded_addr_sk,cr_returning_customer_sk,cr_returning_cdemo_sk,cr_returning_hdemo_sk,cr_returning_addr_sk,cr_call_center_sk,cr_catalog_page_sk,cr_ship_mode_sk,cr_warehouse_sk,cr_reason_sk,cr_order_number,cr_return_quantity,cr_return_amount,cr_return_tax,cr_return_amt_inc_tax,cr_fee,cr_return_ship_cost,cr_refunded_cash,cr_reversed_charge,cr_store_credit,cr_net_loss\n\
-///    2450926,45816,17368,14601,797995,6189,9583,14601,797995,4703,9583,1,106,2,2,30,2,47,3888.31,233.29,4121.60,91.23,1348.90,3577.24,186.64,124.43,1673.42\n\
+///    2450926,45816,17368,14601,797995,6189,9583,14601,797995,4703,9583,1,106,2,2,25,2,47,3888.31,233.29,4121.60,91.23,1348.90,3577.24,186.64,124.43,1673.42\n\
 ///    2450946,74710,6295,14601,797995,6189,9583,82809,665550,991,14832,1,17,2,5,6,2,49,2490.18,99.60,2589.78,52.54,1867.39,323.72,931.57,1234.89,2019.53\n\
-///    2451065,71104,3391,25383,3755,2480,5652,2311,700704,5571,12485,4,7,13,2,1,4,12,64.32,4.50,68.82,22.97,78.60,1.28,55.47,7.57,106.07\n"
+///    2451065,71104,3391,25383,3755,2480,5652,2311,700704,5571,12485,4,7,13,2,61,4,12,64.32,4.50,68.82,22.97,78.60,1.28,55.47,7.57,106.07\n"
 /// );
 /// ```
 pub struct CatalogReturnsCsv<'a> {
@@ -1303,9 +1303,9 @@ impl Display for StoreCsv<'_> {
 /// assert_eq!(
 ///   csv,
 ///   "sr_returned_date_sk,sr_return_time_sk,sr_item_sk,sr_customer_sk,sr_cdemo_sk,sr_hdemo_sk,sr_addr_sk,sr_store_sk,sr_reason_sk,sr_ticket_number,sr_return_quantity,sr_return_amt,sr_return_tax,sr_return_amt_inc_tax,sr_fee,sr_return_ship_cost,sr_refunded_cash,sr_reversed_charge,sr_store_credit,sr_net_loss\n\
-///    2451984,46418,4553,67006,793022,4033,17397,7,19,1,51,37.23,3.35,40.58,55.28,714.00,0.74,17.51,18.98,772.63\n\
-///    2451822,47480,10993,67006,1082163,7157,49751,1,29,1,43,4009.32,120.27,4129.59,28.23,0.00,3448.01,5.61,555.70,148.50\n\
-///    2451653,37700,7654,68284,289468,3067,21819,10,35,2,7,249.48,2.49,251.97,11.50,6.23,234.51,8.83,6.14,20.22\n"
+///    2451984,46418,4553,67006,793022,4033,17397,7,69,1,51,37.23,3.35,40.58,55.28,714.00,0.74,17.51,18.98,772.63\n\
+///    2451822,47480,10993,67006,1082163,7157,49751,1,14,1,43,4009.32,120.27,4129.59,28.23,0.00,3448.01,5.61,555.70,148.50\n\
+///    2451653,37700,7654,68284,289468,3067,21819,10,20,2,7,249.48,2.49,251.97,11.50,6.23,234.51,8.83,6.14,20.22\n"
 /// );
 /// ```
 pub struct StoreReturnsCsv<'a> {
@@ -1727,9 +1727,9 @@ impl Display for WebPageCsv<'_> {
 /// assert_eq!(
 ///   csv,
 ///   "wr_returned_date_sk,wr_returned_time_sk,wr_item_sk,wr_refunded_customer_sk,wr_refunded_cdemo_sk,wr_refunded_hdemo_sk,wr_refunded_addr_sk,wr_returning_customer_sk,wr_returning_cdemo_sk,wr_returning_hdemo_sk,wr_returning_addr_sk,wr_web_page_sk,wr_reason_sk,wr_order_number,wr_return_quantity,wr_return_amt,wr_return_tax,wr_return_amt_inc_tax,wr_fee,wr_return_ship_cost,wr_refunded_cash,wr_reversed_charge,wr_account_credit,wr_net_loss\n\
-///    2451653,7022,10402,46224,1011635,3446,4057,46224,1011635,3446,4057,56,23,1,10,698.20,13.96,712.16,18.63,820.30,300.22,382.06,15.92,852.89\n\
-///    2451627,64915,15464,3811,18405,199,48793,3811,18405,199,48793,13,9,1,47,1248.79,49.95,1298.74,61.81,709.23,262.24,128.25,858.30,820.99\n\
-///    2452798,,9559,,31639,,18790,,31639,2038,18790,,11,2,11,,25.52,,,16.72,,16.36,165.47,\n"
+///    2451653,7022,10402,46224,1011635,3446,4057,46224,1011635,3446,4057,56,73,1,10,698.20,13.96,712.16,18.63,820.30,300.22,382.06,15.92,852.89\n\
+///    2451627,64915,15464,3811,18405,199,48793,3811,18405,199,48793,13,54,1,47,1248.79,49.95,1298.74,61.81,709.23,262.24,128.25,858.30,820.99\n\
+///    2452798,,9559,,31639,,18790,,31639,2038,18790,,71,2,11,,25.52,,,16.72,,16.36,165.47,\n"
 /// );
 /// ```
 pub struct WebReturnsCsv<'a> {

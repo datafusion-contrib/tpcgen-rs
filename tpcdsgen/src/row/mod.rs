@@ -108,15 +108,15 @@ mod tests {
     #[test]
     fn source_row_ranges_concatenate_to_the_unranged_output() {
         let session = session(1.0);
-        let whole = rows_for!(ReasonRowGenerator, Table::Reason, &session, &[(1, 35)]);
+        let whole = rows_for!(ReasonRowGenerator, Table::Reason, &session, &[(1, 75)]);
         let chunked = rows_for!(
             ReasonRowGenerator,
             Table::Reason,
             &session,
-            &[(1, 1), (2, 10), (11, 34), (35, 35)]
+            &[(1, 1), (2, 10), (11, 74), (75, 75)]
         );
 
-        assert_eq!(whole.len(), 35);
+        assert_eq!(whole.len(), 75);
         assert_eq!(whole, chunked);
     }
 

@@ -57,11 +57,10 @@
 //! options for a generation run and is built with [`SessionBuilder`]:
 //!
 //! ```
-//! # use tpcdsgen::config::{CompatMode, SessionBuilder, Table};
+//! # use tpcdsgen::config::{SessionBuilder, Table};
 //! # use tpcdsgen::row::StoreSalesRowGenerator;
 //! let session = SessionBuilder::new()
 //!     .with_scale_factor(10.0)
-//!     .with_compat_mode(CompatMode::C)
 //!     .with_chunk_number(2)   // generate the second of
 //!     .with_total_chunks(4)   // four parts
 //!     .build()
@@ -83,9 +82,9 @@
 //! They differ in a small number of places, so [`CompatMode`] selects which one
 //! to match byte-for-byte:
 //!
-//! - [`CompatMode::Trino`] (default): matches the Java port, which writes
+//! - [`CompatMode::Trino`]: matches the Java port, which writes
 //!   DAT output as ISO-8859-1 (Latin-1).
-//! - [`CompatMode::C`]: matches the C `dsdgen`, which writes UTF-8. This does
+//! - [`CompatMode::C`] (default): matches the C `dsdgen`, which writes UTF-8. This does
 //!   not fix the [known bugs](#known-bugs), which are in both implementations.
 //!
 //! The output is verified against both reference implementations in CI, see
