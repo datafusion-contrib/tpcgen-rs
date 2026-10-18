@@ -1,7 +1,6 @@
 //! Implementations of [`Source`] for generating data in TBL format
 
 use crate::generate::Source;
-use std::io::Write;
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
     PartSuppGenerator, RegionGenerator, SupplierGenerator,
@@ -28,8 +27,7 @@ macro_rules! define_tbl_source {
 
             fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
                 for item in self.inner.iter() {
-                    // The default Display impl writes TBL format
-                    writeln!(&mut buffer, "{item}").expect("writing to memory is infallible");
+                    item.write_tbl(&mut buffer);
                 }
                 buffer
             }
