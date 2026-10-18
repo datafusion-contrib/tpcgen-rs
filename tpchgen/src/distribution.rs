@@ -95,6 +95,13 @@ impl Distribution {
         self.values.len()
     }
 
+    /// Gets all values repeated by their weight, in the order
+    /// [`Self::random_value`] picks from: `random_value` returns
+    /// `weighted_values()[random.next_int(0, weighted_values().len() - 1)]`.
+    pub(crate) fn weighted_values(&self) -> &[&'static str] {
+        &self.distribution
+    }
+
     /// Gets a random value from this distribution using the provided random number.
     pub fn random_value(&self, random: &mut RowRandomInt) -> &str {
         debug_assert!(
