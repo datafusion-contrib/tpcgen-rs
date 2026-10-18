@@ -449,7 +449,7 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                1154938, 1153793, 1152175, 1152992, 1152614, 1152066, 1153473, 1152964,
+                1120102, 1118802, 1117266, 1118056, 1117860, 1117187, 1118538, 1118186,
             ],
         }],
     );
