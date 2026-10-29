@@ -1,5 +1,6 @@
 //! [`TPCHDecimal`] and decimal handling
 
+use crate::fmt_bytes::{push_i64, push_two_digits};
 use std::fmt;
 
 /// Represents a decimal with a scale of 2.
@@ -51,6 +52,20 @@ impl TPCHDecimal {
     /// Return the inner i64 value.
     pub const fn into_inner(self) -> i64 {
         self.0
+    }
+}
+
+impl TPCHDecimal {
+    /// Appends this decimal to `buf`, as the [`Display`](fmt::Display) impl
+    /// formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        if self.is_negative() {
+            buf.push(b'-');
+        }
+        push_i64(buf, self.int_digits());
+        buf.push(b'.');
+        push_two_digits(buf, self.decimal_digits() as u64);
     }
 }
 
@@ -134,6 +149,15 @@ mod tests {
             let formatted = test_case.decimal.to_string();
             assert_eq!(
                 test_case.expected, formatted,
+                "input decimal: {:?}",
+                test_case.decimal,
+            );
+
+            let mut buf = Vec::new();
+            test_case.decimal.write_to(&mut buf);
+            assert_eq!(
+                test_case.expected.as_bytes(),
+                buf,
                 "input decimal: {:?}",
                 test_case.decimal,
             );

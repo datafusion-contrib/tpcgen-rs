@@ -1,5 +1,6 @@
 //! Implementation of the core random number generators.
 
+use crate::fmt_bytes::push_i64_padded;
 use crate::{distribution::Distribution, text::TextPool};
 use std::fmt::Display;
 
@@ -360,20 +361,18 @@ pub struct RandomAlphaNumericInstance {
     snapshot: RowRandomInt,
 }
 
-impl Display for RandomAlphaNumericInstance {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Use up to  64 bytes of a stack buffer for small strings to avoid
-        // allocation, and heap allocation for larger ones.
-        let mut stack_buffer = [0u8; 64];
-        let mut heap_buffer = Vec::new();
+impl RandomAlphaNumericInstance {
+    /// Appends this string to `buf`, as the [`Display`] impl formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        let start = buf.len();
+        buf.resize(start + self.length, 0);
+        self.fill(&mut buf[start..]);
+    }
 
-        let buffer = if self.length <= stack_buffer.len() {
-            &mut stack_buffer[0..self.length]
-        } else {
-            heap_buffer.resize(self.length, 0);
-            &mut heap_buffer
-        };
-
+    /// Writes the characters of this string to `buffer`, which must be
+    /// `self.length` bytes long. The characters are all ASCII.
+    fn fill(&self, buffer: &mut [u8]) {
         let mut generator = self.snapshot; // copy to for mutation
 
         let mut char_index = 0;
@@ -388,6 +387,23 @@ impl Display for RandomAlphaNumericInstance {
             buffer[i] = RandomAlphaNumeric::ALPHA_NUMERIC[char_pos];
             char_index >>= 6;
         }
+    }
+}
+
+impl Display for RandomAlphaNumericInstance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Use up to  64 bytes of a stack buffer for small strings to avoid
+        // allocation, and heap allocation for larger ones.
+        let mut stack_buffer = [0u8; 64];
+        let mut heap_buffer = Vec::new();
+
+        let buffer = if self.length <= stack_buffer.len() {
+            &mut stack_buffer[0..self.length]
+        } else {
+            heap_buffer.resize(self.length, 0);
+            &mut heap_buffer
+        };
+        self.fill(buffer);
         // Safety: only pushed ascii characters into the buffer
         let s = unsafe { std::str::from_utf8_unchecked(buffer) };
         f.write_str(s)?;
@@ -446,6 +462,20 @@ pub struct PhoneNumberInstance {
     local1: i32,
     local2: i32,
     local3: i32,
+}
+
+impl PhoneNumberInstance {
+    /// Appends this phone number to `buf`, as the [`Display`] impl formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        push_i64_padded(buf, i64::from(self.country_code), 2);
+        buf.push(b'-');
+        push_i64_padded(buf, i64::from(self.local1), 3);
+        buf.push(b'-');
+        push_i64_padded(buf, i64::from(self.local2), 3);
+        buf.push(b'-');
+        push_i64_padded(buf, i64::from(self.local3), 4);
+    }
 }
 
 impl Display for PhoneNumberInstance {
@@ -562,6 +592,21 @@ impl<'a> RandomStringSequence<'a> {
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct StringSequenceInstance<'a> {
     values: Vec<&'a str>,
+}
+
+impl StringSequenceInstance<'_> {
+    /// Appends this sequence to `buf`, as the [`Display`] impl formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        let mut iter = self.values.iter();
+        if let Some(first) = iter.next() {
+            buf.extend_from_slice(first.as_bytes());
+        }
+        for value in iter {
+            buf.push(b' ');
+            buf.extend_from_slice(value.as_bytes());
+        }
+    }
 }
 
 impl Display for StringSequenceInstance<'_> {
