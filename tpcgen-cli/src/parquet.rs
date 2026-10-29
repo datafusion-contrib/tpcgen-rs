@@ -317,7 +317,9 @@ where
     I: Iterator<Item: RecordBatchReader + Send> + 'static,
 {
     async fn write_to<W: Write + Send + 'static>(self, writer: W) -> io::Result<()> {
-        let writer = BufWriter::with_capacity(32 * 1024 * 1024, writer); // 32MB buffer
+        // Small, so it stays in cache. `BufWriter` writes pages larger than
+        // this directly instead of copying them.
+        let writer = BufWriter::with_capacity(64 * 1024, writer);
         generate_parquet(
             writer,
             self.sources,

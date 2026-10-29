@@ -80,4 +80,8 @@ pub use tables::{
 };
 
 /// Default number of rows per [`RecordBatch`](arrow::array::RecordBatch).
-pub const DEFAULT_BATCH_SIZE: usize = 8_000;
+///
+/// Small enough that a batch stays in a core's L2 cache until the Parquet
+/// writer encodes it. With 8000 rows a batch of a wide table is several MB,
+/// and with many threads the encoder re-reads it from DRAM.
+pub const DEFAULT_BATCH_SIZE: usize = 1024;
