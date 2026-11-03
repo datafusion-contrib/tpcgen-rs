@@ -84,4 +84,9 @@ pub use region::RegionArrow;
 pub use supplier::SupplierArrow;
 
 /// The default number of rows in each Batch
-pub const DEFAULT_BATCH_SIZE: usize = 8 * 1000;
+///
+/// Small enough that a batch stays in a core's L2 cache until the Parquet
+/// writer encodes it. With 8000 rows a TPC-H `lineitem` batch is about 3 MB,
+/// and with 32 threads the encoder re-reads it from DRAM: SF10 `lineitem`
+/// Parquet was 1.4x slower.
+pub const DEFAULT_BATCH_SIZE: usize = 1024;
