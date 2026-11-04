@@ -35,3 +35,9 @@ arrow_60 = { package = "arrow", version = "60", default-features = false }
 codegen-units = 1
 lto = true
 strip = "debuginfo"
+
+# Temporary: build against unreleased arrow-rs main (what will become 60.1.0)
+# to test performance. Remove once arrow 60.1.0 is released.
+[patch.crates-io]
+arrow = { git = "https://github.com/apache/arrow-rs.git", rev = "3658fc01e8fed4179d476aa3efc34b2723f89dd3" }
+parquet = { git = "https://github.com/apache/arrow-rs.git", rev = "3658fc01e8fed4179d476aa3efc34b2723f89dd3" }
