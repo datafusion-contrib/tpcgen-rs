@@ -89,6 +89,14 @@ pub struct TPCHDate {
     date_index: i32,
 }
 
+impl TPCHDate {
+    /// Appends this date to `buf`, as the [`Display`] impl formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(DATE_TO_STRING[self.date_index as usize].as_bytes());
+    }
+}
+
 impl Display for TPCHDate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         // uses a pre-computed table to avoid recalculating the date

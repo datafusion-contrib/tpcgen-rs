@@ -365,3 +365,66 @@ fn test_lineitem_into_iter() {
         assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
     }
 }
+
+/// Formats a row with its `write_tbl` method, without the trailing newline.
+fn write_tbl_line(write_tbl: impl FnOnce(&mut Vec<u8>)) -> String {
+    let mut buf = Vec::new();
+    write_tbl(&mut buf);
+    assert_eq!(
+        buf.pop(),
+        Some(b'\n'),
+        "write_tbl must end the row with a newline"
+    );
+    String::from_utf8(buf).expect("write_tbl must write UTF-8")
+}
+
+/// Checks that `write_tbl` writes the reference data for every table at the
+/// given scale factor.
+macro_rules! test_write_tbl {
+    ($name:ident, $sf:expr, $dir:literal) => {
+        #[test]
+        fn $name() {
+            let sf = $sf;
+            let path = |table: &str| format!("data/{}/{table}.tbl.gz", $dir);
+            test_generator(
+                NationGenerator::new(sf, 1, 1).iter(),
+                &path("nation"),
+                |r| write_tbl_line(|buf| r.write_tbl(buf)),
+            );
+            test_generator(
+                RegionGenerator::new(sf, 1, 1).iter(),
+                &path("region"),
+                |r| write_tbl_line(|buf| r.write_tbl(buf)),
+            );
+            test_generator(PartGenerator::new(sf, 1, 1).iter(), &path("part"), |r| {
+                write_tbl_line(|buf| r.write_tbl(buf))
+            });
+            test_generator(
+                SupplierGenerator::new(sf, 1, 1).iter(),
+                &path("supplier"),
+                |r| write_tbl_line(|buf| r.write_tbl(buf)),
+            );
+            test_generator(
+                PartSuppGenerator::new(sf, 1, 1).iter(),
+                &path("partsupp"),
+                |r| write_tbl_line(|buf| r.write_tbl(buf)),
+            );
+            test_generator(
+                CustomerGenerator::new(sf, 1, 1).iter(),
+                &path("customer"),
+                |r| write_tbl_line(|buf| r.write_tbl(buf)),
+            );
+            test_generator(OrderGenerator::new(sf, 1, 1).iter(), &path("orders"), |r| {
+                write_tbl_line(|buf| r.write_tbl(buf))
+            });
+            test_generator(
+                LineItemGenerator::new(sf, 1, 1).iter(),
+                &path("lineitem"),
+                |r| write_tbl_line(|buf| r.write_tbl(buf)),
+            );
+        }
+    };
+}
+
+test_write_tbl!(test_write_tbl_sf_0_001, 0.001, "sf-0.001");
+test_write_tbl!(test_write_tbl_sf_0_01, 0.01, "sf-0.01");

@@ -3,6 +3,7 @@ use crate::dates;
 use crate::decimal::TPCHDecimal;
 use crate::distribution::Distribution;
 use crate::distribution::Distributions;
+use crate::fmt_bytes::{push_i64, push_i64_padded};
 use crate::random::RandomPhoneNumber;
 use crate::random::RowRandomInt;
 use crate::random::{PhoneNumberInstance, RandomBoundedLong, StringSequenceInstance};
@@ -103,6 +104,25 @@ impl fmt::Display for Nation<'_> {
     }
 }
 
+impl Nation<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.n_nationkey);
+        buf.push(b'|');
+        buf.extend_from_slice(self.n_name.as_bytes());
+        buf.push(b'|');
+        push_i64(buf, self.n_regionkey);
+        buf.push(b'|');
+        buf.extend_from_slice(self.n_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
+    }
+}
+
 impl<'a> Nation<'a> {
     /// Create a new `nation` record with the specified values.
     pub fn new(n_nationkey: i64, n_name: &'a str, n_regionkey: i64, n_comment: &'a str) -> Self {
@@ -191,6 +211,23 @@ impl fmt::Display for Region<'_> {
             "{}|{}|{}|",
             self.r_regionkey, self.r_name, self.r_comment
         )
+    }
+}
+
+impl Region<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.r_regionkey);
+        buf.push(b'|');
+        buf.extend_from_slice(self.r_name.as_bytes());
+        buf.push(b'|');
+        buf.extend_from_slice(self.r_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 
@@ -324,6 +361,16 @@ impl fmt::Display for PartManufacturerName {
     }
 }
 
+impl PartManufacturerName {
+    /// Appends this name to `buf`, as the [`Display`] impl
+    /// formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(b"Manufacturer#");
+        push_i64_padded(buf, i64::from(self.0), 0);
+    }
+}
+
 /// A Part brand name, formatted as `"Brand#<n>"`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PartBrandName(i32);
@@ -337,6 +384,16 @@ impl PartBrandName {
 impl fmt::Display for PartBrandName {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Brand#{}", self.0)
+    }
+}
+
+impl PartBrandName {
+    /// Appends this name to `buf`, as the [`Display`] impl
+    /// formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(b"Brand#");
+        push_i64_padded(buf, i64::from(self.0), 0);
     }
 }
 
@@ -386,6 +443,35 @@ impl fmt::Display for Part<'_> {
             self.p_retailprice,
             self.p_comment
         )
+    }
+}
+
+impl Part<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.p_partkey);
+        buf.push(b'|');
+        self.p_name.write_to(buf);
+        buf.push(b'|');
+        self.p_mfgr.write_to(buf);
+        buf.push(b'|');
+        self.p_brand.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.p_type.as_bytes());
+        buf.push(b'|');
+        push_i64(buf, i64::from(self.p_size));
+        buf.push(b'|');
+        buf.extend_from_slice(self.p_container.as_bytes());
+        buf.push(b'|');
+        self.p_retailprice.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.p_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 
@@ -616,6 +702,16 @@ impl fmt::Display for SupplierName {
     }
 }
 
+impl SupplierName {
+    /// Appends this name to `buf`, as the [`Display`] impl
+    /// formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(b"Supplier#");
+        push_i64_padded(buf, self.0, 9);
+    }
+}
+
 /// Records for the SUPPLIER table.
 ///
 /// The Display trait is implemented to format the line item data as a string
@@ -656,6 +752,31 @@ impl fmt::Display for Supplier {
             self.s_acctbal,
             self.s_comment
         )
+    }
+}
+
+impl Supplier {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.s_suppkey);
+        buf.push(b'|');
+        self.s_name.write_to(buf);
+        buf.push(b'|');
+        self.s_address.write_to(buf);
+        buf.push(b'|');
+        push_i64(buf, self.s_nationkey);
+        buf.push(b'|');
+        self.s_phone.write_to(buf);
+        buf.push(b'|');
+        self.s_acctbal.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.s_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 
@@ -924,6 +1045,16 @@ impl fmt::Display for CustomerName {
     }
 }
 
+impl CustomerName {
+    /// Appends this name to `buf`, as the [`Display`] impl
+    /// formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(b"Customer#");
+        push_i64_padded(buf, self.0, 9);
+    }
+}
+
 /// The CUSTOMER table
 ///
 /// The Display trait is implemented to format the line item data as a string
@@ -967,6 +1098,33 @@ impl fmt::Display for Customer<'_> {
             self.c_mktsegment,
             self.c_comment
         )
+    }
+}
+
+impl Customer<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.c_custkey);
+        buf.push(b'|');
+        self.c_name.write_to(buf);
+        buf.push(b'|');
+        self.c_address.write_to(buf);
+        buf.push(b'|');
+        push_i64(buf, self.c_nationkey);
+        buf.push(b'|');
+        self.c_phone.write_to(buf);
+        buf.push(b'|');
+        self.c_acctbal.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.c_mktsegment.as_bytes());
+        buf.push(b'|');
+        buf.extend_from_slice(self.c_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 
@@ -1183,6 +1341,27 @@ impl fmt::Display for PartSupp<'_> {
             "{}|{}|{}|{}|{}|",
             self.ps_partkey, self.ps_suppkey, self.ps_availqty, self.ps_supplycost, self.ps_comment
         )
+    }
+}
+
+impl PartSupp<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.ps_partkey);
+        buf.push(b'|');
+        push_i64(buf, self.ps_suppkey);
+        buf.push(b'|');
+        push_i64(buf, i64::from(self.ps_availqty));
+        buf.push(b'|');
+        self.ps_supplycost.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.ps_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 
@@ -1404,6 +1583,16 @@ impl fmt::Display for ClerkName {
     }
 }
 
+impl ClerkName {
+    /// Appends this name to `buf`, as the [`Display`] impl
+    /// formats it.
+    #[inline]
+    pub(crate) fn write_to(&self, buf: &mut Vec<u8>) {
+        buf.extend_from_slice(b"Clerk#");
+        push_i64_padded(buf, i64::from(self.0), 9);
+    }
+}
+
 /// Order status (F=final, O=open, P=pending)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd)]
 pub enum OrderStatus {
@@ -1477,6 +1666,35 @@ impl fmt::Display for Order<'_> {
             self.o_shippriority,
             self.o_comment
         )
+    }
+}
+
+impl Order<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.o_orderkey);
+        buf.push(b'|');
+        push_i64(buf, self.o_custkey);
+        buf.push(b'|');
+        buf.extend_from_slice(self.o_orderstatus.as_str().as_bytes());
+        buf.push(b'|');
+        self.o_totalprice.write_to(buf);
+        buf.push(b'|');
+        self.o_orderdate.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.o_orderpriority.as_bytes());
+        buf.push(b'|');
+        self.o_clerk.write_to(buf);
+        buf.push(b'|');
+        push_i64(buf, i64::from(self.o_shippriority));
+        buf.push(b'|');
+        buf.extend_from_slice(self.o_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 
@@ -1846,6 +2064,49 @@ impl fmt::Display for LineItem<'_> {
             self.l_shipmode,
             self.l_comment
         )
+    }
+}
+
+impl LineItem<'_> {
+    /// Appends this row to `buf` in TPC-H 'tbl' format, followed by a
+    /// newline.
+    ///
+    /// The row text is the same as the [`Display`] output, but
+    /// this is much faster than `writeln!(buf, "{row}")`.
+    pub fn write_tbl(&self, buf: &mut Vec<u8>) {
+        push_i64(buf, self.l_orderkey);
+        buf.push(b'|');
+        push_i64(buf, self.l_partkey);
+        buf.push(b'|');
+        push_i64(buf, self.l_suppkey);
+        buf.push(b'|');
+        push_i64(buf, i64::from(self.l_linenumber));
+        buf.push(b'|');
+        push_i64(buf, self.l_quantity);
+        buf.push(b'|');
+        self.l_extendedprice.write_to(buf);
+        buf.push(b'|');
+        self.l_discount.write_to(buf);
+        buf.push(b'|');
+        self.l_tax.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.l_returnflag.as_bytes());
+        buf.push(b'|');
+        buf.extend_from_slice(self.l_linestatus.as_bytes());
+        buf.push(b'|');
+        self.l_shipdate.write_to(buf);
+        buf.push(b'|');
+        self.l_commitdate.write_to(buf);
+        buf.push(b'|');
+        self.l_receiptdate.write_to(buf);
+        buf.push(b'|');
+        buf.extend_from_slice(self.l_shipinstruct.as_bytes());
+        buf.push(b'|');
+        buf.extend_from_slice(self.l_shipmode.as_bytes());
+        buf.push(b'|');
+        buf.extend_from_slice(self.l_comment.as_bytes());
+        buf.push(b'|');
+        buf.push(b'\n');
     }
 }
 

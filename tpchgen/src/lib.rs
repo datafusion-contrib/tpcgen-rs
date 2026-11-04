@@ -63,6 +63,7 @@ pub mod csv;
 pub mod dates;
 pub mod decimal;
 pub mod distribution;
+mod fmt_bytes;
 pub mod generators;
 pub mod q_and_a;
 pub mod random;
