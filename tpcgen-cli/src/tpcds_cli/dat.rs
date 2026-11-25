@@ -33,6 +33,8 @@ pub(super) struct Dat {
     pub(super) compat_mode: CompatMode,
     /// Target size of each generated buffer
     pub(super) chunk_size_bytes: i64,
+    /// Keep the trailing `|` after the last field of each row
+    pub(super) trailing_delimiter: bool,
 }
 
 impl Dat {
@@ -40,11 +42,13 @@ impl Dat {
         base_location: OutputLocation,
         compat_mode: CompatMode,
         chunk_size_bytes: i64,
+        trailing_delimiter: bool,
     ) -> Result<Self> {
         Ok(Self {
             base_location,
             compat_mode,
             chunk_size_bytes,
+            trailing_delimiter,
         })
     }
 }
@@ -55,11 +59,20 @@ macro_rules! define_dat_source {
         pub(super) struct $SOURCE_NAME {
             rows: $ROWS,
             compat_mode: CompatMode,
+            trailing_delimiter: bool,
         }
 
         impl $SOURCE_NAME {
-            pub(super) fn new(rows: $ROWS, compat_mode: CompatMode) -> Self {
-                Self { rows, compat_mode }
+            pub(super) fn new(
+                rows: $ROWS,
+                compat_mode: CompatMode,
+                trailing_delimiter: bool,
+            ) -> Self {
+                Self {
+                    rows,
+                    compat_mode,
+                    trailing_delimiter,
+                }
             }
         }
 
@@ -70,7 +83,8 @@ macro_rules! define_dat_source {
             }
 
             fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
-                let mut writer = DatWriter::new(&mut buffer, self.compat_mode);
+                let mut writer = DatWriter::new(&mut buffer, self.compat_mode)
+                    .with_trailing_delimiter(self.trailing_delimiter);
                 for row in self.rows {
                     // Writing to memory cannot fail, and every generated value is
                     // representable in the output encoding (the distributions the

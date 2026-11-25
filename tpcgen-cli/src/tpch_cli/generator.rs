@@ -1,4 +1,4 @@
-use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
+use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions, TextWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
 use crate::output_location::OutputLocation;
@@ -179,6 +179,9 @@ pub struct GeneratorConfig {
     pub overwrite: bool,
     /// CSV delimiter character (only applies to CSV format)
     pub csv_delimiter: char,
+    /// Keep the trailing `|` after the last field of each row (only applies to
+    /// TBL format)
+    pub tbl_trailing_delimiter: bool,
 }
 
 impl Default for GeneratorConfig {
@@ -198,6 +201,7 @@ impl Default for GeneratorConfig {
             stdout: false,
             overwrite: false,
             csv_delimiter: ',',
+            tbl_trailing_delimiter: true,
         }
     }
 }
@@ -279,7 +283,10 @@ impl TpchGenerator {
         }
 
         match config.format {
-            OutputFormat::Tbl => {}
+            OutputFormat::Tbl => info!(
+                "TBL settings: trailing-delimiter={}",
+                config.tbl_trailing_delimiter
+            ),
             OutputFormat::Csv => info!("CSV settings: delimiter={:?}", config.csv_delimiter),
             OutputFormat::Parquet => info!(
                 "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
@@ -298,7 +305,10 @@ impl TpchGenerator {
             },
             config.parquet_row_group_bytes,
             base_location.clone(),
-            config.csv_delimiter,
+            TextWriterOptions {
+                csv_delimiter: config.csv_delimiter,
+                tbl_trailing_delimiter: config.tbl_trailing_delimiter,
+            },
         );
 
         for table in tables {
@@ -430,6 +440,15 @@ impl TpchGeneratorBuilder {
     /// Set the CSV delimiter character (only applies to CSV format, default: ',').
     pub fn with_csv_delimiter(mut self, delimiter: char) -> Self {
         self.config.csv_delimiter = delimiter;
+        self
+    }
+
+    /// Keep the trailing `|` after the last field of each TBL row (only applies
+    /// to TBL format, default: true).
+    ///
+    /// Pass `false` to match `dbgen` built with `-DEOL_HANDLING`.
+    pub fn with_tbl_trailing_delimiter(mut self, trailing_delimiter: bool) -> Self {
+        self.config.tbl_trailing_delimiter = trailing_delimiter;
         self
     }
 

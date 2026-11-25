@@ -186,7 +186,7 @@ pub(crate) fn assert_format_options_have_logging_policy(
     for subcommand in commands.get_subcommands() {
         let name = subcommand.get_name();
         let (logged, omitted): (&[&str], &[&str]) = match name {
-            "tbl" | "dat" => (&[], &[]),
+            "tbl" | "dat" => (&["no_trailing_delimiter"], &[]),
             "csv" => (&["delimiter"], &[]),
             // Per-column overrides and field IDs are too detailed for the info-level summary.
             "parquet" => (

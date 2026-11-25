@@ -1,7 +1,7 @@
 use super::test_helpers::{
-    assert_flags_under_help_heading, assert_overwrites_existing_file,
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes,
-    expect_sequential_field_ids, RowGroups,
+    assert_flags_under_help_heading, assert_no_trailing_delimiter_drops_one_pipe,
+    assert_overwrites_existing_file, assert_stdout_matches_file_output, expect_column_encoding,
+    expect_row_group_sizes, expect_sequential_field_ids, RowGroups,
 };
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
@@ -1846,6 +1846,7 @@ fn test_tpcgen_cli_tpcds_help_groups_format_specific_options() {
             &["--compression", "--row-group-bytes", "--column-encoding"],
         ),
         ("csv", "CSV Options", &["--delimiter"]),
+        ("dat", "DAT Options", &["--no-trailing-delimiter"]),
     ];
     for (format, heading, flags) in cases {
         for help_flag in ["-h", "--help"] {
@@ -1856,5 +1857,82 @@ fn test_tpcgen_cli_tpcds_help_groups_format_specific_options() {
             let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
             assert_flags_under_help_heading(&stdout, heading, flags);
         }
+    }
+}
+
+/// `--no-trailing-delimiter` drops exactly one `|` per DAT row and the default
+/// output keeps it, for both `tpcds dat` and the default-format `tpcds` form.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_no_trailing_delimiter() {
+    for table in ["call_center", "time_dim", "income_band"] {
+        for prefix in [&["tpcds", "dat"][..], &["tpcds"][..]] {
+            let mut args = prefix.to_vec();
+            args.extend(["-s", "1", "--compat", "c", "-T", table]);
+            assert_no_trailing_delimiter_drops_one_pipe(&args);
+        }
+    }
+}
+
+/// A NULL (empty) last field keeps the delimiter that precedes it: `a||`
+/// becomes `a|`, matching `dsdgen -terminate N`.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_no_trailing_delimiter_keeps_null_last_field_delimiter() {
+    let default = assert_no_trailing_delimiter_drops_one_pipe(&[
+        "tpcds", "dat", "-s", "1", "--compat", "c", "-T", "time_dim",
+    ]);
+    // Most time_dim rows end with an empty last column (meal_time), so they end in `||`.
+    let null_last: Vec<&Vec<u8>> = default.iter().filter(|row| row.ends_with(b"||")).collect();
+    assert!(!null_last.is_empty());
+
+    let flagged = cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpcds",
+            "dat",
+            "-s",
+            "1",
+            "-T",
+            "time_dim",
+            "--no-trailing-delimiter",
+        ])
+        .arg("--stdout")
+        .arg("--quiet")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let flagged_lines: Vec<&[u8]> = flagged[..flagged.len() - 1]
+        .split(|b| *b == b'\n')
+        .collect();
+    for (d, f) in default.iter().zip(flagged_lines) {
+        if d.ends_with(b"||") {
+            assert!(f.ends_with(b"|") && !f.ends_with(b"||"));
+        }
+    }
+}
+
+/// Trino compatibility output (ISO-8859-1) also drops exactly one `|`.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_no_trailing_delimiter_trino() {
+    assert_no_trailing_delimiter_drops_one_pipe(&[
+        "tpcds",
+        "dat",
+        "-s",
+        "1",
+        "--compat",
+        "trino",
+        "-T",
+        "customer_address",
+    ]);
+}
+
+/// `--no-trailing-delimiter` is a DAT option, not a CSV or Parquet option.
+#[test]
+fn test_tpcgen_cli_tpcds_no_trailing_delimiter_rejected_for_other_formats() {
+    for format in ["csv", "parquet"] {
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(["tpcds", format, "--no-trailing-delimiter"])
+            .assert()
+            .failure();
     }
 }

@@ -30,6 +30,24 @@ impl Default for ParquetWriterOptions {
     }
 }
 
+/// Delimiter settings applied when generating TBL or CSV output.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TextWriterOptions {
+    /// CSV delimiter character
+    pub csv_delimiter: char,
+    /// Whether TBL rows keep the trailing `|` after the last field
+    pub tbl_trailing_delimiter: bool,
+}
+
+impl Default for TextWriterOptions {
+    fn default() -> Self {
+        Self {
+            csv_delimiter: ',',
+            tbl_trailing_delimiter: true,
+        }
+    }
+}
+
 /// Describes an output partition (file) that will be generated
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputPlan {
@@ -45,8 +63,8 @@ pub struct OutputPlan {
     output_location: OutputLocation,
     /// Plan for generating the table
     generation_plan: GenerationPlan,
-    /// CSV delimiter character
-    csv_delimiter: char,
+    /// TBL and CSV delimiter settings
+    text: TextWriterOptions,
 }
 
 impl OutputPlan {
@@ -57,7 +75,7 @@ impl OutputPlan {
         parquet: ParquetWriterOptions,
         output_location: OutputLocation,
         generation_plan: GenerationPlan,
-        csv_delimiter: char,
+        text: TextWriterOptions,
     ) -> Self {
         Self {
             table,
@@ -66,7 +84,7 @@ impl OutputPlan {
             parquet,
             output_location,
             generation_plan,
-            csv_delimiter,
+            text,
         }
     }
 
@@ -117,7 +135,12 @@ impl OutputPlan {
 
     /// Return the CSV delimiter character for this partition
     pub fn csv_delimiter(&self) -> char {
-        self.csv_delimiter
+        self.text.csv_delimiter
+    }
+
+    /// Return whether TBL rows keep the trailing `|` for this partition
+    pub fn tbl_trailing_delimiter(&self) -> bool {
+        self.text.tbl_trailing_delimiter
     }
 }
 
@@ -143,7 +166,7 @@ pub struct OutputPlanGenerator {
     parquet_row_group_bytes: i64,
     /// Where output is written
     base_location: OutputLocation,
-    csv_delimiter: char,
+    text: TextWriterOptions,
     /// The generated output plans
     output_plans: Vec<OutputPlan>,
     /// Output directories that have been created so far
@@ -158,7 +181,7 @@ impl OutputPlanGenerator {
         parquet: ParquetWriterOptions,
         parquet_row_group_bytes: i64,
         base_location: OutputLocation,
-        csv_delimiter: char,
+        text: TextWriterOptions,
     ) -> Self {
         Self {
             format,
@@ -166,7 +189,7 @@ impl OutputPlanGenerator {
             parquet,
             parquet_row_group_bytes,
             base_location,
-            csv_delimiter,
+            text,
             output_plans: Vec::new(),
             created_directories: HashSet::new(),
         }
@@ -227,7 +250,7 @@ impl OutputPlanGenerator {
             self.parquet.clone(),
             output_location,
             generation_plan,
-            self.csv_delimiter,
+            self.text,
         );
 
         self.output_plans.push(plan);

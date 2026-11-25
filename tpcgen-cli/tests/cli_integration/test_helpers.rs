@@ -331,3 +331,56 @@ pub fn assert_flags_under_help_heading(help: &str, heading: &str, flags: &[&str]
         );
     }
 }
+
+/// Run `tpcgen-cli` with `args` and return its stdout, requiring success.
+fn stdout_of(args: &[&str]) -> Vec<u8> {
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(args)
+        .arg("--stdout")
+        .arg("--quiet")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone()
+}
+
+/// Generate the same table with and without `--no-trailing-delimiter` and
+/// check that the flag removes exactly one final `|` from every row and
+/// changes nothing else. `args` selects the command, scale factor, and a
+/// single table (a single table keeps `--stdout` output deterministic).
+///
+/// Returns the default (flag absent) output lines, without newlines.
+pub(crate) fn assert_no_trailing_delimiter_drops_one_pipe(args: &[&str]) -> Vec<Vec<u8>> {
+    let default = stdout_of(args);
+    let mut flagged_args = args.to_vec();
+    flagged_args.push("--no-trailing-delimiter");
+    let flagged = stdout_of(&flagged_args);
+
+    assert!(
+        default.ends_with(b"\n"),
+        "default output ends with a newline"
+    );
+    assert!(
+        flagged.ends_with(b"\n"),
+        "flagged output ends with a newline"
+    );
+    let default_lines: Vec<&[u8]> = default[..default.len() - 1]
+        .split(|b| *b == b'\n')
+        .collect();
+    let flagged_lines: Vec<&[u8]> = flagged[..flagged.len() - 1]
+        .split(|b| *b == b'\n')
+        .collect();
+    assert!(!default_lines.is_empty());
+    assert_eq!(
+        default_lines.len(),
+        flagged_lines.len(),
+        "row count differs"
+    );
+    for (i, (d, f)) in default_lines.iter().zip(&flagged_lines).enumerate() {
+        let (last, rest) = d.split_last().expect("row is not empty");
+        assert_eq!(*last, b'|', "default row {i} should end with `|`");
+        assert_eq!(*f, rest, "row {i} should differ by exactly one final `|`");
+    }
+    default_lines.into_iter().map(<[u8]>::to_vec).collect()
+}
