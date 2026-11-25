@@ -157,8 +157,13 @@ macro_rules! define_run {
             match format {
                 OutputFormat::Dat(dat) => {
                     let compat_mode = dat.compat_mode;
+                    let trailing_delimiter = dat.trailing_delimiter;
                     let sources = planned.chunks().map(move |(session, source_rows, range)| {
-                        <$DAT_SOURCE>::new(rows(session, source_rows, range), compat_mode)
+                        <$DAT_SOURCE>::new(
+                            rows(session, source_rows, range),
+                            compat_mode,
+                            trailing_delimiter,
+                        )
                     });
                     write_text(&dat.base_location, "dat", planned, num_threads, sources).await
                 }

@@ -53,6 +53,13 @@ tpcgen-cli tpch parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA
 # TPC-DS Scale Factor 1, all tables, in CSV format in the `/tmp/tpcds` directory
 # Note: `tpcgen-cli tpcds` with no format writes `dat` (pipe-delimited) files
 tpcgen-cli tpcds csv -s 1 --output-dir /tmp/tpcds
+
+# TPC-H `tbl` and TPC-DS `dat` rows end with a `|` after the last field.
+# `--no-trailing-delimiter` omits it (output matches `dbgen` built with
+# -DEOL_HANDLING and `dsdgen -terminate N`). A TPC-DS row whose last field is
+# NULL keeps the delimiter before it: `a||` becomes `a|`.
+tpcgen-cli tpch tbl -s 1 --no-trailing-delimiter --output-dir /tmp/tpch
+tpcgen-cli tpcds dat -s 1 --no-trailing-delimiter --output-dir /tmp/tpcds
 ```
 
 ## Performance

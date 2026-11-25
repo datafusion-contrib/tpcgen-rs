@@ -110,7 +110,15 @@ Examples:
 }
 
 #[derive(Args)]
+#[command(next_help_heading = "DAT Options")]
 struct DatArgs {
+    /// Omit the trailing '|' after the last field of each row
+    ///
+    /// Matches `dsdgen -terminate N`. A row whose last field is NULL still ends
+    /// with the delimiter that precedes it.
+    #[arg(long, default_value_t = false)]
+    no_trailing_delimiter: bool,
+
     #[command(flatten)]
     common: CommonArgs,
 }
@@ -277,7 +285,7 @@ impl Cli {
 
 impl DatArgs {
     async fn run(self) -> Result<()> {
-        self.common.run_dat().await
+        self.common.run_dat(!self.no_trailing_delimiter).await
     }
 }
 
@@ -301,11 +309,12 @@ impl ParquetArgs {
 }
 
 impl CommonArgs {
-    async fn run_dat(self) -> Result<()> {
+    async fn run_dat(self, trailing_delimiter: bool) -> Result<()> {
         let output = Dat::new(
             self.base_location()?,
             self.compat,
             DEFAULT_TEXT_CHUNK_SIZE_BYTES,
+            trailing_delimiter,
         )?;
         let output_format = OutputFormat::Dat(output);
         self.run_output(output_format).await
@@ -377,7 +386,12 @@ impl CommonArgs {
             tables.len()
         );
         match &output_format {
-            OutputFormat::Dat(_) => {}
+            OutputFormat::Dat(output) => {
+                info!(
+                    "DAT settings: trailing-delimiter={}",
+                    output.trailing_delimiter
+                )
+            }
             OutputFormat::Csv(output) => info!("CSV settings: delimiter={:?}", output.delimiter),
             OutputFormat::Parquet(output) => info!(
                 "Parquet settings: compression={}, row-group target={} bytes (uncompressed)",
@@ -596,7 +610,7 @@ mod tests {
             Cli::augment_args(clap::Command::new("tpcds")),
             CommonArgs::augment_args(clap::Command::new("common")),
             |format| match format {
-                "dat" => "DAT Options",
+                "tpcds" | "dat" => "DAT Options",
                 "csv" => "CSV Options",
                 "parquet" => "Parquet Options",
                 other => panic!("add a help heading for `{other}` options"),

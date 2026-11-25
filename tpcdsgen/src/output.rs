@@ -65,6 +65,8 @@ pub struct DatWriter<W: Write> {
     compat_mode: CompatMode,
     /// Pending formatted rows (UTF-8).
     buffer: Vec<u8>,
+    /// Keep the separator that follows the last field of each row.
+    trailing_delimiter: bool,
 }
 
 impl<W: Write> DatWriter<W> {
@@ -77,13 +79,32 @@ impl<W: Write> DatWriter<W> {
             inner,
             compat_mode,
             buffer: Vec::with_capacity(Self::FLUSH_THRESHOLD + 1024),
+            trailing_delimiter: true,
         }
+    }
+
+    /// Choose whether each row keeps the separator after its last field
+    /// (default: `true`, matching the reference generators' default output).
+    ///
+    /// With `false`, exactly one final `|` is removed from every row, matching
+    /// `dsdgen -terminate N`. A NULL last field is empty, so the row `a||`
+    /// becomes `a|`.
+    pub fn with_trailing_delimiter(mut self, trailing_delimiter: bool) -> Self {
+        self.trailing_delimiter = trailing_delimiter;
+        self
     }
 
     /// Write one row whose `Display` impl emits the DAT line (fields joined
     /// by the separator, with a trailing separator); appends the newline.
+    ///
+    /// The trailing separator is dropped if
+    /// [`with_trailing_delimiter(false)`](Self::with_trailing_delimiter) was set.
     pub fn write_display_row(&mut self, row: &impl fmt::Display) -> io::Result<()> {
-        writeln!(self.buffer, "{row}")?;
+        write!(self.buffer, "{row}")?;
+        if !self.trailing_delimiter && self.buffer.last() == Some(&b'|') {
+            self.buffer.pop();
+        }
+        self.buffer.push(b'\n');
         self.maybe_flush()
     }
 
@@ -177,6 +198,23 @@ mod tests {
         writer.write_display_row(&TestRow).unwrap();
         writer.flush().unwrap();
         assert_eq!(out, "1|CÔTE|2.50|\n".as_bytes());
+    }
+
+    #[test]
+    fn test_dat_writer_no_trailing_delimiter_removes_one_pipe() {
+        struct NullLastRow;
+        impl std::fmt::Display for NullLastRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "a||")
+            }
+        }
+
+        let mut out = Vec::new();
+        let mut writer = DatWriter::new(&mut out, CompatMode::C).with_trailing_delimiter(false);
+        writer.write_display_row(&TestRow).unwrap();
+        writer.write_display_row(&NullLastRow).unwrap();
+        writer.flush().unwrap();
+        assert_eq!(out, "1|CÔTE|2.50\na|\n".as_bytes());
     }
 
     #[test]

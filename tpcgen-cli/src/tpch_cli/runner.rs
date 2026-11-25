@@ -229,12 +229,13 @@ macro_rules! define_run {
             fn tbl_sources(
                 generation_plan: &GenerationPlan,
                 scale_factor: f64,
+                trailing_delimiter: bool,
             ) -> impl Iterator<Item: Source> + 'static {
                 generation_plan
                     .clone()
                     .into_iter()
                     .map(move |(part, num_parts)| $GENERATOR::new(scale_factor, part, num_parts))
-                    .map(<$TBL_SOURCE>::new)
+                    .map(move |gen| <$TBL_SOURCE>::new(gen, trailing_delimiter))
             }
 
             fn csv_sources(
@@ -263,7 +264,9 @@ macro_rules! define_run {
             // Dispatch to the appropriate output format
             match plan.output_format() {
                 OutputFormat::Tbl => {
-                    let gens = tbl_sources(plan.generation_plan(), scale_factor);
+                    let trailing_delimiter = plan.tbl_trailing_delimiter();
+                    let gens =
+                        tbl_sources(plan.generation_plan(), scale_factor, trailing_delimiter);
                     write_file(plan, num_threads, gens, progress).await?
                 }
                 OutputFormat::Csv => {
@@ -349,7 +352,7 @@ mod tests {
     use super::*;
     use crate::output_location::OutputLocation;
     use crate::progress::ProgressTracker;
-    use crate::tpch_cli::output_plan::ParquetWriterOptions;
+    use crate::tpch_cli::output_plan::{ParquetWriterOptions, TextWriterOptions};
     use crate::tpch_cli::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
@@ -394,7 +397,7 @@ mod tests {
                 overwrite: false,
             },
             generation_plan,
-            ',',
+            TextWriterOptions::default(),
         );
         let expected_units = plan.chunk_count() as u64;
         assert!(expected_units > 1);

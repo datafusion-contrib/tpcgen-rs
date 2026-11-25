@@ -33,7 +33,7 @@ pub struct Cli {
     command: Option<Commands>,
 
     #[command(flatten)]
-    args: CommonArgs,
+    args: TblArgs,
 }
 
 /// `--help` text with examples that invoke `bin` (`tpchgen-cli` or
@@ -230,7 +230,14 @@ impl CommonArgs {
 }
 
 #[derive(clap::Args)]
+#[command(next_help_heading = "TBL Options")]
 struct TblArgs {
+    /// Omit the trailing '|' after the last field of each row
+    ///
+    /// Matches `dbgen` built with `-DEOL_HANDLING`.
+    #[arg(long, default_value_t = false)]
+    no_trailing_delimiter: bool,
+
     #[command(flatten)]
     common: CommonArgs,
 }
@@ -377,11 +384,7 @@ impl Cli {
 
     /// Generate TBL output when no output-format subcommand is specified.
     async fn run_default(self) -> io::Result<()> {
-        self.args
-            .builder(OutputFormat::Tbl)?
-            .build()
-            .generate()
-            .await
+        self.args.run().await
     }
 }
 
@@ -389,6 +392,7 @@ impl TblArgs {
     async fn run(self) -> io::Result<()> {
         self.common
             .builder(OutputFormat::Tbl)?
+            .with_tbl_trailing_delimiter(!self.no_trailing_delimiter)
             .build()
             .generate()
             .await
@@ -440,7 +444,7 @@ mod tests {
             Cli::augment_args(clap::Command::new("tpch")),
             CommonArgs::augment_args(clap::Command::new("common")),
             |format| match format {
-                "tbl" => "TBL Options",
+                "tpch" | "tbl" => "TBL Options",
                 "csv" => "CSV Options",
                 "parquet" => "Parquet Options",
                 other => panic!("add a help heading for `{other}` options"),

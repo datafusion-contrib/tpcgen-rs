@@ -12,11 +12,16 @@ macro_rules! define_tbl_source {
     ($SOURCE_NAME:ident, $GENERATOR_TYPE:ty) => {
         pub struct $SOURCE_NAME {
             inner: $GENERATOR_TYPE,
+            /// Whether each row keeps the trailing `|` that follows its last field
+            trailing_delimiter: bool,
         }
 
         impl $SOURCE_NAME {
-            pub fn new(inner: $GENERATOR_TYPE) -> Self {
-                Self { inner }
+            pub fn new(inner: $GENERATOR_TYPE, trailing_delimiter: bool) -> Self {
+                Self {
+                    inner,
+                    trailing_delimiter,
+                }
             }
         }
 
@@ -28,8 +33,16 @@ macro_rules! define_tbl_source {
 
             fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
                 for item in self.inner.iter() {
-                    // The default Display impl writes TBL format
-                    writeln!(&mut buffer, "{item}").expect("writing to memory is infallible");
+                    // The default Display impl writes TBL format, which ends
+                    // each row with `|`
+                    write!(&mut buffer, "{item}").expect("writing to memory is infallible");
+                    if !self.trailing_delimiter {
+                        // Remove exactly one final delimiter
+                        if buffer.last() == Some(&b'|') {
+                            buffer.pop();
+                        }
+                    }
+                    buffer.push(b'\n');
                 }
                 buffer
             }

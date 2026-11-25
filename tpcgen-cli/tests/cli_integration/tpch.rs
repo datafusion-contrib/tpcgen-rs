@@ -1,7 +1,7 @@
 use super::test_helpers::{
-    assert_flags_under_help_heading, assert_overwrites_existing_file,
-    assert_stdout_matches_file_output, expect_column_encoding, expect_row_group_sizes,
-    expect_sequential_field_ids, RowGroups,
+    assert_flags_under_help_heading, assert_no_trailing_delimiter_drops_one_pipe,
+    assert_overwrites_existing_file, assert_stdout_matches_file_output, expect_column_encoding,
+    expect_row_group_sizes, expect_sequential_field_ids, RowGroups,
 };
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
@@ -1331,6 +1331,7 @@ fn test_tpcgen_cli_tpch_help_groups_format_specific_options() {
             &["--compression", "--row-group-bytes", "--column-encoding"],
         ),
         ("csv", "CSV Options", &["--delimiter"]),
+        ("tbl", "TBL Options", &["--no-trailing-delimiter"]),
     ];
     for (format, heading, flags) in cases {
         for help_flag in ["-h", "--help"] {
@@ -1342,4 +1343,71 @@ fn test_tpcgen_cli_tpch_help_groups_format_specific_options() {
             assert_flags_under_help_heading(&stdout, heading, flags);
         }
     }
+}
+
+/// `--no-trailing-delimiter` drops exactly one `|` per TBL row and the default
+/// output keeps it, for both `tpch tbl` and the default-format `tpch` form.
+#[test]
+fn test_tpcgen_cli_tpch_tbl_no_trailing_delimiter() {
+    for (prefix, table) in [
+        (&["tpch", "tbl"][..], "region"),
+        (&["tpch", "tbl"][..], "lineitem"),
+        (&["tpch"][..], "nation"),
+    ] {
+        let mut args = prefix.to_vec();
+        args.extend(["-s", "0.001", "-T", table]);
+        assert_no_trailing_delimiter_drops_one_pipe(&args);
+    }
+}
+
+/// The default TBL output still ends every row with `|`.
+#[test]
+fn test_tpcgen_cli_tpch_tbl_default_keeps_trailing_delimiter() {
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpch", "tbl", "-s", "0.001", "-T", "region", "--stdout", "--quiet",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8(output).unwrap();
+    assert_eq!(text.lines().count(), 5);
+    assert!(text.lines().all(|line| line.ends_with('|')));
+}
+
+/// `--no-trailing-delimiter` is a TBL option, not a CSV or Parquet option.
+#[test]
+fn test_tpcgen_cli_tpch_no_trailing_delimiter_rejected_for_other_formats() {
+    for format in ["csv", "parquet"] {
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(["tpch", format, "--no-trailing-delimiter"])
+            .assert()
+            .failure();
+    }
+}
+
+/// With `--no-trailing-delimiter` and `--output-dir`, the file contents match
+/// the `--stdout` contents.
+#[test]
+fn test_tpcgen_cli_tpch_tbl_no_trailing_delimiter_file_output() {
+    let temp_dir = tempdir().unwrap();
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpch",
+            "tbl",
+            "-s",
+            "0.001",
+            "-T",
+            "nation",
+            "--no-trailing-delimiter",
+        ])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+    let file = fs::read_to_string(temp_dir.path().join("nation.tbl")).unwrap();
+    assert_eq!(file.lines().count(), 25);
+    assert!(file.lines().all(|line| !line.ends_with('|')));
 }
