@@ -49,6 +49,24 @@ impl Scaling {
         scaling
     }
 
+    /// Replace the row counts of the given tables.
+    ///
+    /// Every other table keeps the count computed for this scale, except
+    /// `Inventory`, which is recomputed from the (possibly overridden) item
+    /// and warehouse counts unless it is overridden itself. Id counts and the
+    /// foreign key ranges derived from row counts follow the overrides.
+    pub fn with_row_counts(mut self, overrides: impl IntoIterator<Item = (Table, u64)>) -> Self {
+        let mut inventory_overridden = false;
+        for (table, rows) in overrides {
+            inventory_overridden |= table == Table::Inventory;
+            self.row_counts[table as usize] = rows;
+        }
+        if !inventory_overridden {
+            self.row_counts[Table::Inventory as usize] = self.scale_inventory();
+        }
+        self
+    }
+
     pub fn get_scale(&self) -> f64 {
         self.scale
     }
@@ -212,6 +230,16 @@ mod tests {
         let item_ids = scaling.get_id_count(Table::Item);
         let item_rows = scaling.get_row_count(Table::Item);
         assert!(item_ids <= item_rows);
+    }
+
+    #[test]
+    fn test_row_count_overrides() {
+        let scaling =
+            Scaling::new(1.0).with_row_counts([(Table::Item, 180), (Table::Warehouse, 1)]);
+        assert_eq!(scaling.get_row_count(Table::Item), 180);
+        assert_eq!(scaling.get_id_count(Table::Item), 90);
+        assert_eq!(scaling.get_row_count(Table::Customer), 100_000);
+        assert_eq!(scaling.get_row_count(Table::Inventory), 90 * 261);
     }
 
     #[test]

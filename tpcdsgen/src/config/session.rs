@@ -95,6 +95,7 @@ impl Session {
     pub fn into_builder(self) -> SessionBuilder {
         SessionBuilder {
             scale: self.scaling.get_scale(),
+            scaling: Some(self.scaling),
             table: self.table,
             no_sexism: self.no_sexism,
             chunk_number: self.chunk_number,
@@ -183,6 +184,7 @@ impl Session {
 #[derive(Debug, Clone)]
 pub struct SessionBuilder {
     scale: f64,
+    scaling: Option<Scaling>,
     table: Option<Table>,
     no_sexism: bool,
     chunk_number: i32,
@@ -196,6 +198,7 @@ impl Default for SessionBuilder {
     fn default() -> Self {
         Self {
             scale: Session::DEFAULT_SCALE,
+            scaling: None,
             table: None,
             no_sexism: Session::DEFAULT_NO_SEXISM,
             chunk_number: Session::DEFAULT_CHUNK_NUMBER,
@@ -213,9 +216,25 @@ impl SessionBuilder {
         Self::default()
     }
 
+    /// Use `scaling` for every row count and id count the generators consult,
+    /// instead of the model derived from the scale factor.
+    ///
+    /// This allows non-standard scaling models, for example sub-scale-factor-1
+    /// data sets whose dimension tables shrink differently from the built-in
+    /// model. The session's scale factor and compatibility mode are taken from
+    /// `scaling`; a later [`Self::with_scale_factor`] or
+    /// [`Self::with_compat_mode`] discards it.
+    pub fn with_scaling(mut self, scaling: Scaling) -> Self {
+        self.scale = scaling.get_scale();
+        self.compat_mode = scaling.get_compat_mode();
+        self.scaling = Some(scaling);
+        self
+    }
+
     /// Set the scale factor to generate.
     pub fn with_scale_factor(mut self, scale: f64) -> Self {
         self.scale = scale;
+        self.scaling = None;
         self
     }
 
@@ -258,6 +277,7 @@ impl SessionBuilder {
     /// Set the reference implementation compatibility mode.
     pub fn with_compat_mode(mut self, compat_mode: CompatMode) -> Self {
         self.compat_mode = compat_mode;
+        self.scaling = None;
         self
     }
 
@@ -281,7 +301,9 @@ impl SessionBuilder {
         self.validate()?;
 
         Ok(Session {
-            scaling: Scaling::new_with_compat(self.scale, self.compat_mode),
+            scaling: self
+                .scaling
+                .unwrap_or_else(|| Scaling::new_with_compat(self.scale, self.compat_mode)),
             table: self.table,
             no_sexism: self.no_sexism,
             chunk_number: self.chunk_number,
@@ -684,5 +706,26 @@ mod tests {
                 "Row ranges for table {table:?} do not match expected"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod scaling_override_tests {
+    use super::*;
+
+    #[test]
+    fn with_scaling_replaces_the_derived_model() {
+        let scaling = Scaling::new(0.5).with_row_counts([(Table::Item, 90)]);
+        let session = SessionBuilder::new().with_scaling(scaling).build().unwrap();
+        assert_eq!(session.get_scaling().get_scale(), 0.5);
+        assert_eq!(session.get_scaling().get_row_count(Table::Item), 90);
+        let rebuilt = session.into_builder().build().unwrap();
+        assert_eq!(rebuilt.get_scaling().get_row_count(Table::Item), 90);
+        let reset = SessionBuilder::new()
+            .with_scaling(Scaling::new(0.5).with_row_counts([(Table::Item, 90)]))
+            .with_scale_factor(0.5)
+            .build()
+            .unwrap();
+        assert_ne!(reset.get_scaling().get_row_count(Table::Item), 90);
     }
 }
